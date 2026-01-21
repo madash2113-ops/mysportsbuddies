@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // 🎯 Core brand colors (from your Figma)
+  // 🌑 Backgrounds
   static const Color background = Color(0xFF000000); // Pure black
-  static const Color card = Color(0xFF1A1A1A);        // Dark gray
-  static const Color primary = Color(0xFFE10600);     // Bold red
+  static const Color card = Color(0xFF1A1A1A);       // Dark gray cards
 
-  // Text
-  static const Color textPrimary = Colors.white;
+  // 🔴 Brand
+  static const Color primary = Color(0xFFE10600);    // Red accent
+
+  // ⚪ Text
+  static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textMuted = Color(0xFF999999);
 
-  // Borders
+  // 🟦 Borders / dividers
   static const Color border = Color.fromRGBO(255, 255, 255, 0.1);
 }

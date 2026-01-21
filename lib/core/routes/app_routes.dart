@@ -8,6 +8,7 @@ import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/phone_login_screen.dart';
 import '../../screens/auth/email_login_screen.dart';
 import '../../screens/auth/register_user_screen.dart';
+import '../../screens/auth/otp_screen.dart';
 
 // Home
 import '../../screens/home/home_screen.dart';
@@ -22,6 +23,8 @@ class AppRoutes {
     '/phone-login': (context) => const PhoneLoginScreen(),
     '/email-login': (context) => const EmailLoginScreen(),
     '/register-user': (context) => const RegisterUserScreen(),
+    '/otp': (context) => const OtpScreen(),
+
 
     // 🏠 Main App
     '/home': (context) => const HomeScreen(),
