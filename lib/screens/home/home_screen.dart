@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../features/common/sport_action_sheet.dart';
+import '../sports/all_sports_screen.dart';
+import '../../features/common/app_drawer.dart';
+import '../profile/edit_profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -11,13 +16,16 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
 
+      // ✅ FIX 1: Drawer added (enables ☰)
+      drawer: const AppDrawer(),
+
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.black,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
-          onPressed: () {},
-        ),
+
+        // ✅ FIX 2: DO NOT override leading
+        // Flutter will automatically show ☰ and open drawer
+
         title: RichText(
           text: const TextSpan(
             children: [
@@ -25,35 +33,68 @@ class HomeScreen extends StatelessWidget {
                 text: 'MySports',
                 style: TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.w600,
                   fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               TextSpan(
                 text: 'Buddies',
                 style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
+                  color: Color.fromARGB(255, 182, 22, 11),
                   fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
         ),
-        centerTitle: true,
+
+        centerTitle: false,
+
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.card,
-              child: const Icon(
-                Icons.person,
-                color: Colors.white,
-                size: 18,
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.white),
+            onPressed: () {
+              debugPrint('Help tapped');
+            },
+          ),
+
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none, color: Colors.white),
+                onPressed: () {
+                  debugPrint('Notifications tapped');
+                },
               ),
-            ),
-          )
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // ✅ FIX 3: Profile icon now works
+          IconButton(
+           icon: const Icon(Icons.person_outline, color: Colors.white),
+          onPressed: () {
+            Navigator.push(
+              context,
+            MaterialPageRoute(
+            builder: (_) => const EditProfileScreen(),
+      ),
+    );
+  },
+),
+
         ],
       ),
 
@@ -61,38 +102,16 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            // 🔴 BANNER SLIDER
-            SizedBox(
-              height: 190,
-              child: PageView(
-                children: const [
-                  _BannerCard(
-                    title: 'Basketball League Starting',
-                    location: 'Downtown Court Arena',
-                  ),
-                  _BannerCard(
-                    title: 'Football Practice Sessions',
-                    location: 'Riverside Sports Ground',
-                  ),
-                  _BannerCard(
-                    title: 'Weekend Cricket Tournament',
-                    location: 'Central Sports Complex',
-                  ),
-                ],
-              ),
-            ),
-
+            const BannerSlider(),
             const SizedBox(height: AppSpacing.lg),
 
-            // 🔴 BROWSE SPORTS TITLE
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: Text(
                 'Browse Sports',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -100,13 +119,12 @@ class HomeScreen extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.md),
 
-            // 🔴 SPORTS GRID (NO OVERFLOW)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: GridView.count(
                 crossAxisCount: 3,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 20,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 16,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: const [
@@ -118,8 +136,6 @@ class HomeScreen extends StatelessWidget {
                   SportTile(label: 'Volleyball', emoji: '🏐'),
                   SportTile(label: 'Table Tennis', emoji: '🏓'),
                   SportTile(label: 'Boxing', emoji: '🥊'),
-                  SportTile(label: 'Swimming', emoji: '🏊'),
-                  SportTile(label: 'Running', emoji: '🏃'),
                   SportTile(label: 'More', emoji: '➕', isMore: true),
                 ],
               ),
@@ -127,7 +143,7 @@ class HomeScreen extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.xl),
 
-            // 🔴 NEARBY GAMES
+            // 🔴 NEARBY GAMES (UNCHANGED)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: Row(
@@ -137,7 +153,7 @@ class HomeScreen extends StatelessWidget {
                     'Nearby Games',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -145,7 +161,7 @@ class HomeScreen extends StatelessWidget {
                     'View All',
                     style: TextStyle(
                       color: AppColors.primary,
-                      fontSize: 14,
+                      fontSize: 16,
                     ),
                   ),
                 ],
@@ -178,9 +194,42 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/* ------------------------------------------------------------ */
-/* --------------------- SPORT TILE ---------------------------- */
-/* ------------------------------------------------------------ */
+/* ---------------- PROFILE SHEET ---------------- */
+
+class _ProfileSheet extends StatelessWidget {
+  const _ProfileSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Text(
+            'Profile',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Profile actions go here',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/* ---------------- SPORT TILE ---------------- */
 
 class SportTile extends StatelessWidget {
   final String label;
@@ -196,83 +245,125 @@ class SportTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 120, // ✅ FIXES OVERFLOW
-      child: GestureDetector(
-        onTap: () {
+    return GestureDetector(
+      onTap: () {
+        if (isMore) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AllSportsScreen(),
+            ),
+          );
+        } else {
           showModalBottomSheet(
             context: context,
             backgroundColor: Colors.transparent,
             builder: (_) => SportActionSheet(sport: label),
           );
-        },
-        child: Column(
-          children: [
-            Container(
-              width: 78,
-              height: 78,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                color: isMore ? AppColors.card : null,
-                gradient: isMore
-                    ? null
-                    : const LinearGradient(
-                        colors: [
-                          Color(0xFF2A0000),
-                          Color(0xFF120000),
-                        ],
-                      ),
-                border: Border.all(
-                  color: AppColors.primary.withOpacity(0.6),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.25),
-                    blurRadius: 12,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  emoji,
-                  style: const TextStyle(fontSize: 30),
-                ),
+        }
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 78,
+            height: 78,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: isMore
+                  ? null
+                  : const LinearGradient(
+                      colors: [
+                        Color(0xFF2A0000),
+                        Color(0xFF120000),
+                      ],
+                    ),
+              color: isMore ? AppColors.card : null,
+              border: Border.all(
+                color: AppColors.primary.withOpacity(0.6),
+                width: 1.2,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
+            child: Center(
+              child: Text(
+                emoji,
+                style: const TextStyle(fontSize: 30),
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/* ------------------------------------------------------------ */
-/* --------------------- BANNER CARD --------------------------- */
-/* ------------------------------------------------------------ */
+/* ---------------- BANNER SLIDER ---------------- */
 
-class _BannerCard extends StatelessWidget {
-  final String title;
-  final String location;
+class BannerSlider extends StatefulWidget {
+  const BannerSlider({super.key});
 
-  const _BannerCard({
-    required this.title,
-    required this.location,
-  });
+  @override
+  State<BannerSlider> createState() => _BannerSliderState();
+}
+
+class _BannerSliderState extends State<BannerSlider> {
+  late PageController _pageController;
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_pageController.hasClients) {
+        int nextPage = (_pageController.page?.toInt() ?? 0) + 1;
+        _pageController.animateToPage(
+          nextPage % 2,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 190,
+      child: PageView(
+        controller: _pageController,
+        children: const [
+          BannerImage(imagePath: 'assets/1.jpg'),
+          BannerImage(imagePath: 'assets/2.jpg'),
+        ],
+      ),
+    );
+  }
+}
+
+class BannerImage extends StatelessWidget {
+  final String imagePath;
+
+  const BannerImage({super.key, required this.imagePath});
 
   @override
   Widget build(BuildContext context) {
@@ -280,40 +371,16 @@ class _BannerCard extends StatelessWidget {
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: AppColors.card,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              location,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
-              ),
-            ),
-          ],
+        image: DecorationImage(
+          image: AssetImage(imagePath),
+          fit: BoxFit.cover,
         ),
       ),
     );
   }
 }
 
-/* ------------------------------------------------------------ */
-/* --------------------- NEARBY GAME CARD ---------------------- */
-/* ------------------------------------------------------------ */
+/* ---------------- NEARBY GAME CARD ---------------- */
 
 class _NearbyGameCard extends StatelessWidget {
   final String sport;
