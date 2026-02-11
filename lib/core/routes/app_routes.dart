@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// Splash
+import '../../screens/splash/splash_screen.dart';
+
 // Onboarding
 import '../../features/onboarding/onboarding_screen.dart';
 
@@ -15,8 +18,10 @@ import '../../screens/home/home_screen.dart';
 
 class AppRoutes {
   static final Map<String, WidgetBuilder> routes = {
+
     // 🚀 App Entry
-    '/': (context) => const OnboardingScreen(),
+    '/': (context) => const SplashScreen(),
+    '/onboarding': (context) => const OnboardingScreen(),
 
     // 🔐 Authentication
     '/login': (context) => const LoginScreen(),
@@ -24,7 +29,6 @@ class AppRoutes {
     '/email-login': (context) => const EmailLoginScreen(),
     '/register-user': (context) => const RegisterUserScreen(),
     '/otp': (context) => const OtpScreen(),
-
 
     // 🏠 Main App
     '/home': (context) => const HomeScreen(),

@@ -1,6 +1,5 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../design/colors.dart';
-import '../../design/spacing.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,12 +9,12 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+
   @override
   void initState() {
     super.initState();
 
-    // ⏳ Auto navigate after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 3), () {
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/onboarding');
     });
@@ -24,94 +23,75 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo Circle
+
+            // 🔴 Red glowing circle
             Container(
-              width: 110,
-              height: 110,
-              decoration: const BoxDecoration(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.primary,
+                gradient: const RadialGradient(
+                  colors: [
+                    Color(0xFFCC1F1F),
+                    Color(0xFF8B0000),
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.6),
+                    blurRadius: 40,
+                    spreadRadius: 5,
+                  ),
+                ],
               ),
               child: const Icon(
                 Icons.emoji_events,
+                size: 70,
                 color: Colors.white,
-                size: 56,
               ),
             ),
 
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: 40),
 
-            // App Name
             RichText(
               text: const TextSpan(
                 children: [
                   TextSpan(
-                    text: 'MySports',
+                    text: "MySports",
                     style: TextStyle(
+                      fontSize: 30,
                       color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   TextSpan(
-                    text: 'Buddies',
+                    text: "Buddies",
                     style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 30,
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: 10),
 
-            // Tagline
             const Text(
-              'Find. Play. Connect.',
+              "Find. Play. Connect.",
               style: TextStyle(
-                color: Colors.white54,
-                fontSize: 14,
+                color: Colors.grey,
+                fontSize: 16,
               ),
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-
-            // Dots Indicator (visual only)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                _Dot(active: true),
-                _Dot(),
-                _Dot(),
-              ],
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _Dot extends StatelessWidget {
-  final bool active;
-  const _Dot({this.active = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      width: 6,
-      height: 6,
-      decoration: BoxDecoration(
-        color: active ? AppColors.primary : Colors.white24,
-        shape: BoxShape.circle,
       ),
     );
   }

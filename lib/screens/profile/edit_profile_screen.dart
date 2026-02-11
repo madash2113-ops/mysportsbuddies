@@ -1,8 +1,163 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
-class EditProfileScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; 
+// 👆 Provider for syncing profile image globally
+
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:photo_view/photo_view.dart';
+
+import '../../controllers/profile_controller.dart'; 
+// 👆 Global profile controller
+
+class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
+  @override
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  File? _profileImage; 
+  // 👆 Local copy for this screen (kept for UI stability)
+
+  /* ============================================================
+   * SYNC IMAGE FROM GLOBAL STATE WHEN SCREEN OPENS
+   * ============================================================ */
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final controller = context.read<ProfileController>();
+
+    // If local image is null but global image exists, sync it
+    if (_profileImage == null && controller.profileImage != null) {
+      _profileImage = controller.profileImage;
+    }
+  }
+
+  /* ============================================================
+   * IMAGE PICK + CROP
+   * ============================================================ */
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source);
+
+    if (picked == null) return;
+
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop',
+          toolbarColor: Colors.black,
+          toolbarWidgetColor: Colors.white,
+          lockAspectRatio: true,
+        ),
+      ],
+    );
+
+    if (cropped == null) return;
+
+    // ============================================================
+    // UPDATE GLOBAL + LOCAL STATE (SYNC POINT)
+    // ============================================================
+    final imageFile = File(cropped.path);
+
+    // Update global profile image (HomeScreen will auto-update)
+    context.read<ProfileController>().setProfileImage(imageFile);
+
+    // Update local UI state
+    setState(() {
+      _profileImage = imageFile;
+    });
+  }
+
+  /* ============================================================
+   * PROFILE IMAGE OPTIONS (VIEW / CHANGE)
+   * ============================================================ */
+  void _openProfileOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.visibility, color: Colors.white),
+            title: const Text(
+              'View picture',
+              style: TextStyle(color: Colors.white),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              // ================= VIEW PROFILE IMAGE =================
+final image = context.read<ProfileController>().profileImage;
+
+if (image != null) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => _FullImageViewer(image: image),
+    ),
+  );
+}
+
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt, color: Colors.white),
+            title: const Text(
+              'Change picture',
+              style: TextStyle(color: Colors.white),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _openChangeSource();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openChangeSource() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.camera_alt),
+            title: const Text('Camera'),
+            onTap: () {
+              Navigator.pop(context);
+              _pickImage(ImageSource.camera);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo),
+            title: const Text('Gallery'),
+            onTap: () {
+              Navigator.pop(context);
+              _pickImage(ImageSource.gallery);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /* ============================================================
+   * UI
+   * ============================================================ */
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -21,7 +176,9 @@ class EditProfileScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () {},
+            onPressed: () {
+              // TODO: Save profile data later (name, email, etc.)
+            },
             child: const Text(
               'Save',
               style: TextStyle(
@@ -37,21 +194,45 @@ class EditProfileScreen extends StatelessWidget {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
-          children: const [
-            _ProfileAvatar(),
-            SizedBox(height: 24),
+          children: [
+            _ProfileAvatar(
+              image: _profileImage,
+              onTap: _openProfileOptions,
+            ),
 
-            _InputField(label: 'Full Name', hint: 'John Doe', icon: Icons.person),
-            _InputField(label: 'Email', hint: 'john.doe@email.com', icon: Icons.email),
-            _InputField(label: 'Phone Number', hint: '+1 234 567 8900', icon: Icons.phone),
-            _InputField(label: 'Location', hint: 'New York, USA', icon: Icons.location_on),
-            _InputField(label: 'Date of Birth', hint: 'mm/dd/yyyy', icon: Icons.calendar_today),
+            const SizedBox(height: 24),
 
-            SizedBox(height: 16),
-            _BioField(),
+            const _InputField(
+              label: 'Full Name',
+              hint: 'John Doe',
+              icon: Icons.person,
+            ),
+            const _InputField(
+              label: 'Email',
+              hint: 'john.doe@email.com',
+              icon: Icons.email,
+            ),
+            const _InputField(
+              label: 'Phone Number',
+              hint: '+1 234 567 8900',
+              icon: Icons.phone,
+            ),
+            const _InputField(
+              label: 'Location',
+              hint: 'New York, USA',
+              icon: Icons.location_on,
+            ),
+            const _InputField(
+              label: 'Date of Birth',
+              hint: 'mm/dd/yyyy',
+              icon: Icons.calendar_today,
+            ),
 
-            SizedBox(height: 24),
-            _StatsRow(),
+            const SizedBox(height: 16),
+            const _BioField(),
+
+            const SizedBox(height: 24),
+            const _StatsRow(),
           ],
         ),
       ),
@@ -59,32 +240,47 @@ class EditProfileScreen extends StatelessWidget {
   }
 }
 
-/* -------- helpers -------- */
-
+/* ============================================================
+ * PROFILE AVATAR
+ * ============================================================ */
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar();
+  final File? image;
+  final VoidCallback onTap;
+
+  const _ProfileAvatar({
+    required this.image,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Stack(
-          alignment: Alignment.bottomRight,
-          children: const [
-            CircleAvatar(
-              radius: 55,
-              backgroundColor: Colors.redAccent,
-              child: Icon(Icons.person, size: 60, color: Colors.white),
-            ),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.red,
-              child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
-            ),
-          ],
+        GestureDetector(
+          onTap: onTap,
+          child: Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              CircleAvatar(
+                radius: 55,
+                backgroundColor: Colors.redAccent,
+                backgroundImage: image != null ? FileImage(image!) : null,
+                child: image == null
+                    ? const Icon(Icons.person,
+                        size: 60, color: Colors.white)
+                    : null,
+              ),
+              const CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.red,
+                child: Icon(Icons.camera_alt,
+                    size: 16, color: Colors.white),
+              ),
+            ],
+          ),
         ),
-        SizedBox(height: 8),
-        Text(
+        const SizedBox(height: 8),
+        const Text(
           'Tap to change photo',
           style: TextStyle(color: Colors.white54),
         ),
@@ -93,6 +289,9 @@ class _ProfileAvatar extends StatelessWidget {
   }
 }
 
+/* ============================================================
+ * INPUT FIELDS
+ * ============================================================ */
 class _InputField extends StatelessWidget {
   final String label;
   final String hint;
@@ -153,6 +352,9 @@ class _BioField extends StatelessWidget {
   }
 }
 
+/* ============================================================
+ * STATS
+ * ============================================================ */
 class _StatsRow extends StatelessWidget {
   const _StatsRow();
 
@@ -173,7 +375,10 @@ class _StatItem extends StatelessWidget {
   final String value;
   final String label;
 
-  const _StatItem({required this.value, required this.label});
+  const _StatItem({
+    required this.value,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,10 +403,45 @@ class _StatItem extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            style:
+                const TextStyle(color: Colors.white54, fontSize: 12),
           ),
         ],
       ),
     );
   }
 }
+
+/* ============================================================
+ * FULL IMAGE VIEWER
+ * ============================================================ */
+class _FullImageViewer extends StatelessWidget {
+  final File image;
+
+  const _FullImageViewer({required this.image});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+
+      // ✅ BACK BUTTON IN TOP LEFT
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+
+      // ✅ IMAGE (NO TAP TO CLOSE)
+      body: PhotoView(
+        imageProvider: FileImage(image),
+        backgroundDecoration:
+            const BoxDecoration(color: Colors.black),
+      ),
+    );
+  }
+}
+

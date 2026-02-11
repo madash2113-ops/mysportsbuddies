@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
+// ======================= NEW IMPORTS (ADDED) =======================
+import 'package:provider/provider.dart'; 
+import '../../controllers/profile_controller.dart';
+// ===================================================================
+
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../features/common/sport_action_sheet.dart';
@@ -16,15 +21,14 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
 
-      // ✅ FIX 1: Drawer added (enables ☰)
+      // Drawer unchanged
       drawer: const AppDrawer(),
 
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
 
-        // ✅ FIX 2: DO NOT override leading
-        // Flutter will automatically show ☰ and open drawer
+        // DO NOT override leading → Flutter auto shows ☰
 
         title: RichText(
           text: const TextSpan(
@@ -82,19 +86,35 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
 
-          // ✅ FIX 3: Profile icon now works
-          IconButton(
-           icon: const Icon(Icons.person_outline, color: Colors.white),
-          onPressed: () {
-            Navigator.push(
-              context,
-            MaterialPageRoute(
-            builder: (_) => const EditProfileScreen(),
-      ),
-    );
-  },
-),
+          // ================= PROFILE ICON (SYNCED) =================
+          Consumer<ProfileController>(
+            builder: (context, controller, _) {
+              return IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
+                  );
+                },
 
+                // Show profile image if available, else fallback icon
+                icon: controller.profileImage != null
+                    ? CircleAvatar(
+                        radius: 14,
+                        backgroundImage:
+                            FileImage(controller.profileImage!),
+                        backgroundColor: Colors.transparent,
+                      )
+                    : const Icon(
+                        Icons.person_outline,
+                        color: Colors.white,
+                      ),
+              );
+            },
+          ),
+          // =========================================================
         ],
       ),
 
@@ -143,7 +163,6 @@ class HomeScreen extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.xl),
 
-            // 🔴 NEARBY GAMES (UNCHANGED)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: Row(
