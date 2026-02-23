@@ -65,6 +65,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     // ============================================================
     final imageFile = File(cropped.path);
 
+    // Ensure widget still mounted before using context after async work
+    if (!mounted) return;
+
     // Update global profile image (HomeScreen will auto-update)
     context.read<ProfileController>().setProfileImage(imageFile);
 

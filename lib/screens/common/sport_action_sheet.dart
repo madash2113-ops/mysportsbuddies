@@ -26,7 +26,6 @@ class SportActionSheet extends StatelessWidget {
             title: 'Register Game',
             onTap: () {
               Navigator.pop(context);
-              // Phase 5
             },
           ),
           _ActionTile(

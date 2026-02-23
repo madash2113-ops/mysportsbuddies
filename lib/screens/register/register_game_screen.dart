@@ -41,7 +41,7 @@ class RegisterGameScreen extends StatelessWidget {
                 color: AppColors.card,
                 borderRadius: BorderRadius.circular(AppSpacing.sm),
                 border: Border.all(
-                  color: AppColors.primary.withOpacity(0.4),
+                  color: AppColors.primary.withAlpha(102),
                 ),
               ),
               child: Row(

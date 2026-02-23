@@ -8,9 +8,9 @@ import '../../controllers/profile_controller.dart';
 
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
-import '../../features/common/sport_action_sheet.dart';
+import '../common/sport_action_sheet.dart';
 import '../sports/all_sports_screen.dart';
-import '../../features/common/app_drawer.dart';
+import '../common/app_drawer.dart';
 import '../profile/edit_profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -215,38 +215,6 @@ class HomeScreen extends StatelessWidget {
 
 /* ---------------- PROFILE SHEET ---------------- */
 
-class _ProfileSheet extends StatelessWidget {
-  const _ProfileSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: const [
-          Text(
-            'Profile',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Profile actions go here',
-            style: TextStyle(color: Colors.white70),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 /* ---------------- SPORT TILE ---------------- */
 
@@ -299,7 +267,7 @@ class SportTile extends StatelessWidget {
                     ),
               color: isMore ? AppColors.card : null,
               border: Border.all(
-                color: AppColors.primary.withOpacity(0.6),
+                color: AppColors.primary.withAlpha(153),
                 width: 1.2,
               ),
             ),

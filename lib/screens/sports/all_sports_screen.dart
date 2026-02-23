@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../data/sports_list.dart';
-import '../../features/common/sport_action_sheet.dart';
+import '../common/sport_action_sheet.dart';
 
 class AllSportsScreen extends StatefulWidget {
   const AllSportsScreen({super.key});

@@ -72,7 +72,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // SKIP BUTTON
             Align(
               alignment: Alignment.topRight,
               child: TextButton(
@@ -87,7 +86,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            // CONTENT
             Expanded(
               child: PageView.builder(
                 controller: _controller,
@@ -100,7 +98,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // ICON
                       Container(
                         width: 110,
                         height: 110,
@@ -117,7 +114,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                       const SizedBox(height: AppSpacing.xl),
 
-                      // TITLE
                       Text(
                         item.title,
                         style: const TextStyle(
@@ -129,7 +125,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                       const SizedBox(height: AppSpacing.sm),
 
-                      // DESCRIPTION
                       Text(
                         item.description,
                         textAlign: TextAlign.center,
@@ -139,7 +134,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ),
 
-                      // GET STARTED BUTTON (ONLY ON LAST PAGE)
                       if (_currentIndex == _items.length - 1) ...[
                         const SizedBox(height: AppSpacing.xl),
                         SizedBox(
@@ -170,7 +164,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            // DOT INDICATOR
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.xl),
               child: Row(
