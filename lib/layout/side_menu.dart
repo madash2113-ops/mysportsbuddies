@@ -4,9 +4,9 @@ class SideMenu extends StatelessWidget {
   final List<Widget> items;
 
   const SideMenu({
-    Key? key,
+    super.key,
     required this.items,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

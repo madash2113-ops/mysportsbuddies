@@ -9,7 +9,6 @@ class AppDrawer extends StatelessWidget {
       backgroundColor: Colors.black,
       child: Column(
         children: [
-          // RED HEADER
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 50, 16, 20),
@@ -51,7 +50,6 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
 
-          // MENU
           Expanded(
             child: ListView(
               children: [
