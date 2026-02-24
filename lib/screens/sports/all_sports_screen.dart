@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../data/sports_list.dart';
-import '../common/sport_action_sheet.dart';
+import '../common/sport_action_glass_sheet.dart';
 
 class AllSportsScreen extends StatefulWidget {
   const AllSportsScreen({super.key});
@@ -85,11 +85,13 @@ class _AllSportsScreenState extends State<AllSportsScreen> {
                     color: Colors.white38,
                   ),
                   onTap: () {
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => SportActionSheet(
-                        sport: sport.name,
+                    Navigator.of(context).push(
+                      PageRouteBuilder(
+                        opaque: false,
+                        pageBuilder: (_, _, _) =>
+                            SportActionGlassScreen(sport: sport.name),
+                        transitionsBuilder: (_, animation, _, child) =>
+                            FadeTransition(opacity: animation, child: child),
                       ),
                     );
                   },

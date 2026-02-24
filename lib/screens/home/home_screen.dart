@@ -8,7 +8,7 @@ import '../../controllers/profile_controller.dart';
 
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
-import '../common/sport_action_sheet.dart';
+import '../common/sport_action_glass_sheet.dart';
 import '../sports/all_sports_screen.dart';
 import '../common/app_drawer.dart';
 import '../profile/edit_profile_screen.dart';
@@ -242,10 +242,14 @@ class SportTile extends StatelessWidget {
             ),
           );
         } else {
-          showModalBottomSheet(
-            context: context,
-            backgroundColor: Colors.transparent,
-            builder: (_) => SportActionSheet(sport: label),
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              opaque: false,
+              pageBuilder: (_, _, _) =>
+                  SportActionGlassScreen(sport: label),
+              transitionsBuilder: (_, animation, _, child) =>
+                  FadeTransition(opacity: animation, child: child),
+            ),
           );
         }
       },
