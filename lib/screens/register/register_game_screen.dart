@@ -1,78 +1,234 @@
 import 'package:flutter/material.dart';
+import '../../core/models/game.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
+import '../../services/game_service.dart';
 
-class RegisterGameScreen extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+//  RegisterGameScreen
+// ─────────────────────────────────────────────────────────────────────────────
+
+class RegisterGameScreen extends StatefulWidget {
   final String sport;
+  const RegisterGameScreen({super.key, required this.sport});
 
-  const RegisterGameScreen({
-    super.key,
-    required this.sport,
-  });
+  @override
+  State<RegisterGameScreen> createState() => _RegisterGameScreenState();
+}
+
+class _RegisterGameScreenState extends State<RegisterGameScreen> {
+  final _venueCtrl         = TextEditingController();
+  final _playersCtrl       = TextEditingController();
+  final _notesCtrl         = TextEditingController();
+  final _extraCtrl1        = TextEditingController();
+  final _extraCtrl2        = TextEditingController();
+  final _customFormatCtrl  = TextEditingController();
+
+  DateTime?  _date;
+  TimeOfDay? _time;
+  String? _skillLevel;
+  String? _ballType;
+  String? _format;
+  String? _matchType;
+  String? _bestOf;
+
+  // Validation error flags
+  bool _venueError = false;
+  bool _dateError  = false;
+  bool _timeError  = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Clear venue error as soon as user types
+    _venueCtrl.addListener(() {
+      if (_venueError && _venueCtrl.text.trim().isNotEmpty) {
+        setState(() => _venueError = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _venueCtrl.dispose();
+    _playersCtrl.dispose();
+    _notesCtrl.dispose();
+    _extraCtrl1.dispose();
+    _extraCtrl2.dispose();
+    _customFormatCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  String _emoji() {
+    const m = {
+      'Cricket': '🏏', 'Football': '⚽', 'Basketball': '🏀',
+      'Badminton': '🏸', 'Tennis': '🎾', 'Volleyball': '🏐',
+      'Table Tennis': '🏓', 'Boxing': '🥊', 'Baseball': '⚾',
+      'Hockey': '🏑', 'Running': '🏃', 'Swimming': '🏊',
+      'Cycling': '🚴', 'MMA': '🥋', 'Wrestling': '🤼',
+      'Kabaddi': '🤸', 'Kho Kho': '🏃', 'CS:GO': '🎮', 'Valorant': '🎮',
+    };
+    return m[widget.sport] ?? '🏅';
+  }
+
+  String _defaultMaxPlayers() {
+    switch (widget.sport) {
+      case 'Cricket':    return '22  (11 per side)';
+      case 'Football':   return '22  (11 per side)';
+      case 'Basketball': return '10  (5 per side)';
+      case 'Volleyball': return '12  (6 per side)';
+      case 'Hockey':     return '22  (11 per side)';
+      case 'Baseball':   return '18  (9 per side)';
+      case 'Kabaddi':    return '14  (7 per side)';
+      default:           return 'Enter number';
+    }
+  }
+
+  List<String>? _ballOptions() {
+    switch (widget.sport) {
+      case 'Cricket':      return ['Tennis Ball', 'Leather Ball', 'Tape Ball', 'Cork Ball'];
+      case 'Football':     return ['Synthetic', 'Leather', 'Futsal Ball'];
+      case 'Basketball':   return ['Standard', 'Street Ball'];
+      case 'Tennis':       return ['Hard Court', 'Clay Court', 'Grass Court'];
+      case 'Badminton':    return ['Feather Shuttle', 'Plastic Shuttle'];
+      case 'Table Tennis': return ['3-Star Plastic', '2-Star Plastic', '1-Star'];
+      case 'Volleyball':   return ['Indoor Ball', 'Beach Ball'];
+      case 'Baseball':     return ['Hardball', 'Softball'];
+      case 'Hockey':       return ['Field Ball', 'Street Ball', 'Puck (Ice)'];
+      default:             return null;
+    }
+  }
+
+  String _ballLabel() {
+    switch (widget.sport) {
+      case 'Tennis':
+      case 'Badminton':
+      case 'Table Tennis': return 'Equipment Type';
+      case 'Hockey':       return 'Ball / Puck Type';
+      default:             return 'Ball Type';
+    }
+  }
+
+  // ── Pickers ──────────────────────────────────────────────────────────────
+
+  Future<void> _pickDate() async {
+    final result = await showModalBottomSheet<DateTime>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ScrollDateSheet(initial: _date ?? DateTime.now()),
+    );
+    if (result != null) setState(() { _date = result; _dateError = false; });
+  }
+
+  Future<void> _pickTime() async {
+    final result = await showModalBottomSheet<TimeOfDay>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ScrollTimeSheet(initial: _time ?? TimeOfDay.now()),
+    );
+    if (result != null) setState(() { _time = result; _timeError = false; });
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final ballOpts = _ballOptions();
+
     return Scaffold(
       backgroundColor: AppColors.background,
-
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'Register Game',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
+        title: Text(
+          'Register ${widget.sport}',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// 🔒 SELECTED SPORT (LOCKED – no re-selection)
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(AppSpacing.sm),
-                border: Border.all(
-                  color: AppColors.primary.withAlpha(102),
-                ),
+            // Sport badge
+            _SportBadge(sport: widget.sport, emoji: _emoji()),
+            const SizedBox(height: AppSpacing.xl),
+
+            // ── Game Details ─────────────────────────────────────────────
+            const _SectionHeader('GAME DETAILS'),
+            const SizedBox(height: AppSpacing.md),
+
+            _InputField(
+              label: 'Venue / Ground *',
+              controller: _venueCtrl,
+              hint: 'Enter location',
+              hasError: _venueError,
+            ),
+
+            _TapField(
+              label: 'Date *',
+              value: _date != null ? '${_date!.day}  /  ${_date!.month}  /  ${_date!.year}' : null,
+              hint: 'Select date',
+              icon: Icons.calendar_today_outlined,
+              onTap: _pickDate,
+              hasError: _dateError,
+            ),
+
+            _TapField(
+              label: 'Time *',
+              value: _time?.format(context),
+              hint: 'Select time',
+              icon: Icons.access_time_outlined,
+              onTap: _pickTime,
+              hasError: _timeError,
+            ),
+
+            _InputField(
+              label: 'Max Players',
+              controller: _playersCtrl,
+              hint: _defaultMaxPlayers(),
+              keyboardType: TextInputType.number,
+            ),
+
+            const _Label('Skill Level'),
+            const SizedBox(height: AppSpacing.xs),
+            _ChipSelector(
+              options: const ['Beginner', 'Intermediate', 'Advanced'],
+              selected: _skillLevel,
+              onSelect: (v) => setState(() => _skillLevel = v),
+            ),
+
+            // Ball / Equipment type (sport-specific)
+            if (ballOpts != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              _Label(_ballLabel()),
+              const SizedBox(height: AppSpacing.xs),
+              _ChipSelector(
+                options: ballOpts,
+                selected: _ballType,
+                onSelect: (v) => setState(() => _ballType = v),
               ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.sports,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    sport,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+            ],
+
+            // ── Sport-specific fields ─────────────────────────────────────
+            ..._buildSportFields(),
+
+            const SizedBox(height: AppSpacing.xl),
+
+            _InputField(
+              label: 'Notes (Optional)',
+              controller: _notesCtrl,
+              hint: 'Any additional info...',
+              maxLines: 3,
             ),
 
             const SizedBox(height: AppSpacing.xl),
 
-            _InputField(label: 'Ground / Location'),
-            _InputField(label: 'Date'),
-            _InputField(label: 'Time'),
-            _InputField(label: 'Skill Level'),
-            _InputField(label: 'Duration'),
-
-            const SizedBox(height: AppSpacing.xl),
-
+            // ── Submit ────────────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -84,29 +240,839 @@ class RegisterGameScreen extends StatelessWidget {
                   ),
                 ),
                 onPressed: () {
-                  // Phase 6: Save game → show scorecard option
+                  final venueEmpty = _venueCtrl.text.trim().isEmpty;
+                  final dateEmpty  = _date == null;
+                  final timeEmpty  = _time == null;
+                  if (venueEmpty || dateEmpty || timeEmpty) {
+                    setState(() {
+                      _venueError = venueEmpty;
+                      _dateError  = dateEmpty;
+                      _timeError  = timeEmpty;
+                    });
+                    return;
+                  }
+
+                  // Combine date + time into one DateTime
+                  final combined = DateTime(
+                    _date!.year, _date!.month, _date!.day,
+                    _time!.hour, _time!.minute,
+                  );
+
+                  // Resolve custom format text if selected
+                  final resolvedFormat = _format == 'Custom'
+                      ? (_customFormatCtrl.text.trim().isEmpty ? null : _customFormatCtrl.text.trim())
+                      : _format;
+
+                  GameService.addGame(Game(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    sport: widget.sport,
+                    location: _venueCtrl.text.trim(),
+                    dateTime: combined,
+                    status: ParticipationStatus.inGame,
+                    maxPlayers: _playersCtrl.text.trim().isEmpty
+                        ? null
+                        : _playersCtrl.text.trim(),
+                    skillLevel: _skillLevel,
+                    format: resolvedFormat,
+                    ballType: _ballType,
+                    notes: _notesCtrl.text.trim().isEmpty
+                        ? null
+                        : _notesCtrl.text.trim(),
+                  ));
+
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Game registered successfully!'),
+                      backgroundColor: AppColors.primary,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  Navigator.of(context).pop();
                 },
                 child: const Text(
                   'Create Game',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
+
+            const SizedBox(height: AppSpacing.xl),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ── Sport-specific field builder ──────────────────────────────────────────
+
+  List<Widget> _buildSportFields() {
+    final widgets = <Widget>[];
+
+    void section(String title) {
+      widgets.add(const SizedBox(height: AppSpacing.xl));
+      widgets.add(_SectionHeader(title));
+      widgets.add(const SizedBox(height: AppSpacing.md));
+    }
+
+    void chips(
+      String label,
+      List<String> opts,
+      String? sel,
+      ValueChanged<String> cb, {
+      bool addCustom = false,
+    }) {
+      final allOpts = addCustom ? [...opts, 'Custom'] : opts;
+      widgets.add(_Label(label));
+      widgets.add(const SizedBox(height: AppSpacing.xs));
+      widgets.add(_ChipSelector(options: allOpts, selected: sel, onSelect: cb));
+      if (addCustom && sel == 'Custom') {
+        widgets.add(const SizedBox(height: AppSpacing.xs));
+        widgets.add(_InputField(
+          label: 'Enter Custom Format',
+          controller: _customFormatCtrl,
+          hint: 'Describe your format...',
+        ));
+      }
+      widgets.add(const SizedBox(height: AppSpacing.md));
+    }
+
+    void input(String label, TextEditingController ctrl, {String? hint, TextInputType? kb}) {
+      widgets.add(_InputField(label: label, controller: ctrl, hint: hint, keyboardType: kb));
+    }
+
+    switch (widget.sport) {
+
+      case 'Cricket':
+        section('CRICKET SETTINGS');
+        chips('Format', const ['T20', 'ODI', 'Test', 'T10', 'Tape Ball'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        if (_format != 'Test') {
+          input('Overs', _extraCtrl1,
+              hint: _format == 'T20' ? '20' : _format == 'ODI' ? '50' : _format == 'T10' ? '10' : 'Enter overs',
+              kb: TextInputType.number);
+        }
+        input('Players per Side', _extraCtrl2, hint: '11', kb: TextInputType.number);
+        break;
+
+      case 'Football':
+        section('FOOTBALL SETTINGS');
+        chips('Format', const ['5-a-side', '7-a-side', '11-a-side'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        input('Match Duration (minutes)', _extraCtrl1, hint: '90', kb: TextInputType.number);
+        break;
+
+      case 'Basketball':
+        section('BASKETBALL SETTINGS');
+        chips('Format', const ['3×3', '5v5'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        input('Quarter Duration (minutes)', _extraCtrl1, hint: '10', kb: TextInputType.number);
+        break;
+
+      case 'Badminton':
+        section('BADMINTON SETTINGS');
+        chips('Category', const ['Singles', 'Doubles', 'Mixed Doubles'],
+            _matchType, (v) => setState(() => _matchType = v));
+        chips('Best Of', const ['Best of 1', 'Best of 3', 'Best of 5'],
+            _bestOf, (v) => setState(() => _bestOf = v));
+        break;
+
+      case 'Tennis':
+        section('TENNIS SETTINGS');
+        chips('Category', const ['Singles', 'Doubles', 'Mixed Doubles'],
+            _matchType, (v) => setState(() => _matchType = v));
+        chips('Sets', const ['Best of 3', 'Best of 5'],
+            _bestOf, (v) => setState(() => _bestOf = v));
+        break;
+
+      case 'Table Tennis':
+        section('TABLE TENNIS SETTINGS');
+        chips('Category', const ['Singles', 'Doubles'],
+            _matchType, (v) => setState(() => _matchType = v));
+        chips('Best Of', const ['Best of 3', 'Best of 5', 'Best of 7'],
+            _bestOf, (v) => setState(() => _bestOf = v));
+        break;
+
+      case 'Volleyball':
+        section('VOLLEYBALL SETTINGS');
+        chips('Type', const ['Indoor', 'Beach (2v2)', 'Beach (3v3)'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        chips('Sets', const ['Best of 3', 'Best of 5'],
+            _bestOf, (v) => setState(() => _bestOf = v));
+        break;
+
+      case 'Hockey':
+        section('HOCKEY SETTINGS');
+        chips('Type', const ['Field', 'Ice', 'Street'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        input('Match Duration (minutes)', _extraCtrl1, hint: '60', kb: TextInputType.number);
+        break;
+
+      case 'Boxing':
+      case 'MMA':
+      case 'Wrestling':
+        section('${widget.sport.toUpperCase()} SETTINGS');
+        input('Number of Rounds', _extraCtrl1,
+            hint: widget.sport == 'Boxing' ? '12' : '3',
+            kb: TextInputType.number);
+        input('Round Duration (minutes)', _extraCtrl2, hint: '3', kb: TextInputType.number);
+        break;
+
+      case 'Running':
+      case 'Cycling':
+        section('${widget.sport.toUpperCase()} SETTINGS');
+        input('Distance', _extraCtrl1,
+            hint: widget.sport == 'Running' ? 'e.g. 5km, 10km, 21km' : 'e.g. 20km, 50km, 100km');
+        chips('Format', const ['Sprint', 'Long Distance', 'Relay', 'Time Trial'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        break;
+
+      case 'Swimming':
+        section('SWIMMING SETTINGS');
+        input('Distance', _extraCtrl1, hint: 'e.g. 50m, 100m, 400m');
+        chips('Stroke', const ['Freestyle', 'Backstroke', 'Breaststroke', 'Butterfly', 'Medley'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        break;
+
+      case 'Baseball':
+        section('BASEBALL SETTINGS');
+        input('Innings', _extraCtrl1, hint: '9', kb: TextInputType.number);
+        input('Players per Side', _extraCtrl2, hint: '9', kb: TextInputType.number);
+        break;
+
+      case 'Kabaddi':
+      case 'Kho Kho':
+        section('${widget.sport.toUpperCase()} SETTINGS');
+        input('Players per Side', _extraCtrl1,
+            hint: widget.sport == 'Kabaddi' ? '7' : '9',
+            kb: TextInputType.number);
+        input('Match Duration (minutes)', _extraCtrl2, hint: '40', kb: TextInputType.number);
+        break;
+
+      case 'CS:GO':
+      case 'Valorant':
+        section('${widget.sport.toUpperCase()} SETTINGS');
+        chips('Format', const ['5v5', '2v2', '1v1'],
+            _format, (v) => setState(() => _format = v), addCustom: true);
+        chips('Match Type', const ['Best of 1', 'Best of 3', 'Best of 5'],
+            _bestOf, (v) => setState(() => _bestOf = v));
+        break;
+
+      default:
+        section('MATCH SETTINGS');
+        input('Match Duration (minutes)', _extraCtrl1, hint: 'Enter duration', kb: TextInputType.number);
+        input('Players per Side', _extraCtrl2, hint: 'Enter number', kb: TextInputType.number);
+        break;
+    }
+
+    return widgets;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Scroll Date Picker Sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ScrollDateSheet extends StatefulWidget {
+  final DateTime initial;
+  const _ScrollDateSheet({required this.initial});
+
+  @override
+  State<_ScrollDateSheet> createState() => _ScrollDateSheetState();
+}
+
+class _ScrollDateSheetState extends State<_ScrollDateSheet> {
+  late int _day;
+  late int _month;
+  late int _year;
+
+  late final FixedExtentScrollController _dayCtrl;
+  late final FixedExtentScrollController _monthCtrl;
+  late final FixedExtentScrollController _yearCtrl;
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  late final List<int> _years;
+
+  @override
+  void initState() {
+    super.initState();
+    _day   = widget.initial.day;
+    _month = widget.initial.month;
+    _year  = widget.initial.year;
+
+    final now = DateTime.now();
+    _years = List.generate(3, (i) => now.year + i);
+
+    final yIdx = _years.indexOf(_year);
+    _dayCtrl   = FixedExtentScrollController(initialItem: _day - 1);
+    _monthCtrl = FixedExtentScrollController(initialItem: _month - 1);
+    _yearCtrl  = FixedExtentScrollController(initialItem: yIdx < 0 ? 0 : yIdx);
+  }
+
+  @override
+  void dispose() {
+    _dayCtrl.dispose();
+    _monthCtrl.dispose();
+    _yearCtrl.dispose();
+    super.dispose();
+  }
+
+  int _maxDay() => DateTime(_year, _month + 1, 0).day;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF111111),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFF2A2A2A), width: 0.5)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          _Handle(),
+          const SizedBox(height: 16),
+          const Text(
+            'Select Date',
+            style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Wheels ─────────────────────────────────────────────────────
+          SizedBox(
+            height: 200,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Red highlight bar
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      height: 44,
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.10),
+                        border: Border.symmetric(
+                          horizontal: BorderSide(
+                            color: AppColors.primary.withValues(alpha: 0.55),
+                            width: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                Row(
+                  children: [
+                    // Day
+                    Expanded(
+                      child: ListWheelScrollView.useDelegate(
+                        controller: _dayCtrl,
+                        itemExtent: 44,
+                        physics: const FixedExtentScrollPhysics(),
+                        perspective: 0.003,
+                        onSelectedItemChanged: (i) {
+                          setState(() => _day = (i + 1).clamp(1, _maxDay()));
+                        },
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: 31,
+                          builder: (_, i) => _WheelItem(
+                            text: '${i + 1}',
+                            selected: _day == i + 1,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Month
+                    Expanded(
+                      flex: 2,
+                      child: ListWheelScrollView.useDelegate(
+                        controller: _monthCtrl,
+                        itemExtent: 44,
+                        physics: const FixedExtentScrollPhysics(),
+                        perspective: 0.003,
+                        onSelectedItemChanged: (i) {
+                          final maxD = DateTime(_year, i + 2, 0).day;
+                          setState(() {
+                            _month = i + 1;
+                            if (_day > maxD) _day = maxD;
+                          });
+                        },
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: 12,
+                          builder: (_, i) => _WheelItem(
+                            text: _months[i],
+                            selected: _month == i + 1,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Year
+                    Expanded(
+                      flex: 2,
+                      child: ListWheelScrollView.useDelegate(
+                        controller: _yearCtrl,
+                        itemExtent: 44,
+                        physics: const FixedExtentScrollPhysics(),
+                        perspective: 0.003,
+                        onSelectedItemChanged: (i) => setState(() => _year = _years[i]),
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: _years.length,
+                          builder: (_, i) => _WheelItem(
+                            text: '${_years[i]}',
+                            selected: _year == _years[i],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Column labels
+          const SizedBox(height: 4),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(child: Center(child: Text('Day',   style: TextStyle(color: Colors.white30, fontSize: 11)))),
+                Expanded(flex: 2, child: Center(child: Text('Month', style: TextStyle(color: Colors.white30, fontSize: 11)))),
+                Expanded(flex: 2, child: Center(child: Text('Year',  style: TextStyle(color: Colors.white30, fontSize: 11)))),
+              ],
+            ),
+          ),
+
+          // Confirm
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  final safe = _day.clamp(1, _maxDay());
+                  Navigator.of(context).pop(DateTime(_year, _month, safe));
+                },
+                child: const Text('Confirm',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ),
+
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Scroll Time Picker Sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ScrollTimeSheet extends StatefulWidget {
+  final TimeOfDay initial;
+  const _ScrollTimeSheet({required this.initial});
+
+  @override
+  State<_ScrollTimeSheet> createState() => _ScrollTimeSheetState();
+}
+
+class _ScrollTimeSheetState extends State<_ScrollTimeSheet> {
+  late int  _hour;   // 1–12
+  late int  _minute; // 0–59
+  late bool _isAm;
+
+  late final FixedExtentScrollController _hourCtrl;
+  late final FixedExtentScrollController _minuteCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final h = widget.initial.hour;
+    _isAm  = h < 12;
+    _hour  = h % 12 == 0 ? 12 : h % 12;
+    _minute = widget.initial.minute;
+
+    _hourCtrl   = FixedExtentScrollController(initialItem: _hour - 1);
+    _minuteCtrl = FixedExtentScrollController(initialItem: _minute);
+  }
+
+  @override
+  void dispose() {
+    _hourCtrl.dispose();
+    _minuteCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF111111),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFF2A2A2A), width: 0.5)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          _Handle(),
+          const SizedBox(height: 16),
+          const Text(
+            'Select Time',
+            style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Wheels ─────────────────────────────────────────────────────
+          SizedBox(
+            height: 200,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Red highlight bar (covers hour + minute columns only)
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      height: 44,
+                      margin: const EdgeInsets.only(left: 16, right: 88),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.10),
+                        border: Border.symmetric(
+                          horizontal: BorderSide(
+                            color: AppColors.primary.withValues(alpha: 0.55),
+                            width: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                Row(
+                  children: [
+                    // Hour wheel
+                    Expanded(
+                      child: ListWheelScrollView.useDelegate(
+                        controller: _hourCtrl,
+                        itemExtent: 44,
+                        physics: const FixedExtentScrollPhysics(),
+                        perspective: 0.003,
+                        onSelectedItemChanged: (i) => setState(() => _hour = i + 1),
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: 12,
+                          builder: (_, i) => _WheelItem(
+                            text: '${i + 1}'.padLeft(2, '0'),
+                            selected: _hour == i + 1,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Colon separator
+                    const SizedBox(
+                      width: 18,
+                      child: Center(
+                        child: Text(':',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            )),
+                      ),
+                    ),
+
+                    // Minute wheel
+                    Expanded(
+                      child: ListWheelScrollView.useDelegate(
+                        controller: _minuteCtrl,
+                        itemExtent: 44,
+                        physics: const FixedExtentScrollPhysics(),
+                        perspective: 0.003,
+                        onSelectedItemChanged: (i) => setState(() => _minute = i),
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: 60,
+                          builder: (_, i) => _WheelItem(
+                            text: '$i'.padLeft(2, '0'),
+                            selected: _minute == i,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // AM / PM toggle
+                    SizedBox(
+                      width: 88,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _AmPmBtn(
+                            label: 'AM',
+                            selected: _isAm,
+                            onTap: () => setState(() => _isAm = true),
+                          ),
+                          const SizedBox(height: 10),
+                          _AmPmBtn(
+                            label: 'PM',
+                            selected: !_isAm,
+                            onTap: () => setState(() => _isAm = false),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Column labels
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: const [
+                Expanded(child: Center(child: Text('Hour',   style: TextStyle(color: Colors.white30, fontSize: 11)))),
+                SizedBox(width: 18),
+                Expanded(child: Center(child: Text('Minute', style: TextStyle(color: Colors.white30, fontSize: 11)))),
+                SizedBox(width: 88),
+              ],
+            ),
+          ),
+
+          // Confirm
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  final h24 = _isAm
+                      ? (_hour == 12 ? 0 : _hour)
+                      : (_hour == 12 ? 12 : _hour + 12);
+                  Navigator.of(context).pop(TimeOfDay(hour: h24, minute: _minute));
+                },
+                child: const Text('Confirm',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ),
+
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Shared Wheel Widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WheelItem extends StatelessWidget {
+  final String text;
+  final bool selected;
+  const _WheelItem({required this.text, required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        text,
+        style: TextStyle(
+          color: selected ? Colors.white : Colors.white24,
+          fontSize: selected ? 18 : 15,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
     );
   }
 }
 
-class _InputField extends StatelessWidget {
+class _AmPmBtn extends StatelessWidget {
   final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _AmPmBtn({required this.label, required this.selected, required this.onTap});
 
-  const _InputField({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 56,
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? AppColors.primary : Colors.white12),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.white38,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Handle extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.20),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Form Widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SportBadge extends StatelessWidget {
+  final String sport;
+  final String emoji;
+  const _SportBadge({required this.sport, required this.emoji});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm + 4),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 26)),
+          const SizedBox(width: AppSpacing.sm),
+          Text(sport,
+              style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text('Selected',
+                style: TextStyle(color: AppColors.primary, fontSize: 11)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(title,
+        style: const TextStyle(
+          color: AppColors.primary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.0,
+        ));
+  }
+}
+
+class _Label extends StatelessWidget {
+  final String text;
+  const _Label(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13));
+  }
+}
+
+class _ChipSelector extends StatelessWidget {
+  final List<String> options;
+  final String? selected;
+  final ValueChanged<String> onSelect;
+  const _ChipSelector({required this.options, required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((opt) {
+        final active = opt == selected;
+        return GestureDetector(
+          onTap: () => onSelect(opt),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: active ? AppColors.primary : AppColors.card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: active ? AppColors.primary : Colors.white24),
+            ),
+            child: Text(opt,
+                style: TextStyle(
+                  color: active ? Colors.white : Colors.white54,
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                )),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _TapField extends StatelessWidget {
+  final String label;
+  final String? value;
+  final String hint;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool hasError;
+
+  const _TapField({
+    required this.label,
+    this.value,
+    required this.hint,
+    required this.icon,
+    required this.onTap,
+    this.hasError = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -115,25 +1081,111 @@ class _InputField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: AppSpacing.xs),
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                border: hasError
+                    ? Border.all(color: AppColors.primary, width: 1.2)
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(icon, color: hasError ? AppColors.primary : AppColors.primary, size: 18),
+                  const SizedBox(width: 10),
+                  Text(
+                    value ?? hint,
+                    style: TextStyle(
+                      color: value != null ? Colors.white : Colors.white30,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          if (hasError) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'This field is required',
+              style: TextStyle(color: AppColors.primary, fontSize: 11),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InputField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final String? hint;
+  final TextInputType? keyboardType;
+  final int maxLines;
+  final bool hasError;
+
+  const _InputField({
+    required this.label,
+    required this.controller,
+    this.hint,
+    this.keyboardType,
+    this.maxLines = 1,
+    this.hasError = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: AppSpacing.xs),
           TextField(
+            controller: controller,
             style: const TextStyle(color: Colors.white),
+            keyboardType: keyboardType,
+            maxLines: maxLines,
             decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(color: Colors.white30),
               filled: true,
               fillColor: AppColors.card,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.sm),
                 borderSide: BorderSide.none,
               ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                borderSide: hasError
+                    ? const BorderSide(color: AppColors.primary, width: 1.2)
+                    : BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.sm),
+                borderSide: BorderSide(
+                  color: hasError ? AppColors.primary : Colors.white24,
+                  width: 1.2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             ),
           ),
+          if (hasError) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'This field is required',
+              style: TextStyle(color: AppColors.primary, fontSize: 11),
+            ),
+          ],
         ],
       ),
     );
