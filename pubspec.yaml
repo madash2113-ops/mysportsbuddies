@@ -11,14 +11,34 @@ dependencies:
   flutter:
     sdk: flutter
   image_picker: ^1.1.2
-  image_cropper: ^7.0.1
+  image_cropper: ^11.0.0
   photo_view: ^0.14.0
   permission_handler: ^11.3.0
   provider: ^6.1.2
-
-
   cupertino_icons: ^1.0.8
   country_picker: ^2.0.24
+
+  # Firebase — add google-services.json (Android) & GoogleService-Info.plist (iOS)
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.2
+  cloud_firestore: ^5.6.0
+  firebase_storage: ^12.3.7
+
+  # HTTP for address autocomplete (Nominatim / OpenStreetMap — free, no API key)
+  http: ^1.2.2
+
+  # Persist device user ID across sessions
+  shared_preferences: ^2.3.4
+
+  # GPS / location
+  geolocator: ^13.0.2
+
+  # Google Sign-In (Android: add SHA-1 to Firebase Console; iOS: already via GoogleService-Info.plist)
+  google_sign_in: ^6.2.1
+
+  # PDF generation and printing
+  pdf: ^3.11.1
+  printing: ^5.13.2
 
 dev_dependencies:
   flutter_test:

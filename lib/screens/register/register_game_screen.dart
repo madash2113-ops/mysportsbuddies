@@ -3,6 +3,8 @@ import '../../core/models/game.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/game_service.dart';
+import '../../services/user_service.dart';
+import '../../widgets/address_autocomplete_field.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  RegisterGameScreen
@@ -10,7 +12,13 @@ import '../../services/game_service.dart';
 
 class RegisterGameScreen extends StatefulWidget {
   final String sport;
-  const RegisterGameScreen({super.key, required this.sport});
+  final Game? existingGame; // non-null → edit mode
+
+  const RegisterGameScreen({
+    super.key,
+    required this.sport,
+    this.existingGame,
+  });
 
   @override
   State<RegisterGameScreen> createState() => _RegisterGameScreenState();
@@ -40,6 +48,18 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
   @override
   void initState() {
     super.initState();
+    // Pre-fill controllers when editing an existing game
+    final g = widget.existingGame;
+    if (g != null) {
+      _venueCtrl.text    = g.location;
+      _playersCtrl.text  = g.maxPlayers ?? '';
+      _notesCtrl.text    = g.notes ?? '';
+      _skillLevel        = g.skillLevel;
+      _ballType          = g.ballType;
+      _format            = g.format;
+      _date              = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+      _time              = TimeOfDay(hour: g.dateTime.hour, minute: g.dateTime.minute);
+    }
     // Clear venue error as soon as user types
     _venueCtrl.addListener(() {
       if (_venueError && _venueCtrl.text.trim().isNotEmpty) {
@@ -144,8 +164,11 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          'Register ${widget.sport}',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          widget.existingGame != null
+              ? 'Edit ${widget.sport} Game'
+              : 'Register ${widget.sport}',
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
       ),
@@ -162,11 +185,16 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
             const _SectionHeader('GAME DETAILS'),
             const SizedBox(height: AppSpacing.md),
 
-            _InputField(
-              label: 'Venue / Ground *',
-              controller: _venueCtrl,
-              hint: 'Enter location',
-              hasError: _venueError,
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: AddressAutocompleteField(
+                controller: _venueCtrl,
+                label: 'Venue / Ground *',
+                hint: 'Search stadium, ground or address...',
+                onSelected: (_) {
+                  if (_venueError) setState(() => _venueError = false);
+                },
+              ),
             ),
 
             _TapField(
@@ -252,23 +280,29 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     return;
                   }
 
-                  // Combine date + time into one DateTime
                   final combined = DateTime(
                     _date!.year, _date!.month, _date!.day,
                     _time!.hour, _time!.minute,
                   );
 
-                  // Resolve custom format text if selected
                   final resolvedFormat = _format == 'Custom'
-                      ? (_customFormatCtrl.text.trim().isEmpty ? null : _customFormatCtrl.text.trim())
+                      ? (_customFormatCtrl.text.trim().isEmpty
+                          ? null
+                          : _customFormatCtrl.text.trim())
                       : _format;
 
-                  GameService.addGame(Game(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  final isEditing = widget.existingGame != null;
+
+                  final game = Game(
+                    id: isEditing
+                        ? widget.existingGame!.id
+                        : DateTime.now().millisecondsSinceEpoch.toString(),
                     sport: widget.sport,
                     location: _venueCtrl.text.trim(),
                     dateTime: combined,
-                    status: ParticipationStatus.inGame,
+                    status: isEditing
+                        ? widget.existingGame!.status
+                        : ParticipationStatus.inGame,
                     maxPlayers: _playersCtrl.text.trim().isEmpty
                         ? null
                         : _playersCtrl.text.trim(),
@@ -278,21 +312,38 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     notes: _notesCtrl.text.trim().isEmpty
                         ? null
                         : _notesCtrl.text.trim(),
-                  ));
+                    createdAt: isEditing
+                        ? widget.existingGame!.createdAt
+                        : DateTime.now(),
+                    registeredBy: isEditing
+                        ? widget.existingGame!.registeredBy
+                        : UserService().userId,
+                  );
+
+                  if (isEditing) {
+                    GameService().updateGame(game);
+                  } else {
+                    GameService().addGame(game);
+                  }
 
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Game registered successfully!'),
+                    SnackBar(
+                      content: Text(isEditing
+                          ? 'Game updated!'
+                          : 'Game registered successfully!'),
                       backgroundColor: AppColors.primary,
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
                   Navigator.of(context).pop();
                 },
-                child: const Text(
-                  'Create Game',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                child: Text(
+                  widget.existingGame != null ? 'Update Game' : 'Create Game',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -1129,7 +1180,6 @@ class _InputField extends StatelessWidget {
   final String? hint;
   final TextInputType? keyboardType;
   final int maxLines;
-  final bool hasError;
 
   const _InputField({
     required this.label,
@@ -1137,7 +1187,6 @@ class _InputField extends StatelessWidget {
     this.hint,
     this.keyboardType,
     this.maxLines = 1,
-    this.hasError = false,
   });
 
   @override
@@ -1165,27 +1214,15 @@ class _InputField extends StatelessWidget {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.sm),
-                borderSide: hasError
-                    ? const BorderSide(color: AppColors.primary, width: 1.2)
-                    : BorderSide.none,
+                borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.sm),
-                borderSide: BorderSide(
-                  color: hasError ? AppColors.primary : Colors.white24,
-                  width: 1.2,
-                ),
+                borderSide: const BorderSide(color: Colors.white24, width: 1.2),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             ),
           ),
-          if (hasError) ...[
-            const SizedBox(height: 4),
-            const Text(
-              'This field is required',
-              style: TextStyle(color: AppColors.primary, fontSize: 11),
-            ),
-          ],
         ],
       ),
     );
