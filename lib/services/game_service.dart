@@ -1,59 +1,108 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../core/models/game.dart';
 
-/// Local in-memory store.
-/// Replace the body of each method with Firebase calls once credentials are provided.
-class GameService {
+/// Game store backed by Cloud Firestore.
+///
+/// All writes go to Firestore AND mirror locally so the UI updates instantly.
+class GameService extends ChangeNotifier {
   GameService._();
+  static final GameService _instance = GameService._();
+  factory GameService() => _instance;
 
-  static final List<Game> _games = [
-    Game(
-      id: '1',
-      sport: 'Cricket',
-      location: 'Central Park Ground',
-      dateTime: DateTime.now().add(const Duration(hours: 3)),
-      status: ParticipationStatus.inGame,
-      skillLevel: 'Intermediate',
-      format: 'T20',
-      maxPlayers: '22',
-    ),
-    Game(
-      id: '2',
-      sport: 'Football',
-      location: 'City Stadium',
-      dateTime: DateTime.now().add(const Duration(days: 1)),
-      status: ParticipationStatus.tentative,
-      skillLevel: 'Open',
-      format: '11-a-side',
-      maxPlayers: '22',
-    ),
-    Game(
-      id: '3',
-      sport: 'Basketball',
-      location: 'Downtown Arena',
-      dateTime: DateTime.now().add(const Duration(days: 2)),
-      status: ParticipationStatus.inGame,
-      skillLevel: 'Advanced',
-      format: '5v5',
-      maxPlayers: '10',
-    ),
-  ];
+  static const _col = 'games';
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
 
-  /// All registered games, newest first.
-  static List<Game> get all =>
-      List.unmodifiable(_games)..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  final List<Game> _games = [];
 
-  /// Games for a specific sport, newest first.
-  static List<Game> bySport(String sport) => _games
+  // ── Read ─────────────────────────────────────────────────────────────────
+  List<Game> get all {
+    final sorted = [..._games];
+    sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted;
+  }
+
+  List<Game> bySport(String sport) => _games
       .where((g) => g.sport.toLowerCase() == sport.toLowerCase())
       .toList()
-    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
 
-  static List<Game> byStatus(ParticipationStatus status) =>
+  List<Game> byStatus(ParticipationStatus status) =>
       _games.where((g) => g.status == status).toList();
 
-  /// Add a newly registered game.
-  /// TODO: replace with Firebase Firestore write once credentials are provided.
-  static void addGame(Game game) {
+  // ── Write ─────────────────────────────────────────────────────────────────
+
+  /// Add a new game locally and persist to Firestore.
+  Future<void> addGame(Game game) async {
     _games.add(game);
+    notifyListeners();
+
+    try {
+      await _db.collection(_col).doc(game.id).set(game.toMap());
+    } catch (e) {
+      debugPrint('GameService.addGame Firestore error: $e');
+    }
+  }
+
+  /// Replace an existing game (edit). Matches by ID.
+  Future<void> updateGame(Game game) async {
+    final idx = _games.indexWhere((g) => g.id == game.id);
+    if (idx < 0) return;
+    _games[idx] = game;
+    notifyListeners();
+
+    try {
+      await _db.collection(_col).doc(game.id).set(game.toMap());
+    } catch (e) {
+      debugPrint('GameService.updateGame Firestore error: $e');
+    }
+  }
+
+  /// Update only the RSVP status for a game (opt in / out / tentative).
+  Future<void> updateGameStatus(
+      String id, ParticipationStatus status) async {
+    final idx = _games.indexWhere((g) => g.id == id);
+    if (idx < 0) return;
+    _games[idx] = _games[idx].copyWith(status: status);
+    notifyListeners();
+
+    try {
+      await _db.collection(_col).doc(id).update({'status': status.name});
+    } catch (e) {
+      debugPrint('GameService.updateGameStatus Firestore error: $e');
+    }
+  }
+
+  // ── Sync from Firestore ────────────────────────────────────────────────────
+
+  /// Call once on app startup (after Firebase.initializeApp) to load saved games.
+  Future<void> loadFromFirestore() async {
+    try {
+      final snap = await _db
+          .collection(_col)
+          .orderBy('createdAt', descending: true)
+          .get();
+      final remote = snap.docs.map(Game.fromFirestore).toList();
+      _games
+        ..clear()
+        ..addAll(remote);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('GameService.loadFromFirestore error: $e');
+    }
+  }
+
+  /// Real-time stream listener — call once to keep games live.
+  void listenToFirestore() {
+    _db
+        .collection(_col)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snap) {
+      _games
+        ..clear()
+        ..addAll(snap.docs.map(Game.fromFirestore));
+      notifyListeners();
+    });
   }
 }

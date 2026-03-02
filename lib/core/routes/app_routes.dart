@@ -12,9 +12,13 @@ import '../../screens/auth/phone_login_screen.dart';
 import '../../screens/auth/email_login_screen.dart';
 import '../../screens/auth/register_user_screen.dart';
 import '../../screens/auth/otp_screen.dart';
+import '../../screens/auth/complete_profile_screen.dart';
 
 // Home
 import '../../screens/home/home_screen.dart';
+
+// Profile
+import '../../screens/profile/edit_profile_screen.dart';
 
 class AppRoutes {
   static final Map<String, WidgetBuilder> routes = {
@@ -29,8 +33,12 @@ class AppRoutes {
     '/email-login': (context) => const EmailLoginScreen(),
     '/register-user': (context) => const RegisterUserScreen(),
     '/otp': (context) => const OtpScreen(),
+    '/complete-profile': (context) => const CompleteProfileScreen(),
 
     // 🏠 Main App
     '/home': (context) => const HomeScreen(),
+
+    // 👤 Profile
+    '/edit_profile': (context) => const EditProfileScreen(),
   };
 }
