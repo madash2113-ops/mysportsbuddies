@@ -1,44 +1,70 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-// 👇 Firebase Core
-//import 'package:firebase_core/firebase_core.dart';
-//import 'firebase_options.dart';
-//import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'core/routes/app_routes.dart';
 import 'controllers/profile_controller.dart';
-// 👆 ProfileController will store profile image globally
+import 'design/theme.dart';
+import 'services/auth_service.dart';
+import 'services/feed_service.dart';
+import 'services/follow_service.dart';
+import 'services/game_service.dart';
+import 'services/message_service.dart';
+import 'services/notification_service.dart';
+import 'services/scoreboard_service.dart';
+import 'services/theme_service.dart';
+import 'services/user_service.dart';
 
 // ======================================================
 // MAIN ENTRY POINT
 // ======================================================
 void main() async {
-  // ======================================================
-  // REQUIRED FOR ASYNC INITIALIZATION (FIREBASE)
-  // ======================================================
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ======================================================
-  // FIREBASE INITIALIZATION
-  // This connects your app to:
-  // - Firestore
-  // - Firebase Auth
-  // - Future cloud services
-  // ======================================================
-  //await Firebase.initializeApp(
-   // options: DefaultFirebaseOptions.currentPlatform,
-  //);
-  // 🔥 Anonymous sign-in so every device has a UID
-//await FirebaseAuth.instance.signInAnonymously();
+  // ── Firebase ──────────────────────────────────────────────────────────────
+  try {
+    await Firebase.initializeApp();
+    debugPrint('✅ Firebase initialized');
 
+    await UserService().init();
+    debugPrint('✅ UserService initialized');
+
+    await GameService().loadFromFirestore();
+    debugPrint('✅ Games loaded');
+
+    await ScoreboardService().loadFromFirestore();
+    debugPrint('✅ Scoreboards loaded');
+
+    // Initialise follow graph for the current user
+    await FollowService().init();
+    debugPrint('✅ FollowService initialized');
+
+    // Start real-time listeners
+    FeedService().listenToFeed();
+    FeedService().listenToStories();
+    MessageService().listenToConversations();
+    GameService().listenToFirestore();
+    ScoreboardService().listenToFirestore();
+    NotificationService().listen();
+    debugPrint('✅ Real-time listeners started');
+  } catch (e) {
+    debugPrint('❌ Firebase error: $e');
+  }
 
   runApp(
-    // ===========================
-    // GLOBAL PROVIDER WRAPPER
-    // ===========================
-    ChangeNotifierProvider(
-      create: (_) => ProfileController(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => ThemeService()),
+        ChangeNotifierProvider(create: (_) => ProfileController()),
+        ChangeNotifierProvider(create: (_) => ScoreboardService()),
+        ChangeNotifierProvider(create: (_) => GameService()),
+        ChangeNotifierProvider(create: (_) => UserService()),
+        ChangeNotifierProvider(create: (_) => FeedService()),
+        ChangeNotifierProvider(create: (_) => FollowService()),
+        ChangeNotifierProvider(create: (_) => MessageService()),
+        ChangeNotifierProvider(create: (_) => NotificationService()),
+      ],
       child: const MySportsApp(),
     ),
   );
@@ -52,18 +78,15 @@ class MySportsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      // ===========================
-      // BASIC APP CONFIG
-      // ===========================
-      debugShowCheckedModeBanner: false,
-      initialRoute: '/',
-      routes: AppRoutes.routes,
-
-      // ===========================
-      // THEME
-      // ===========================
-      theme: ThemeData.dark(),
+    return Consumer<ThemeService>(
+      builder: (_, ts, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        initialRoute: '/',
+        routes: AppRoutes.routes,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ts.mode,
+      ),
     );
   }
 }

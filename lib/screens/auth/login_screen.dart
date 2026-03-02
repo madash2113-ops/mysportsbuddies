@@ -1,136 +1,184 @@
 import 'package:flutter/material.dart';
-import '../../../design/colors.dart';
-import '../../../design/spacing.dart';
 
-class LoginScreen extends StatelessWidget {
+import '../../design/colors.dart';
+import '../../design/spacing.dart';
+import '../../services/auth_service.dart';
+
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool    _googleLoading = false;
+  String? _error;
+
+  Future<void> _googleSignIn() async {
+    setState(() { _googleLoading = true; _error = null; });
+    final ok = await AuthService().signInWithGoogle();
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      setState(() {
+        _googleLoading = false;
+        _error = AuthService().error;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Spacer(),
+              const SizedBox(height: 52),
 
-              // 🔴 LOGO
+              // ── Logo ────────────────────────────────────────────────────
               Container(
-                width: 96,
-                height: 96,
+                width: 80,
+                height: 80,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.primary,
                 ),
-                child: const Icon(
-                  Icons.emoji_events,
-                  size: 48,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.emoji_events,
+                    size: 42, color: Colors.white),
               ),
 
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
 
-              // APP NAME
+              // ── Brand name ───────────────────────────────────────────────
               RichText(
                 text: const TextSpan(
                   children: [
                     TextSpan(
                       text: 'MySports',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                      ),
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700),
                     ),
                     TextSpan(
                       text: 'Buddies',
                       style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                      ),
+                          color: AppColors.primary,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 6),
+              const Text('Welcome back',
+                  style: TextStyle(color: Colors.white54, fontSize: 14)),
 
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: 40),
 
-              const Text(
-                'Sign in to continue',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
+              // ── Continue with Phone OTP ──────────────────────────────────
+              _PrimaryButton(
+                label: 'Continue with Phone OTP',
+                icon:  Icons.phone_android_outlined,
+                onTap: () => Navigator.pushNamed(context, '/phone-login'),
               ),
 
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: 12),
 
-              // 📱 PHONE LOGIN ✅ FIXED
-              _AuthButton(
-                icon: Icons.phone,
-                text: 'Continue with Phone',
-                onTap: () {
-                  Navigator.pushNamed(context, '/phone-login');
-                },
+              // ── Continue with Email ──────────────────────────────────────
+              _OutlineButton(
+                label: 'Continue with Email',
+                icon:  Icons.email_outlined,
+                onTap: () => Navigator.pushNamed(context, '/email-login'),
               ),
 
-              // 📧 EMAIL LOGIN ✅ FIXED
-              _AuthButton(
-                icon: Icons.email,
-                text: 'Continue with Email',
-                onTap: () {
-                  Navigator.pushNamed(context, '/email-login');
-                },
+              const SizedBox(height: 28),
+
+              // ── Divider ──────────────────────────────────────────────────
+              const Row(
+                children: [
+                  Expanded(
+                      child:
+                          Divider(color: Colors.white12, thickness: 0.8)),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14),
+                    child: Text('or continue with',
+                        style: TextStyle(
+                            color: Colors.white38, fontSize: 12)),
+                  ),
+                  Expanded(
+                      child:
+                          Divider(color: Colors.white12, thickness: 0.8)),
+                ],
               ),
 
-              // 🔵 GOOGLE (placeholder)
-              _AuthButton(
-                icon: Icons.g_mobiledata,
-                text: 'Continue with Google',
-                onTap: () {
-                  // TODO: Google Auth
-                },
+              const SizedBox(height: 20),
+
+              // ── Social buttons ───────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: _SocialButton(
+                      label: 'Google',
+                      icon: Icons.g_mobiledata,
+                      iconColor: const Color(0xFFEA4335),
+                      loading: _googleLoading,
+                      onTap: _googleLoading ? null : _googleSignIn,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _SocialButton(
+                      label: 'Facebook',
+                      icon: Icons.facebook,
+                      iconColor: const Color(0xFF1877F2),
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                                  Text('Facebook login coming soon!')),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
 
-              // 🔵 FACEBOOK (placeholder)
-              _AuthButton(
-                icon: Icons.facebook,
-                text: 'Continue with Facebook',
-                onTap: () {
-                  // TODO: Facebook Auth
-                },
-              ),
+              // ── Error ────────────────────────────────────────────────────
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Colors.red.shade400, fontSize: 13)),
+              ],
 
-              const Spacer(),
+              const SizedBox(height: 32),
 
-              // 📝 REGISTER
+              // ── Register link ────────────────────────────────────────────
               GestureDetector(
-                onTap: () {
-                  Navigator.pushNamed(context, '/register-user');
-                },
+                onTap: () =>
+                    Navigator.pushNamed(context, '/register-user'),
                 child: RichText(
                   text: const TextSpan(
                     children: [
                       TextSpan(
-                        text: 'Not registered yet? ',
+                        text: "Don't have an account?  ",
                         style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 13,
-                        ),
+                            color: Colors.white54, fontSize: 14),
                       ),
                       TextSpan(
-                        text: 'Register',
+                        text: 'Sign Up',
                         style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                            color: AppColors.primary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -141,12 +189,11 @@ class LoginScreen extends StatelessWidget {
 
               const Text(
                 'By continuing, you agree to Terms & Privacy Policy',
-                style: TextStyle(
-                  color: Colors.white38,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.white24, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
+
+              const SizedBox(height: AppSpacing.lg),
             ],
           ),
         ),
@@ -155,44 +202,129 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
-// 🔴 UNIFIED AUTH BUTTON (UNCHANGED)
-class _AuthButton extends StatelessWidget {
+// ── Primary button ────────────────────────────────────────────────────────────
+
+class _PrimaryButton extends StatelessWidget {
+  final String label;
   final IconData icon;
-  final String text;
   final VoidCallback onTap;
 
-  const _AuthButton({
+  const _PrimaryButton({
+    required this.label,
     required this.icon,
-    required this.text,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          icon: Icon(icon, color: Colors.white),
-          label: Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          onPressed: onTap,
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
         ),
+        icon:  Icon(icon, color: Colors.white, size: 20),
+        label: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600)),
+        onPressed: onTap,
+      ),
+    );
+  }
+}
+
+// ── Outline button ────────────────────────────────────────────────────────────
+
+class _OutlineButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _OutlineButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+          backgroundColor: AppColors.primary.withValues(alpha: 0.06),
+        ),
+        icon:  Icon(icon, color: AppColors.primary, size: 20),
+        label: Text(label,
+            style: const TextStyle(
+                color: AppColors.primary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600)),
+        onPressed: onTap,
+      ),
+    );
+  }
+}
+
+// ── Social button ─────────────────────────────────────────────────────────────
+
+class _SocialButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback? onTap;
+  final bool loading;
+
+  const _SocialButton({
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white10, width: 0.8),
+        ),
+        child: loading
+            ? const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: iconColor, size: 26),
+                  const SizedBox(width: 8),
+                  Text(label,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
       ),
     );
   }
