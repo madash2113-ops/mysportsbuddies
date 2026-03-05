@@ -20,6 +20,9 @@ import '../../screens/home/home_screen.dart';
 // Profile
 import '../../screens/profile/edit_profile_screen.dart';
 
+// Tournaments
+import '../../screens/tournaments/tournaments_list_screen.dart';
+
 class AppRoutes {
   static final Map<String, WidgetBuilder> routes = {
 
@@ -40,5 +43,8 @@ class AppRoutes {
 
     // 👤 Profile
     '/edit_profile': (context) => const EditProfileScreen(),
+
+    // 🏆 Tournaments
+    '/tournaments': (context) => const TournamentsListScreen(),
   };
 }

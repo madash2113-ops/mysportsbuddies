@@ -15,6 +15,19 @@ class LocationService {
 
   // ── Permission + Position ─────────────────────────────────────────────────
 
+  /// Returns the last cached position instantly — no GPS wait.
+  /// Use for a fast first render, then call [getCurrentPosition] to refine.
+  Future<Position?> getLastKnownPosition() async {
+    try {
+      final pos = await Geolocator.getLastKnownPosition();
+      if (pos != null) _lastPosition = pos;
+      return pos;
+    } catch (e) {
+      debugPrint('LocationService.getLastKnownPosition error: $e');
+      return null;
+    }
+  }
+
   /// Returns the current GPS position or null if permission denied / service off.
   Future<Position?> getCurrentPosition() async {
     try {

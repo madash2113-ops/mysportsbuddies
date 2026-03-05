@@ -110,6 +110,26 @@ class NotificationService extends ChangeNotifier {
     }
   }
 
+  /// Mark a single notification as read.
+  Future<void> markRead(String id) async {
+    final myId = UserService().userId;
+    if (myId == null) return;
+    final idx = _items.indexWhere((n) => n.id == id);
+    if (idx < 0 || _items[idx].isRead) return;
+    _items[idx].isRead = true;
+    notifyListeners();
+    try {
+      await _db
+          .collection(_col)
+          .doc(myId)
+          .collection('items')
+          .doc(id)
+          .update({'isRead': true});
+    } catch (e) {
+      debugPrint('NotificationService.markRead error: $e');
+    }
+  }
+
   /// Mark all notifications as read.
   Future<void> markAllRead() async {
     final myId = UserService().userId;

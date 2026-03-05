@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
+import '../../services/tournament_service.dart';
 
 /// Full registration flow for joining a tournament league.
 /// 3 steps: Team Details → Players → Confirm & Submit
 class RegisterLeagueScreen extends StatefulWidget {
-  final String tournamentName;
-  final String sport;
-  final String format;
-  final String date;
-  final String location;
+  final String  tournamentName;
+  final String  sport;
+  final String  format;
+  final String  date;
+  final String  location;
+  final int     maxTeams;
+  final double  entryFee;
+  final double  serviceFee;
+  final int     playersPerTeam;  // 0 = no limit / use sport default
+  final String? prizePool;
 
   const RegisterLeagueScreen({
     super.key,
@@ -17,6 +24,11 @@ class RegisterLeagueScreen extends StatefulWidget {
     required this.format,
     required this.date,
     required this.location,
+    this.maxTeams      = 4,
+    this.entryFee      = 0,
+    this.serviceFee    = 0,
+    this.playersPerTeam = 0,
+    this.prizePool,
   });
 
   @override
@@ -34,11 +46,16 @@ class _RegisterLeagueScreenState extends State<RegisterLeagueScreen> {
   String? _skillLevel;
   bool _agreeToRules = false;
 
-  // Step 2 — Squad
-  final List<TextEditingController> _playerCtrls =
-      List.generate(11, (_) => TextEditingController());
+  // Step 2 — Squad (size determined after widget is available; init lazily)
+  late final List<TextEditingController> _playerCtrls;
 
   bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _playerCtrls = List.generate(_minPlayers, (_) => TextEditingController());
+  }
 
   @override
   void dispose() {
@@ -55,6 +72,8 @@ class _RegisterLeagueScreenState extends State<RegisterLeagueScreen> {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   int get _minPlayers {
+    // Host-set limit takes priority; fall back to sport default
+    if (widget.playersPerTeam > 0) return widget.playersPerTeam;
     switch (widget.sport) {
       case 'Cricket':    return 11;
       case 'Football':   return 11;
@@ -101,7 +120,7 @@ class _RegisterLeagueScreenState extends State<RegisterLeagueScreen> {
     }
   }
 
-  void _submitRegistration() {
+  Future<void> _submitRegistration() async {
     if (!_agreeToRules) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Please agree to the tournament rules'),
@@ -111,10 +130,52 @@ class _RegisterLeagueScreenState extends State<RegisterLeagueScreen> {
       return;
     }
     setState(() => _submitted = true);
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    try {
+      await TournamentService().createTournament(
+        name:           widget.tournamentName,
+        sport:          widget.sport,
+        format:         _formatFromString(widget.format),
+        startDate:      _parseDate(widget.date),
+        location:       widget.location,
+        maxTeams:       widget.maxTeams,
+        entryFee:       widget.entryFee,
+        serviceFee:     widget.serviceFee,
+        scheduleMode:   ScheduleMode.auto,
+        prizePool:      widget.prizePool,
+        playersPerTeam: widget.playersPerTeam,
+      );
       if (!mounted) return;
       _showSuccessDialog();
-    });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitted = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  TournamentFormat _formatFromString(String f) {
+    switch (f) {
+      case 'Round Robin': return TournamentFormat.roundRobin;
+      case 'League':      return TournamentFormat.leagueKnockout;
+      default:            return TournamentFormat.knockout;
+    }
+  }
+
+  DateTime _parseDate(String dateStr) {
+    // format: DD/MM/YYYY
+    final parts = dateStr.split('/');
+    if (parts.length == 3) {
+      return DateTime(
+        int.parse(parts[2]),
+        int.parse(parts[1]),
+        int.parse(parts[0]),
+      );
+    }
+    return DateTime.now();
   }
 
   void _showSuccessDialog() {

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/notification_service.dart';
+import '../community/community_feed_screen.dart';
+import '../scoreboard/scoreboard_menu_screen.dart';
+import '../sports/all_sports_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -114,6 +117,30 @@ class _NotifTile extends StatelessWidget {
     }
   }
 
+  void _navigate(BuildContext context) {
+    NotificationService().markRead(notif.id);
+    switch (notif.type) {
+      case NotifType.like:
+      case NotifType.comment:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const CommunityFeedScreen()));
+      case NotifType.follow:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const CommunityFeedScreen()));
+      case NotifType.matchResult:
+        Navigator.of(context).push(PageRouteBuilder(
+          opaque: false,
+          pageBuilder: (_, _, _) => const ScoreboardMenuScreen(),
+          transitionsBuilder: (_, anim, _, child) =>
+              FadeTransition(opacity: anim, child: child),
+        ));
+      case NotifType.gameInvite:
+      case NotifType.nearby:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AllSportsScreen()));
+    }
+  }
+
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inSeconds < 60)  return 'just now';
@@ -125,7 +152,7 @@ class _NotifTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: () => _navigate(context),
       child: Container(
         color: notif.isRead ? Colors.transparent : AppColors.primary.withValues(alpha: 0.05),
         padding: const EdgeInsets.symmetric(
