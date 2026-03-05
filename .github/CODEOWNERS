@@ -1,0 +1,10 @@
+# Default owners for everything
+* @madash2113-ops
+
+# Flutter source and tests
+/lib/ @madash2113-ops
+/test/ @madash2113-ops
+/pubspec.yaml @madash2113-ops
+
+# CI/CD - only admins should modify
+/.github/ @madash2113-ops
