@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../core/models/game.dart';
 
@@ -71,6 +73,41 @@ class GameService extends ChangeNotifier {
     } catch (e) {
       debugPrint('GameService.updateGameStatus Firestore error: $e');
     }
+  }
+
+  /// Delete a game locally and from Firestore.
+  Future<void> deleteGame(String id) async {
+    _games.removeWhere((g) => g.id == id);
+    notifyListeners();
+    try {
+      await _db.collection(_col).doc(id).delete();
+    } catch (e) {
+      debugPrint('GameService.deleteGame Firestore error: $e');
+    }
+  }
+
+  /// Upload a photo for a game, store in Firebase Storage and update Firestore.
+  /// Returns the download URL.
+  Future<String> uploadGamePhoto(String gameId, File image) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final ref = FirebaseStorage.instance
+        .ref('game_photos/$gameId/$timestamp.jpg');
+    await ref.putFile(image);
+    final url = await ref.getDownloadURL();
+
+    // Append URL to photoUrls array in Firestore
+    await _db.collection(_col).doc(gameId).update({
+      'photoUrls': FieldValue.arrayUnion([url]),
+    });
+
+    // Update local cache
+    final idx = _games.indexWhere((g) => g.id == gameId);
+    if (idx >= 0) {
+      final updated = List<String>.from(_games[idx].photoUrls)..add(url);
+      _games[idx] = _games[idx].copyWith(photoUrls: updated);
+      notifyListeners();
+    }
+    return url;
   }
 
   // ── Sync from Firestore ────────────────────────────────────────────────────

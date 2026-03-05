@@ -16,7 +16,15 @@ class Game {
   final DateTime createdAt;
   final double? latitude;
   final double? longitude;
-  final String? registeredBy; // device user ID of whoever created this game
+  final String? registeredBy;
+
+  // Organizer contact
+  final String? organizerName;
+  final String? organizerPhone;
+  final bool hideContact;
+
+  // Ground photos
+  final List<String> photoUrls;
 
   Game({
     required this.id,
@@ -33,6 +41,10 @@ class Game {
     this.latitude,
     this.longitude,
     this.registeredBy,
+    this.organizerName,
+    this.organizerPhone,
+    this.hideContact = false,
+    this.photoUrls = const [],
   }) : createdAt = createdAt ?? DateTime.now();
 
   Game copyWith({
@@ -46,6 +58,10 @@ class Game {
     String? notes,
     double? latitude,
     double? longitude,
+    String? organizerName,
+    String? organizerPhone,
+    bool? hideContact,
+    List<String>? photoUrls,
   }) =>
       Game(
         id: id,
@@ -62,6 +78,10 @@ class Game {
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,
         registeredBy: registeredBy,
+        organizerName: organizerName ?? this.organizerName,
+        organizerPhone: organizerPhone ?? this.organizerPhone,
+        hideContact: hideContact ?? this.hideContact,
+        photoUrls: photoUrls ?? this.photoUrls,
       );
 
   // ── Firestore serialisation ───────────────────────────────────────────────
@@ -81,6 +101,10 @@ class Game {
         'latitude': latitude,
         'longitude': longitude,
         'registeredBy': registeredBy,
+        'organizerName': organizerName,
+        'organizerPhone': organizerPhone,
+        'hideContact': hideContact,
+        'photoUrls': photoUrls,
       };
 
   factory Game.fromMap(Map<String, dynamic> map) => Game(
@@ -103,6 +127,13 @@ class Game {
         latitude: (map['latitude'] as num?)?.toDouble(),
         longitude: (map['longitude'] as num?)?.toDouble(),
         registeredBy: map['registeredBy'] as String?,
+        organizerName: map['organizerName'] as String?,
+        organizerPhone: map['organizerPhone'] as String?,
+        hideContact: map['hideContact'] as bool? ?? false,
+        photoUrls: (map['photoUrls'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
       );
 
   factory Game.fromFirestore(DocumentSnapshot doc) =>

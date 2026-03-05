@@ -2,13 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-
-	<!-- App name shown on the home screen -->
 	<key>CFBundleDisplayName</key>
 	<string>MySportsBuddies</string>
-
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,34 +22,33 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.793247401031-1q1469jbafasvst6v8kchpgod0bi66j8</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-
-	<!-- ── Permission descriptions (required by App Store & iOS) ────────── -->
-
-	<!-- image_picker + image_cropper: Camera -->
 	<key>NSCameraUsageDescription</key>
 	<string>MySportsBuddies needs camera access to take photos for your profile and posts.</string>
-
-	<!-- image_picker + image_cropper: Photo Library (read) -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>MySportsBuddies needs access to your photo library to pick images for your profile and posts.</string>
-
-	<!-- image_picker: Photo Library (write / save) -->
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>MySportsBuddies needs permission to save photos to your library.</string>
-
-	<!-- geolocator: Location while using app -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>MySportsBuddies uses your location to find nearby sports games and players.</string>
-
-	<!-- geolocator: Background location (needed on iOS even if only requesting WhenInUse) -->
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>MySportsBuddies uses your location to find nearby sports games and players.</string>
-
-	<!-- ── Orientation ───────────────────────────────────────────────────── -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>MySportsBuddies uses your location to find nearby sports games and players.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>MySportsBuddies needs permission to save photos to your library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MySportsBuddies needs access to your photo library to pick images for your profile and posts.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -68,11 +66,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-
-	<!-- ── Performance ──────────────────────────────────────────────────── -->
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
 </dict>
 </plist>
