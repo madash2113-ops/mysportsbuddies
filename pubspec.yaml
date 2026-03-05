@@ -33,6 +33,9 @@ dependencies:
   # GPS / location
   geolocator: ^13.0.2
 
+  # Phone / URL launching
+  url_launcher: ^6.3.1
+
   # Google Sign-In (Android: add SHA-1 to Firebase Console; iOS: already via GoogleService-Info.plist)
   google_sign_in: ^6.2.1
 

@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../core/models/game.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
@@ -31,6 +35,8 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
   final _extraCtrl1        = TextEditingController();
   final _extraCtrl2        = TextEditingController();
   final _customFormatCtrl  = TextEditingController();
+  final _contactNameCtrl   = TextEditingController();
+  final _contactPhoneCtrl  = TextEditingController();
 
   DateTime?  _date;
   TimeOfDay? _time;
@@ -39,6 +45,7 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
   String? _format;
   String? _matchType;
   String? _bestOf;
+  bool _hideContact = false;
 
   // Validation error flags
   bool _venueError = false;
@@ -51,12 +58,15 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
     // Pre-fill controllers when editing an existing game
     final g = widget.existingGame;
     if (g != null) {
-      _venueCtrl.text    = g.location;
-      _playersCtrl.text  = g.maxPlayers ?? '';
-      _notesCtrl.text    = g.notes ?? '';
-      _skillLevel        = g.skillLevel;
-      _ballType          = g.ballType;
-      _format            = g.format;
+      _venueCtrl.text        = g.location;
+      _playersCtrl.text      = g.maxPlayers ?? '';
+      _notesCtrl.text        = g.notes ?? '';
+      _contactNameCtrl.text  = g.organizerName ?? '';
+      _contactPhoneCtrl.text = g.organizerPhone ?? '';
+      _hideContact           = g.hideContact;
+      _skillLevel            = g.skillLevel;
+      _ballType              = g.ballType;
+      _format                = g.format;
       _date              = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
       _time              = TimeOfDay(hour: g.dateTime.hour, minute: g.dateTime.minute);
     }
@@ -76,6 +86,8 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
     _extraCtrl1.dispose();
     _extraCtrl2.dispose();
     _customFormatCtrl.dispose();
+    _contactNameCtrl.dispose();
+    _contactPhoneCtrl.dispose();
     super.dispose();
   }
 
@@ -149,6 +161,38 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
       builder: (_) => _ScrollTimeSheet(initial: _time ?? TimeOfDay.now()),
     );
     if (result != null) setState(() { _time = result; _timeError = false; });
+  }
+
+  Future<void> _uploadEditPhoto(BuildContext context) async {
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 75);
+    if (picked == null) return;
+    if (!context.mounted) return;
+    final snack = ScaffoldMessenger.of(context);
+    snack.showSnackBar(const SnackBar(
+      content: Text('Uploading photo...'),
+      duration: Duration(seconds: 30),
+      behavior: SnackBarBehavior.floating,
+    ));
+    try {
+      await GameService()
+          .uploadGamePhoto(widget.existingGame!.id, File(picked.path));
+      snack.hideCurrentSnackBar();
+      if (!context.mounted) return;
+      snack.showSnackBar(const SnackBar(
+        content: Text('Photo added!'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      snack.hideCurrentSnackBar();
+      if (!context.mounted) return;
+      snack.showSnackBar(SnackBar(
+        content: Text('Upload failed: $e'),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -256,6 +300,148 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
 
             const SizedBox(height: AppSpacing.xl),
 
+            // ── Organizer Contact ─────────────────────────────────────────
+            const _SectionHeader('ORGANIZER CONTACT'),
+            const SizedBox(height: AppSpacing.md),
+
+            _InputField(
+              label: 'Your Name',
+              controller: _contactNameCtrl,
+              hint: 'Organizer name',
+            ),
+
+            _InputField(
+              label: 'Phone Number',
+              controller: _contactPhoneCtrl,
+              hint: 'e.g. 9876543210',
+              keyboardType: TextInputType.phone,
+            ),
+
+            const SizedBox(height: AppSpacing.sm),
+            GestureDetector(
+              onTap: () => setState(() => _hideContact = !_hideContact),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: _hideContact
+                          ? AppColors.primary.withValues(alpha: 0.5)
+                          : Colors.white12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _hideContact
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: _hideContact
+                          ? AppColors.primary
+                          : Colors.white38,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hide contact from other players',
+                            style: TextStyle(
+                              color: _hideContact
+                                  ? Colors.white
+                                  : Colors.white60,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            _hideContact
+                                ? 'Only you can see your contact'
+                                : 'Players can see your contact info',
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _hideContact,
+                      onChanged: (v) => setState(() => _hideContact = v),
+                      activeThumbColor: AppColors.primary,
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+
+            // ── Ground Photos (Edit mode only) ────────────────────────────
+            if (widget.existingGame != null) ...[
+              const _SectionHeader('GROUND PHOTOS'),
+              const SizedBox(height: AppSpacing.md),
+              Consumer<GameService>(
+                builder: (ctx, gameSvc, _) {
+                  final live = gameSvc
+                      .bySport(widget.sport)
+                      .where((g) => g.id == widget.existingGame!.id)
+                      .firstOrNull;
+                  final urls =
+                      live?.photoUrls ?? widget.existingGame!.photoUrls;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (urls.isNotEmpty) ...[
+                        SizedBox(
+                          height: 80,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: urls.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (_, i) => ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                urls[i],
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _uploadEditPhoto(context),
+                          icon: const Icon(
+                              Icons.add_photo_alternate_outlined, size: 18),
+                          label: Text(
+                              urls.isEmpty ? 'Add Photos' : 'Add More Photos'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Colors.white24),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+
             // ── Submit ────────────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
@@ -318,6 +504,16 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     registeredBy: isEditing
                         ? widget.existingGame!.registeredBy
                         : UserService().userId,
+                    organizerName: _contactNameCtrl.text.trim().isEmpty
+                        ? null
+                        : _contactNameCtrl.text.trim(),
+                    organizerPhone: _contactPhoneCtrl.text.trim().isEmpty
+                        ? null
+                        : _contactPhoneCtrl.text.trim(),
+                    hideContact: _hideContact,
+                    photoUrls: isEditing
+                        ? widget.existingGame!.photoUrls
+                        : const [],
                   );
 
                   if (isEditing) {

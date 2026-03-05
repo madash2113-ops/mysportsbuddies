@@ -5,7 +5,6 @@ import '../home/my_matches_screen.dart';
 import '../home/help_screen.dart';
 import '../scoreboard/scoreboard_menu_screen.dart';
 import '../sports/live_streaming_screen.dart';
-import '../sports/league_entry_screen.dart';
 import '../premium/premium_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -140,6 +139,14 @@ class AppDrawer extends StatelessWidget {
                       Navigator.pushNamedAndRemoveUntil(
                           context, '/home', (r) => false);
                     }),
+                    _item(context, Icons.sports_soccer_outlined, 'My Matches',
+                        () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const MyMatchesScreen()));
+                    }),
                     _item(context, Icons.calendar_today_outlined,
                         'My Schedules', () {
                       Navigator.pop(context);
@@ -148,31 +155,7 @@ class AppDrawer extends StatelessWidget {
                           MaterialPageRoute(
                               builder: (_) => const MySchedulesScreen()));
                     }),
-                    _item(context, Icons.emoji_events_outlined, 'My Matches',
-                        () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const MyMatchesScreen()));
-                    }),
-                    _item(context, Icons.group_outlined, 'Teams', () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Teams — coming soon!'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }),
-                    _item(context, Icons.wifi_tethering, 'Live Streaming', () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const LiveStreamingScreen()));
-                    }),
-                    _item(context, Icons.bar_chart_outlined, 'Scorecards', () {
+                    _item(context, Icons.bar_chart_outlined, 'My Scorecards', () {
                       Navigator.pop(context);
                       Navigator.of(context).push(
                         PageRouteBuilder(
@@ -184,13 +167,21 @@ class AppDrawer extends StatelessWidget {
                         ),
                       );
                     }),
-                    _item(context, Icons.app_registration_outlined,
-                        'Register League', () {
+                    _item(context, Icons.group_outlined, 'My Teams', () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('My Teams — coming soon!'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }),
+                    _item(context, Icons.wifi_tethering, 'Live Streaming', () {
                       Navigator.pop(context);
                       Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const LeagueEntryScreen()));
+                              builder: (_) => const LiveStreamingScreen()));
                     }),
                     const Divider(
                         color: Colors.white12,

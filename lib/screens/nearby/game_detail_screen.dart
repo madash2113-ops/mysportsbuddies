@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/game.dart';
 import '../../design/colors.dart';
@@ -92,7 +96,23 @@ class GameDetailScreen extends StatelessWidget {
               ),
             ),
             actions: [
-              if (isOwner)
+              if (isOwner) ...[
+                // Delete button
+                GestureDetector(
+                  onTap: () => _confirmDelete(context),
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(0, 8, 4, 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.delete_outline,
+                        color: Colors.redAccent, size: 18),
+                  ),
+                ),
+                // Edit button
                 GestureDetector(
                   onTap: () => Navigator.push(
                     context,
@@ -102,7 +122,7 @@ class GameDetailScreen extends StatelessWidget {
                     ),
                   ),
                   child: Container(
-                    margin: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.fromLTRB(0, 8, 8, 8),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
@@ -123,6 +143,7 @@ class GameDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: GestureDetector(
@@ -157,15 +178,19 @@ class GameDetailScreen extends StatelessWidget {
                               color: Colors.black38,
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.photo_library_outlined,
+                                const Icon(Icons.photo_library_outlined,
                                     color: Colors.white70, size: 13),
-                                SizedBox(width: 4),
-                                Text('Tap to view photos',
-                                    style: TextStyle(
-                                        color: Colors.white70, fontSize: 12)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  game.photoUrls.isEmpty
+                                      ? 'No photos yet'
+                                      : 'Tap to view ${game.photoUrls.length} photo${game.photoUrls.length > 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 12),
+                                ),
                               ],
                             ),
                           ),
@@ -402,70 +427,21 @@ class GameDetailScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.xl),
 
                   // ── ORGANIZER ───────────────────────────────────────────
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: AppColors.card,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2A0000),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.person_outline,
-                              color: AppColors.primary, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Organizer',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600)),
-                              SizedBox(height: 2),
-                              Text('Sports Buddy',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white12),
-                          ),
-                          child: const Text('Contact',
-                              style: TextStyle(
-                                  color: Colors.white60, fontSize: 12)),
-                        ),
-                      ],
-                    ),
+                  _OrganizerCard(
+                    game: game,
+                    isOwner: isOwner,
                   ),
 
                   const SizedBox(height: AppSpacing.lg),
 
-                  // ── CREATE POST ─────────────────────────────────────────
+                  // ── GROUND PHOTOS ───────────────────────────────────────
                   Row(
                     children: [
-                      const Icon(Icons.photo_camera_outlined,
+                      const Icon(Icons.photo_library_outlined,
                           color: Colors.white54, size: 16),
                       const SizedBox(width: 6),
                       const Text(
-                        'CREATE POST',
+                        'GROUND PHOTOS',
                         style: TextStyle(
                             color: Colors.white54,
                             fontSize: 11,
@@ -475,6 +451,55 @@ class GameDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _uploadPhoto(context),
+                          icon: const Icon(
+                              Icons.add_photo_alternate_outlined,
+                              size: 18),
+                          label: const Text('Upload Photo'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side:
+                                const BorderSide(color: Colors.white24),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      if (game.photoUrls.isNotEmpty) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showImageGallery(context),
+                            icon: const Icon(Icons.collections_outlined,
+                                size: 18),
+                            label: Text(
+                                'View (${game.photoUrls.length})'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: BorderSide(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.5)),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  const SizedBox(height: AppSpacing.md),
+
+                  // ── CREATE POST ─────────────────────────────────────────
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -484,9 +509,8 @@ class GameDetailScreen extends StatelessWidget {
                         backgroundColor: Colors.transparent,
                         builder: (_) => const CreatePostSheet(),
                       ),
-                      icon: const Icon(Icons.add_photo_alternate_outlined,
-                          size: 18),
-                      label: const Text('Share this game with the community'),
+                      icon: const Icon(Icons.forum_outlined, size: 18),
+                      label: const Text('Share to Feed'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white70,
                         side: const BorderSide(color: Colors.white24),
@@ -505,6 +529,73 @@ class GameDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // ── Delete confirmation ───────────────────────────────────────────────────
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Delete Game',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+            'Are you sure you want to delete this game? This cannot be undone.',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              GameService().deleteGame(game.id);
+              Navigator.pop(ctx);          // close dialog
+              Navigator.pop(context);     // go back to list
+            },
+            child: const Text('Delete',
+                style: TextStyle(
+                    color: Colors.redAccent, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Photo upload ──────────────────────────────────────────────────────────
+
+  Future<void> _uploadPhoto(BuildContext context) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 75);
+    if (picked == null) return;
+    if (!context.mounted) return;
+
+    final snack = ScaffoldMessenger.of(context);
+    snack.showSnackBar(const SnackBar(
+      content: Text('Uploading photo...'),
+      duration: Duration(seconds: 30),
+      behavior: SnackBarBehavior.floating,
+    ));
+
+    try {
+      await GameService().uploadGamePhoto(game.id, File(picked.path));
+      snack.hideCurrentSnackBar();
+      snack.showSnackBar(const SnackBar(
+        content: Text('Photo uploaded!'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      snack.hideCurrentSnackBar();
+      snack.showSnackBar(SnackBar(
+        content: Text('Upload failed: $e'),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   void _showImageGallery(BuildContext context) {
@@ -541,41 +632,210 @@ class GameDetailScreen extends StatelessWidget {
                           fontSize: 17,
                           fontWeight: FontWeight.w700)),
                   const Spacer(),
-                  Text(game.location,
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 12)),
+                  Flexible(
+                    child: Text(game.location,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.photo_library_outlined,
-                        color: Colors.white24, size: 56),
-                    const SizedBox(height: 12),
-                    const Text('No photos yet',
-                        style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Photos of this ground will\nappear here once added.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Colors.white38,
-                          fontSize: 13,
-                          height: 1.5),
+              child: game.photoUrls.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.photo_library_outlined,
+                              color: Colors.white24, size: 56),
+                          const SizedBox(height: 12),
+                          const Text('No photos yet',
+                              style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Upload photos of this ground\nusing the button on the game page.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 13,
+                                height: 1.5),
+                          ),
+                        ],
+                      ),
+                    )
+                  : GridView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.all(12),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
+                      itemCount: game.photoUrls.length,
+                      itemBuilder: (_, i) => ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          game.photoUrls[i],
+                          fit: BoxFit.cover,
+                          loadingBuilder: (_, child, progress) =>
+                              progress == null
+                                  ? child
+                                  : Container(
+                                      color: const Color(0xFF1C1C1C),
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Organizer Card ────────────────────────────────────────────────────────────
+
+class _OrganizerCard extends StatelessWidget {
+  final Game game;
+  final bool isOwner;
+  const _OrganizerCard({required this.game, required this.isOwner});
+
+  bool get _canSeeContact => isOwner || !game.hideContact;
+
+  @override
+  Widget build(BuildContext context) {
+    final name   = game.organizerName?.isNotEmpty == true
+        ? game.organizerName!
+        : 'Sports Buddy';
+    final phone  = game.organizerPhone?.isNotEmpty == true
+        ? game.organizerPhone
+        : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF2A0000),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.person_outline,
+                    color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Organizer',
+                        style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              if (game.hideContact && !isOwner)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.visibility_off_outlined,
+                          color: Colors.white38, size: 13),
+                      SizedBox(width: 4),
+                      Text('Hidden',
+                          style: TextStyle(
+                              color: Colors.white38, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              if (_canSeeContact && phone != null)
+                GestureDetector(
+                  onTap: () => launchUrl(Uri(scheme: 'tel', path: phone)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.green.withValues(alpha: 0.4)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.phone_outlined,
+                            color: Colors.green, size: 14),
+                        SizedBox(width: 4),
+                        Text('Call',
+                            style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (_canSeeContact && phone != null) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 52),
+              child: Text(phone,
+                  style: const TextStyle(
+                      color: Colors.white60, fontSize: 13)),
+            ),
+          ],
+          if (isOwner && game.hideContact) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 52),
+              child: Text('Contact is hidden from other players',
+                  style: TextStyle(
+                      color: AppColors.primary.withValues(alpha: 0.7),
+                      fontSize: 11)),
+            ),
+          ],
+        ],
       ),
     );
   }

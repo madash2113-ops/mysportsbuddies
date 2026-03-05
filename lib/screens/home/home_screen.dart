@@ -14,8 +14,8 @@ import '../profile/edit_profile_screen.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../sports/all_sports_screen.dart';
 import '../sports/live_streaming_screen.dart';
-import '../sports/tournaments_screen.dart';
-import '../premium/premium_screen.dart';
+import '../sports/league_entry_screen.dart';
+import '../tournaments/tournaments_list_screen.dart';
 import '../common/app_drawer.dart';
 import 'notifications_screen.dart';
 
@@ -63,9 +63,9 @@ class _HomeScreenState extends State<HomeScreen> {
       label: 'Live',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.people_alt_outlined),
-      activeIcon: Icon(Icons.people_alt),
-      label: 'Community',
+      icon: Icon(Icons.dynamic_feed_outlined),
+      activeIcon: Icon(Icons.dynamic_feed),
+      label: 'Feed',
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.emoji_events_outlined),
@@ -73,9 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
       label: 'Tournaments',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.workspace_premium_outlined),
-      activeIcon: Icon(Icons.workspace_premium),
-      label: 'Membership',
+      icon: Icon(Icons.add_circle_outline),
+      activeIcon: Icon(Icons.add_circle),
+      label: 'Host',
     ),
   ];
 
@@ -86,8 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
       const _HomeTab(),
       const LiveStreamingScreen(),
       const CommunityFeedScreen(),
-      const TournamentsScreen(),
-      const PremiumScreen(),
+      const TournamentsListScreen(),
     ];
 
     return Scaffold(
@@ -100,7 +99,20 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (i) => setState(() => _selectedIndex = i),
+        onTap: (i) {
+          if (i == 4) {
+            Navigator.push<bool>(
+              context,
+              MaterialPageRoute(builder: (_) => const LeagueEntryScreen()),
+            ).then((created) {
+              if (created == true && mounted) {
+                setState(() => _selectedIndex = 3);
+              }
+            });
+          } else {
+            setState(() => _selectedIndex = i);
+          }
+        },
         selectedFontSize: 11,
         unselectedFontSize: 11,
         items: _navItems,
