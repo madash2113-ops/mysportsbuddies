@@ -4,7 +4,6 @@ import '../home/my_schedules_screen.dart';
 import '../home/my_matches_screen.dart';
 import '../home/help_screen.dart';
 import '../scoreboard/scoreboard_menu_screen.dart';
-import '../sports/live_streaming_screen.dart';
 import '../premium/premium_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -139,7 +138,7 @@ class AppDrawer extends StatelessWidget {
                       Navigator.pushNamedAndRemoveUntil(
                           context, '/home', (r) => false);
                     }),
-                    _item(context, Icons.sports_soccer_outlined, 'My Matches',
+                    _item(context, Icons.history_outlined, 'Game History',
                         () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -148,7 +147,7 @@ class AppDrawer extends StatelessWidget {
                               builder: (_) => const MyMatchesScreen()));
                     }),
                     _item(context, Icons.calendar_today_outlined,
-                        'My Schedules', () {
+                        'Upcoming Schedule', () {
                       Navigator.pop(context);
                       Navigator.push(
                           context,
@@ -167,22 +166,29 @@ class AppDrawer extends StatelessWidget {
                         ),
                       );
                     }),
-                    _item(context, Icons.group_outlined, 'My Teams', () {
+                    _item(context, Icons.group_outlined, 'Teams', () {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('My Teams — coming soon!'),
+                          content: Text('Teams — coming soon!'),
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
                     }),
-                    _item(context, Icons.wifi_tethering, 'Live Streaming', () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const LiveStreamingScreen()));
-                    }),
+                    // Live Streaming — disabled for now, code preserved
+                    Opacity(
+                      opacity: 0.35,
+                      child: _item(
+                          context, Icons.wifi_tethering, 'Live Streaming', () {
+                        // disabled — show coming-soon message
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Live Streaming — coming soon!'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }),
+                    ),
                     const Divider(
                         color: Colors.white12,
                         height: 24,

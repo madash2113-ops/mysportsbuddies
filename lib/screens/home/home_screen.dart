@@ -13,9 +13,10 @@ import '../community/community_feed_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../sports/all_sports_screen.dart';
-import '../sports/live_streaming_screen.dart';
-import '../sports/league_entry_screen.dart';
 import '../tournaments/tournaments_list_screen.dart';
+import '../tournaments/tournament_detail_screen.dart';
+import '../../core/models/tournament.dart';
+import '../../services/tournament_service.dart';
 import '../common/app_drawer.dart';
 import 'notifications_screen.dart';
 
@@ -27,7 +28,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  // 0 = Home (default), 1 = Tournaments, 2 = Feed, 3 = Profile
+  int _bottomNavIndex = 0;
 
   @override
   void initState() {
@@ -51,21 +53,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // 0 = Home, 1 = Tournaments, 2 = Feed, 3 = Profile
   static const _navItems = [
     BottomNavigationBarItem(
-      icon: Icon(Icons.sports_outlined),
-      activeIcon: Icon(Icons.sports),
-      label: 'Sports',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.live_tv_outlined),
-      activeIcon: Icon(Icons.live_tv),
-      label: 'Live',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.dynamic_feed_outlined),
-      activeIcon: Icon(Icons.dynamic_feed),
-      label: 'Feed',
+      icon: Icon(Icons.home_outlined),
+      activeIcon: Icon(Icons.home_rounded),
+      label: 'Home',
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.emoji_events_outlined),
@@ -73,9 +66,14 @@ class _HomeScreenState extends State<HomeScreen> {
       label: 'Tournaments',
     ),
     BottomNavigationBarItem(
-      icon: Icon(Icons.add_circle_outline),
-      activeIcon: Icon(Icons.add_circle),
-      label: 'Host',
+      icon: Icon(Icons.dynamic_feed_outlined),
+      activeIcon: Icon(Icons.dynamic_feed),
+      label: 'Feed',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.person_outline),
+      activeIcon: Icon(Icons.person),
+      label: 'Profile',
     ),
   ];
 
@@ -84,9 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final pages = [
       const _HomeTab(),
-      const LiveStreamingScreen(),
-      const CommunityFeedScreen(),
       const TournamentsListScreen(),
+      const CommunityFeedScreen(),
+      const EditProfileScreen(),
     ];
 
     return Scaffold(
@@ -94,25 +92,12 @@ class _HomeScreenState extends State<HomeScreen> {
       drawer: const AppDrawer(),
       appBar: _buildAppBar(context, isDark),
       body: IndexedStack(
-        index: _selectedIndex,
+        index: _bottomNavIndex,
         children: pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (i) {
-          if (i == 4) {
-            Navigator.push<bool>(
-              context,
-              MaterialPageRoute(builder: (_) => const LeagueEntryScreen()),
-            ).then((created) {
-              if (created == true && mounted) {
-                setState(() => _selectedIndex = 3);
-              }
-            });
-          } else {
-            setState(() => _selectedIndex = i);
-          }
-        },
+        currentIndex: _bottomNavIndex,
+        onTap: (i) => setState(() => _bottomNavIndex = i),
         selectedFontSize: 11,
         unselectedFontSize: 11,
         items: _navItems,
@@ -178,21 +163,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        Consumer<ProfileController>(
-          builder: (context, controller, _) => IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-            ),
-            icon: controller.profileImage != null
-                ? CircleAvatar(
-                    radius: 14,
-                    backgroundImage: FileImage(controller.profileImage!),
-                    backgroundColor: Colors.transparent,
-                  )
-                : Icon(Icons.person_outline, color: iconColor),
-          ),
-        ),
       ],
     );
   }
@@ -228,6 +198,23 @@ class _HomeTab extends StatelessWidget {
                 padding: const EdgeInsets.only(
                     top: AppSpacing.sm, left: AppSpacing.md, right: AppSpacing.md),
                 child: _ResumeScoreboardBanner(match: live.first),
+              );
+            },
+          ),
+
+          // ── Active Tournament Banner ─────────────────────────────────────
+          ListenableBuilder(
+            listenable: TournamentService(),
+            builder: (ctx, _) {
+              final svc = TournamentService();
+              final ongoing = svc.tournaments.where((t) =>
+                  t.status == TournamentStatus.ongoing &&
+                  svc.myEnrolledIds.contains(t.id)).toList();
+              if (ongoing.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                child: _ActiveTournamentBanner(tournament: ongoing.first),
               );
             },
           ),
@@ -632,6 +619,78 @@ class _ResumeScoreboardBanner extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Text('Resume',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVE TOURNAMENT BANNER
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActiveTournamentBanner extends StatelessWidget {
+  final Tournament tournament;
+  const _ActiveTournamentBanner({required this.tournament});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TournamentDetailScreen(tournamentId: tournament.id),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF7B0000), Color(0xFF1A0000)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.emoji_events, color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Active Tournament',
+                      style: TextStyle(color: Colors.white60, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(tournament.name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  Text(tournament.sport,
+                      style: const TextStyle(
+                          color: AppColors.primary, fontSize: 12)),
+                ],
+              ),
+            ),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text('View →',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,

@@ -7,6 +7,14 @@ enum TournamentFormat  { knockout, roundRobin, leagueKnockout }
 enum ScheduleMode      { auto, manual }
 enum TournamentMatchResult { pending, teamAWin, teamBWin, draw, bye }
 
+enum AdminPermission {
+  scheduleMatches,
+  updateScores,
+  editSquads,
+  manageVenues,
+  editMatchInfo,
+}
+
 // ── Tournament ─────────────────────────────────────────────────────────────
 
 class Tournament {
@@ -31,6 +39,8 @@ class Tournament {
   final DateTime?        endDate;
   final String?          rules;
   final String?          bannerUrl;
+  final String?          description;
+  final List<String>     adminIds;         // userIds of assigned admins
 
   const Tournament({
     required this.id,
@@ -54,6 +64,8 @@ class Tournament {
     this.endDate,
     this.rules,
     this.bannerUrl,
+    this.description,
+    this.adminIds = const [],
   });
 
   double get totalFee => entryFee + serviceFee;
@@ -79,6 +91,8 @@ class Tournament {
     'endDate':          endDate != null ? Timestamp.fromDate(endDate!) : null,
     'rules':            rules,
     'bannerUrl':        bannerUrl,
+    'description':      description,
+    'adminIds':         adminIds,
   };
 
   static Tournament fromFirestore(DocumentSnapshot doc) =>
@@ -111,8 +125,10 @@ class Tournament {
     playersPerTeam:   (m['playersPerTeam']  as num?)?.toInt() ?? 0,
     endDate:          m['endDate'] != null
                         ? (m['endDate'] as Timestamp).toDate() : null,
-    rules:            m['rules']     as String?,
-    bannerUrl:        m['bannerUrl'] as String?,
+    rules:            m['rules']        as String?,
+    bannerUrl:        m['bannerUrl']    as String?,
+    description:      m['description'] as String?,
+    adminIds:         List<String>.from(m['adminIds'] as List? ?? []),
   );
 
   Tournament copyWith({
@@ -120,6 +136,8 @@ class Tournament {
     bool? bracketGenerated,
     int? registeredTeams,
     int? playersPerTeam,
+    List<String>? adminIds,
+    String? description,
   }) => Tournament(
     id:               id,
     name:             name,
@@ -139,6 +157,11 @@ class Tournament {
     prizePool:        prizePool,
     registeredTeams:  registeredTeams  ?? this.registeredTeams,
     playersPerTeam:   playersPerTeam   ?? this.playersPerTeam,
+    endDate:          endDate,
+    rules:            rules,
+    bannerUrl:        bannerUrl,
+    description:      description      ?? this.description,
+    adminIds:         adminIds         ?? this.adminIds,
   );
 }
 
@@ -242,6 +265,12 @@ class TournamentMatch {
   DateTime?         scheduledAt;
   final bool        isBye;
   TournamentMatchResult result;
+  final String?     note;         // e.g. "Group A", "Semi-Final"
+  final String?     venueId;
+  final String?     venueName;
+  bool              isLive;
+  final String?     liveStreamUrl;
+  final Map<String, dynamic>? scorecardData;
 
   TournamentMatch({
     required this.id,
@@ -259,59 +288,79 @@ class TournamentMatch {
     this.scheduledAt,
     this.isBye = false,
     this.result = TournamentMatchResult.pending,
+    this.note,
+    this.venueId,
+    this.venueName,
+    this.isLive = false,
+    this.liveStreamUrl,
+    this.scorecardData,
   });
 
   bool get isPlayed => result != TournamentMatchResult.pending;
   bool get isTBD    => teamAId == null || teamBId == null;
 
   Map<String, dynamic> toMap() => {
-    'tournamentId': tournamentId,
-    'round':        round,
-    'matchIndex':   matchIndex,
-    'teamAId':      teamAId,
-    'teamBId':      teamBId,
-    'teamAName':    teamAName,
-    'teamBName':    teamBName,
-    'winnerId':     winnerId,
-    'winnerName':   winnerName,
-    'scoreA':       scoreA,
-    'scoreB':       scoreB,
-    'scheduledAt':  scheduledAt != null ? Timestamp.fromDate(scheduledAt!) : null,
-    'isBye':        isBye,
-    'result':       result.name,
+    'tournamentId':   tournamentId,
+    'round':          round,
+    'matchIndex':     matchIndex,
+    'teamAId':        teamAId,
+    'teamBId':        teamBId,
+    'teamAName':      teamAName,
+    'teamBName':      teamBName,
+    'winnerId':       winnerId,
+    'winnerName':     winnerName,
+    'scoreA':         scoreA,
+    'scoreB':         scoreB,
+    'scheduledAt':    scheduledAt != null ? Timestamp.fromDate(scheduledAt!) : null,
+    'isBye':          isBye,
+    'result':         result.name,
+    if (note != null) 'note': note,
+    'venueId':        venueId,
+    'venueName':      venueName,
+    'isLive':         isLive,
+    'liveStreamUrl':  liveStreamUrl,
+    if (scorecardData != null) 'scorecardData': scorecardData,
   };
 
   static TournamentMatch fromFirestore(DocumentSnapshot doc) =>
       fromMap(doc.id, doc.data() as Map<String, dynamic>);
 
   static TournamentMatch fromMap(String id, Map<String, dynamic> m) => TournamentMatch(
-    id:           id,
-    tournamentId: m['tournamentId'] as String? ?? '',
-    round:        (m['round']       as num).toInt(),
-    matchIndex:   (m['matchIndex']  as num).toInt(),
-    teamAId:      m['teamAId']      as String?,
-    teamBId:      m['teamBId']      as String?,
-    teamAName:    m['teamAName']    as String?,
-    teamBName:    m['teamBName']    as String?,
-    winnerId:     m['winnerId']     as String?,
-    winnerName:   m['winnerName']   as String?,
-    scoreA:       (m['scoreA']      as num?)?.toInt(),
-    scoreB:       (m['scoreB']      as num?)?.toInt(),
-    scheduledAt:  m['scheduledAt'] != null
-                    ? (m['scheduledAt'] as Timestamp).toDate()
-                    : null,
-    isBye:        m['isBye']        as bool? ?? false,
-    result:       TournamentMatchResult.values.firstWhere(
-                    (e) => e.name == m['result'],
-                    orElse: () => TournamentMatchResult.pending),
+    id:            id,
+    tournamentId:  m['tournamentId']  as String? ?? '',
+    round:         (m['round']        as num).toInt(),
+    matchIndex:    (m['matchIndex']   as num).toInt(),
+    teamAId:       m['teamAId']       as String?,
+    teamBId:       m['teamBId']       as String?,
+    teamAName:     m['teamAName']     as String?,
+    teamBName:     m['teamBName']     as String?,
+    winnerId:      m['winnerId']      as String?,
+    winnerName:    m['winnerName']    as String?,
+    scoreA:        (m['scoreA']       as num?)?.toInt(),
+    scoreB:        (m['scoreB']       as num?)?.toInt(),
+    scheduledAt:   m['scheduledAt'] != null
+                     ? (m['scheduledAt'] as Timestamp).toDate()
+                     : null,
+    isBye:         m['isBye']         as bool? ?? false,
+    result:        TournamentMatchResult.values.firstWhere(
+                     (e) => e.name == m['result'],
+                     orElse: () => TournamentMatchResult.pending),
+    note:          m['note']          as String?,
+    venueId:       m['venueId']       as String?,
+    venueName:     m['venueName']     as String?,
+    isLive:        m['isLive']        as bool? ?? false,
+    liveStreamUrl: m['liveStreamUrl'] as String?,
+    scorecardData: m['scorecardData'] != null
+                     ? Map<String, dynamic>.from(m['scorecardData'] as Map)
+                     : null,
   );
 }
 
 // ── TournamentRound (in-memory only) ──────────────────────────────────────
 
 class TournamentRound {
-  final int                  roundNumber;
-  final String               label;
+  final int                   roundNumber;
+  final String                label;
   final List<TournamentMatch> matches;
 
   const TournamentRound({
@@ -319,4 +368,174 @@ class TournamentRound {
     required this.label,
     required this.matches,
   });
+}
+
+// ── TournamentVenue ────────────────────────────────────────────────────────
+
+class TournamentVenue {
+  final String  id;
+  final String  tournamentId;
+  final String  name;
+  final String  address;
+  final String  city;
+  final int     capacity;    // 0 = unknown
+  final String  pitchType;   // e.g. Grass, Turf, Indoor, Hard Court
+  final bool    hasFloodlights;
+  final String? imageUrl;
+
+  const TournamentVenue({
+    required this.id,
+    required this.tournamentId,
+    required this.name,
+    required this.address,
+    required this.city,
+    this.capacity = 0,
+    this.pitchType = '',
+    this.hasFloodlights = false,
+    this.imageUrl,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'tournamentId':    tournamentId,
+    'name':            name,
+    'address':         address,
+    'city':            city,
+    'capacity':        capacity,
+    'pitchType':       pitchType,
+    'hasFloodlights':  hasFloodlights,
+    'imageUrl':        imageUrl,
+  };
+
+  static TournamentVenue fromFirestore(DocumentSnapshot doc) =>
+      fromMap(doc.id, doc.data() as Map<String, dynamic>);
+
+  static TournamentVenue fromMap(String id, Map<String, dynamic> m) => TournamentVenue(
+    id:             id,
+    tournamentId:   m['tournamentId']   as String? ?? '',
+    name:           m['name']           as String,
+    address:        m['address']        as String? ?? '',
+    city:           m['city']           as String? ?? '',
+    capacity:       (m['capacity']      as num?)?.toInt() ?? 0,
+    pitchType:      m['pitchType']      as String? ?? '',
+    hasFloodlights: m['hasFloodlights'] as bool? ?? false,
+    imageUrl:       m['imageUrl']       as String?,
+  );
+}
+
+// ── TournamentAdmin ────────────────────────────────────────────────────────
+
+class TournamentAdmin {
+  final String               userId;
+  final String               userName;
+  final String               numericId;   // 6-digit string for display
+  final List<AdminPermission> permissions;
+  final DateTime             assignedAt;
+
+  const TournamentAdmin({
+    required this.userId,
+    required this.userName,
+    required this.numericId,
+    required this.permissions,
+    required this.assignedAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'userId':      userId,
+    'userName':    userName,
+    'numericId':   numericId,
+    'permissions': permissions.map((p) => p.name).toList(),
+    'assignedAt':  Timestamp.fromDate(assignedAt),
+  };
+
+  static TournamentAdmin fromFirestore(DocumentSnapshot doc) =>
+      fromMap(doc.data() as Map<String, dynamic>);
+
+  static TournamentAdmin fromMap(Map<String, dynamic> m) => TournamentAdmin(
+    userId:      m['userId']    as String,
+    userName:    m['userName']  as String? ?? '',
+    numericId:   m['numericId'] as String? ?? '',
+    permissions: (m['permissions'] as List? ?? [])
+        .map((p) => AdminPermission.values.firstWhere(
+              (e) => e.name == p,
+              orElse: () => AdminPermission.updateScores,
+            ))
+        .toList(),
+    assignedAt:  m['assignedAt'] != null
+                   ? (m['assignedAt'] as Timestamp).toDate()
+                   : DateTime.now(),
+  );
+}
+
+// ── TournamentSquadPlayer ──────────────────────────────────────────────────
+
+class TournamentSquadPlayer {
+  final String  id;           // doc id
+  final String  teamId;
+  final String  tournamentId;
+  final String  playerId;     // numericId as string (6-digit)
+  final String  userId;       // Firebase Auth UID (may be empty if not registered)
+  final String  playerName;
+  final String  role;         // Batsman, Bowler, All-rounder, Goalkeeper, etc.
+  final bool    isCaptain;
+  final bool    isViceCaptain;
+  final int     jerseyNumber; // 0 = not assigned
+
+  const TournamentSquadPlayer({
+    required this.id,
+    required this.teamId,
+    required this.tournamentId,
+    required this.playerId,
+    this.userId = '',
+    required this.playerName,
+    this.role = '',
+    this.isCaptain = false,
+    this.isViceCaptain = false,
+    this.jerseyNumber = 0,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'teamId':        teamId,
+    'tournamentId':  tournamentId,
+    'playerId':      playerId,
+    'userId':        userId,
+    'playerName':    playerName,
+    'role':          role,
+    'isCaptain':     isCaptain,
+    'isViceCaptain': isViceCaptain,
+    'jerseyNumber':  jerseyNumber,
+  };
+
+  static TournamentSquadPlayer fromFirestore(DocumentSnapshot doc) =>
+      fromMap(doc.id, doc.data() as Map<String, dynamic>);
+
+  static TournamentSquadPlayer fromMap(String id, Map<String, dynamic> m) => TournamentSquadPlayer(
+    id:            id,
+    teamId:        m['teamId']        as String? ?? '',
+    tournamentId:  m['tournamentId']  as String? ?? '',
+    playerId:      m['playerId']      as String? ?? '',
+    userId:        m['userId']        as String? ?? '',
+    playerName:    m['playerName']    as String? ?? '',
+    role:          m['role']          as String? ?? '',
+    isCaptain:     m['isCaptain']     as bool? ?? false,
+    isViceCaptain: m['isViceCaptain'] as bool? ?? false,
+    jerseyNumber:  (m['jerseyNumber'] as num?)?.toInt() ?? 0,
+  );
+
+  TournamentSquadPlayer copyWith({
+    bool? isCaptain,
+    bool? isViceCaptain,
+    String? role,
+    int? jerseyNumber,
+  }) => TournamentSquadPlayer(
+    id:            id,
+    teamId:        teamId,
+    tournamentId:  tournamentId,
+    playerId:      playerId,
+    userId:        userId,
+    playerName:    playerName,
+    role:          role          ?? this.role,
+    isCaptain:     isCaptain     ?? this.isCaptain,
+    isViceCaptain: isViceCaptain ?? this.isViceCaptain,
+    jerseyNumber:  jerseyNumber  ?? this.jerseyNumber,
+  );
 }
