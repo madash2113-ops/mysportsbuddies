@@ -10,9 +10,12 @@ import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../premium/premium_screen.dart';
 
-/// Full tournament creation form — submits directly to Firestore.
+/// Full tournament creation / edit form — submits directly to Firestore.
 class LeagueEntryScreen extends StatefulWidget {
-  const LeagueEntryScreen({super.key});
+  /// Pass an existing tournament to pre-fill the form for editing.
+  final Tournament? existingTournament;
+
+  const LeagueEntryScreen({super.key, this.existingTournament});
 
   @override
   State<LeagueEntryScreen> createState() => _LeagueEntryScreenState();
@@ -46,6 +49,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   // ── Banner ─────────────────────────────────────────────────────────────────
   File? _bannerImage;
 
+  bool get _isEditMode => widget.existingTournament != null;
+
   static const _sports  = [
     'Cricket', 'Football', 'Basketball', 'Badminton',
     'Tennis', 'Volleyball', 'Chess', 'Other',
@@ -53,6 +58,34 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   static const _formats = ['Knockout', 'Round Robin', 'League'];
 
   bool get _isPremium => UserService().profile?.isPremium == true;
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.existingTournament;
+    if (t != null) {
+      _nameCtrl.text     = t.name;
+      _locationCtrl.text = t.location;
+      _sport             = _sports.contains(t.sport) ? t.sport : 'Other';
+      _startDate         = t.startDate;
+      _endDate           = t.endDate;
+      _maxTeams          = t.maxTeams == 0 ? 4 : t.maxTeams;
+      _noTeamLimit       = t.maxTeams == 0;
+      _playersPerTeam    = t.playersPerTeam == 0 ? _sportDefaultPlayers(t.sport) : t.playersPerTeam;
+      _noPlayerLimit     = t.playersPerTeam == 0;
+      _freeEntry         = t.entryFee == 0;
+      if (t.entryFee > 0) _entryFeeCtrl.text = t.entryFee.toStringAsFixed(0);
+      _prizeCtrl.text    = t.prizePool ?? '';
+      _rulesCtrl.text    = t.rules ?? '';
+      // Format
+      const fmtMap = {
+        TournamentFormat.knockout:       'Knockout',
+        TournamentFormat.roundRobin:     'Round Robin',
+        TournamentFormat.leagueKnockout: 'League',
+      };
+      _format = fmtMap[t.format] ?? 'Knockout';
+    }
+  }
 
   @override
   void dispose() {
@@ -188,6 +221,28 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         'League':      TournamentFormat.leagueKnockout,
       };
 
+      if (_isEditMode) {
+        await TournamentService().updateTournament(
+          tournamentId:   widget.existingTournament!.id,
+          name:           name,
+          sport:          _sport,
+          format:         formatMap[_format] ?? TournamentFormat.knockout,
+          startDate:      _startDate!,
+          endDate:        _endDate,
+          location:       location,
+          maxTeams:       maxTeams,
+          entryFee:       entryFee,
+          serviceFee:     serviceFee,
+          prizePool:      _prizeCtrl.text.trim().isEmpty ? null : _prizeCtrl.text.trim(),
+          playersPerTeam: playersPerTeam,
+          rules:          _rulesCtrl.text.trim().isEmpty ? null : _rulesCtrl.text.trim(),
+        );
+        if (!mounted) return;
+        setState(() => _loading = false);
+        Navigator.pop(context, true);
+        return;
+      }
+
       final id = await TournamentService().createTournament(
         name:           name,
         sport:          _sport,
@@ -262,8 +317,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         backgroundColor: const Color(0xFF0A0A0A),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('Host Tournament',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        title: Text(_isEditMode ? 'Edit Tournament' : 'Host Tournament',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -705,8 +760,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                         height: 22,
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
-                    : const Text('Create Tournament',
-                        style: TextStyle(
+                    : Text(_isEditMode ? 'Save Changes' : 'Create Tournament',
+                        style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w700)),
