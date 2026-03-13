@@ -41,13 +41,13 @@ For more information on Flutter development:
 - [Flutter Cookbook](https://docs.flutter.dev/cookbook)
 - [Flutter Codelab](https://docs.flutter.dev/get-started/codelab)
 
-## Contributing
+-- ## Contributing
 
-We welcome contributions! Please feel free to submit pull requests or open issues for bugs and feature requests.
+-- We welcome contributions! Please feel free to submit pull requests or open issues for bugs and feature requests.
 
-## License
+--## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+--This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 
