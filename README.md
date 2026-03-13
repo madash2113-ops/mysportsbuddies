@@ -41,14 +41,6 @@ For more information on Flutter development:
 - [Flutter Cookbook](https://docs.flutter.dev/cookbook)
 - [Flutter Codelab](https://docs.flutter.dev/get-started/codelab)
 
--- ## Contributing
-
--- We welcome contributions! Please feel free to submit pull requests or open issues for bugs and feature requests.
-
---## License
-
---This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
-
 Have questions or need help? Reach out to the MySportsBuddies community or open an issue in the repository.
