@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
-import '../../services/user_service.dart';
+import '../../core/models/user_profile.dart';
+import '../../widgets/player_search_field.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // AdminManagementScreen — HOST only
@@ -217,12 +218,9 @@ class _AddAdminSheet extends StatefulWidget {
 }
 
 class _AddAdminSheetState extends State<_AddAdminSheet> {
-  final _idCtrl = TextEditingController();
-  bool _searching = false;
-  bool _saving    = false;
-  String? _foundUserId;
-  String? _foundName;
-  String? _searchError;
+  final _searchCtrl = TextEditingController();
+  bool _saving = false;
+  UserProfile? _selectedProfile;
 
   final Set<AdminPermission> _selectedPerms = {
     AdminPermission.updateScores,
@@ -231,42 +229,19 @@ class _AddAdminSheetState extends State<_AddAdminSheet> {
 
   @override
   void dispose() {
-    _idCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _search() async {
-    final raw = _idCtrl.text.trim();
-    final numId = int.tryParse(raw);
-    if (numId == null) {
-      setState(() => _searchError = 'Enter a valid numeric ID');
-      return;
-    }
-    setState(() { _searching = true; _searchError = null; _foundUserId = null; _foundName = null; });
-    try {
-      final profile = await UserService().searchByNumericId(numId);
-      if (!mounted) return;
-      if (profile != null) {
-        setState(() { _foundUserId = profile.id; _foundName = profile.name; });
-      } else {
-        setState(() => _searchError = 'No user found with ID $raw');
-      }
-    } catch (e) {
-      if (mounted) setState(() => _searchError = e.toString());
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
-  }
-
   Future<void> _addAdmin() async {
-    if (_foundUserId == null || _selectedPerms.isEmpty) return;
+    if (_selectedProfile == null || _selectedPerms.isEmpty) return;
     setState(() => _saving = true);
     try {
       await TournamentService().addAdmin(
         tournamentId: widget.tournamentId,
-        userId:       _foundUserId!,
-        userName:     _foundName ?? '',
-        numericId:    _idCtrl.text.trim(),
+        userId:       _selectedProfile!.id,
+        userName:     _selectedProfile!.name,
+        numericId:    _selectedProfile!.numericId?.toString() ?? '',
         permissions:  _selectedPerms.toList(),
       );
       if (mounted) Navigator.pop(context);
@@ -305,64 +280,11 @@ class _AddAdminSheetState extends State<_AddAdminSheet> {
                 fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 20),
 
-        // Search by player ID
-        Row(children: [
-          Expanded(child: TextField(
-            controller: _idCtrl,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: '6-digit Player ID',
-              hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-              filled: true, fillColor: const Color(0xFF1E1E1E),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Colors.white24)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Colors.white24)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.primary)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-          )),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2A2A2A),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
-            ),
-            onPressed: _searching ? null : _search,
-            child: _searching
-                ? const SizedBox(width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text('Find', style: TextStyle(color: Colors.white70,
-                    fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-        ]),
-
-        if (_searchError != null) ...[
-          const SizedBox(height: 6),
-          Text(_searchError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-        ],
-        if (_foundName != null) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.green.withAlpha(20),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.green.withAlpha(80)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 16),
-              const SizedBox(width: 8),
-              Text('Found: $_foundName',
-                  style: const TextStyle(color: Colors.green,
-                      fontSize: 13, fontWeight: FontWeight.w600)),
-            ]),
-          ),
-        ],
+        PlayerSearchField(
+          controller: _searchCtrl,
+          hint: 'Search by name or player ID',
+          onProfileSelected: (p) => setState(() => _selectedProfile = p),
+        ),
 
         const SizedBox(height: 16),
         const Align(
@@ -393,14 +315,14 @@ class _AddAdminSheetState extends State<_AddAdminSheet> {
           width: double.infinity,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _foundUserId != null
+              backgroundColor: _selectedProfile != null
                   ? AppColors.primary
                   : Colors.white24,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 0,
             ),
-            onPressed: (_saving || _foundUserId == null) ? null : _addAdmin,
+            onPressed: (_saving || _selectedProfile == null) ? null : _addAdmin,
             child: _saving
                 ? const SizedBox(width: 20, height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

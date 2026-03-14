@@ -5,6 +5,7 @@ import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
 import '../sports/league_entry_screen.dart';
 import 'admin_management_screen.dart';
+import 'group_management_screen.dart';
 import 'schedule_management_screen.dart';
 import 'squad_management_screen.dart';
 import 'venue_management_screen.dart';
@@ -92,6 +93,17 @@ class HostDashboardScreen extends StatelessWidget {
                     badge: '${teams.length}',
                     color: AppColors.primary,
                     onTap: () => _showTeamsSheet(context, t, teams, isHost),
+                  ),
+
+                  // Group Stage
+                  _DashCard(
+                    icon:  Icons.workspaces_outlined,
+                    label: 'Groups',
+                    badge: t.hasGroups ? '${t.groupCount}' : null,
+                    color: Colors.deepPurple,
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => GroupManagementScreen(
+                            tournamentId: tournamentId))),
                   ),
 
                   // Schedule Matches

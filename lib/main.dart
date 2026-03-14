@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -26,6 +28,13 @@ void main() async {
   try {
     await Firebase.initializeApp();
     debugPrint('✅ Firebase initialized');
+
+    // Disable reCAPTCHA browser popup during development (debug builds only)
+    if (kDebugMode) {
+      await FirebaseAuth.instance.setSettings(
+        appVerificationDisabledForTesting: true,
+      );
+    }
 
     await UserService().init();
     debugPrint('✅ UserService initialized');

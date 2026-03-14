@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/models/tournament.dart';
+import 'notification_service.dart';
 import 'user_service.dart';
 
 class PremiumRequiredException implements Exception {
@@ -25,6 +26,7 @@ class TournamentService extends ChangeNotifier {
   final Map<String, List<TournamentMatch>>       _matches = {};
   final Map<String, List<TournamentVenue>>       _venues  = {};
   final Map<String, List<TournamentAdmin>>       _admins  = {};
+  final Map<String, List<TournamentGroup>>       _groups  = {};
   // squadCache: tournamentId → teamId → players
   final Map<String, Map<String, List<TournamentSquadPlayer>>> _squads = {};
   List<String>                        _myEnrolledIds = [];
@@ -35,6 +37,7 @@ class TournamentService extends ChangeNotifier {
   List<TournamentMatch>     matchesFor(String id) => List.unmodifiable(_matches[id] ?? []);
   List<TournamentVenue>     venuesFor(String id)  => List.unmodifiable(_venues[id]  ?? []);
   List<TournamentAdmin>     adminsFor(String id)  => List.unmodifiable(_admins[id]  ?? []);
+  List<TournamentGroup>     groupsFor(String id)  => List.unmodifiable(_groups[id]  ?? []);
   List<String>              get myEnrolledIds  => List.unmodifiable(_myEnrolledIds);
   TournamentTeam?           myTeamIn(String id) => _myTeamMap[id];
   List<TournamentSquadPlayer> squadFor(String tournamentId, String teamId) =>
@@ -67,18 +70,20 @@ class TournamentService extends ChangeNotifier {
   }
 
   // ── My enrollments ───────────────────────────────────────────────────────
+  // Uses a flat top-level `enrollments` collection (doc ID = teamId) so we
+  // can query by `enrolledBy` without needing a collection-group index.
 
   Future<void> loadMyEnrollments(String userId) async {
     if (userId.isEmpty) return;
     try {
       final snap = await _db
-          .collectionGroup('teams')
+          .collection('enrollments')
           .where('enrolledBy', isEqualTo: userId)
           .get();
       _myTeamMap.clear();
       _myEnrolledIds = [];
       for (final doc in snap.docs) {
-        final team = TournamentTeam.fromFirestore(doc);
+        final team = TournamentTeam.fromMap(doc.id, doc.data());
         if (team.tournamentId.isNotEmpty) {
           _myTeamMap[team.tournamentId] = team;
           _myEnrolledIds.add(team.tournamentId);
@@ -100,10 +105,27 @@ class TournamentService extends ChangeNotifier {
         ref.collection('matches').get(),
         ref.collection('venues').get(),
         ref.collection('admins').get(),
+        ref.collection('groups').get(),
       ]);
 
       _teams[tournamentId] = (results[0] as QuerySnapshot)
           .docs.map(TournamentTeam.fromFirestore).toList();
+
+      // Derive enrollment for the current user from loaded teams.
+      // This covers both new enrollments (in `enrollments` collection) and
+      // legacy enrollments that pre-date the top-level collection.
+      final currentUserId = UserService().userId ?? '';
+      if (currentUserId.isNotEmpty) {
+        for (final team in _teams[tournamentId]!) {
+          if (team.enrolledBy == currentUserId) {
+            _myTeamMap[tournamentId] = team;
+            if (!_myEnrolledIds.contains(tournamentId)) {
+              _myEnrolledIds.add(tournamentId);
+            }
+            break;
+          }
+        }
+      }
 
       // Sort matches in memory — avoids composite index requirement
       _matches[tournamentId] = ((results[1] as QuerySnapshot)
@@ -119,6 +141,10 @@ class TournamentService extends ChangeNotifier {
       _admins[tournamentId] = (results[3] as QuerySnapshot).docs.map((doc) {
         return TournamentAdmin.fromMap(doc.data() as Map<String, dynamic>);
       }).toList();
+
+      _groups[tournamentId] = ((results[4] as QuerySnapshot)
+          .docs.map(TournamentGroup.fromFirestore).toList())
+        ..sort((a, b) => a.name.compareTo(b.name));
 
       notifyListeners();
     } catch (e) {
@@ -220,6 +246,9 @@ class TournamentService extends ChangeNotifier {
 
     await ref.set(team.toMap());
 
+    // Mirror to flat enrollments collection (doc ID = teamId) for index-free queries
+    await _db.collection('enrollments').doc(ref.id).set(team.toMap());
+
     // Increment registeredTeams counter
     await _db.collection(_col).doc(tournamentId).update({
       'registeredTeams': FieldValue.increment(1),
@@ -228,6 +257,36 @@ class TournamentService extends ChangeNotifier {
     // Refresh local cache
     await loadDetail(tournamentId);
     await loadMyEnrollments(userId);
+
+    // ── Notifications ───────────────────────────────────────────────────────
+    final tourn = _tournaments.firstWhere(
+      (t) => t.id == tournamentId,
+      orElse: () => throw Exception('Tournament not found'),
+    );
+    final enrollerName = UserService().profile?.name ?? 'Someone';
+
+    // Notify the host
+    if (tourn.createdBy.isNotEmpty && tourn.createdBy != userId) {
+      await NotificationService.send(
+        toUserId: tourn.createdBy,
+        type:     NotifType.tournamentUpdate,
+        title:    '${tourn.name} — New Enrollment',
+        body:     '$teamName (captain: $captainName) enrolled in your tournament',
+      );
+    }
+
+    // Notify other enrolled teams' captains
+    final enrolled = _teams[tournamentId] ?? [];
+    for (final t in enrolled) {
+      if (t.enrolledBy == userId || t.enrolledBy == tourn.createdBy) continue;
+      if (t.enrolledBy.isEmpty) continue;
+      await NotificationService.send(
+        toUserId: t.enrolledBy,
+        type:     NotifType.tournamentUpdate,
+        title:    '${tourn.name} — New Team',
+        body:     '$enrollerName\'s team "$teamName" just enrolled',
+      );
+    }
   }
 
   // ── Generate schedule (auto) ────────────────────────────────────────────
@@ -524,6 +583,8 @@ class TournamentService extends ChangeNotifier {
         .collection('teams')
         .doc(teamId)
         .delete();
+    // Also remove from flat enrollments collection
+    await _db.collection('enrollments').doc(teamId).delete();
     await _db.collection(_col).doc(tournamentId).update({
       'registeredTeams': FieldValue.increment(-1),
     });
@@ -1030,4 +1091,215 @@ class TournamentService extends ChangeNotifier {
 
   int _nextMatchIndex(String tournamentId, int round) =>
       (_matches[tournamentId] ?? []).where((m) => m.round == round).length;
+
+  // ── Group management ─────────────────────────────────────────────────────
+
+  /// Create [count] groups (Group A, B, C…), deleting any existing ones.
+  Future<void> createGroups(String tournamentId, int count) async {
+    assert(count >= 2 && count <= 26, 'Group count must be between 2 and 26');
+    final ref = _db.collection(_col).doc(tournamentId);
+
+    // Delete existing groups
+    final existingSnap = await ref.collection('groups').get();
+    final batch1 = _db.batch();
+    for (final doc in existingSnap.docs) {
+      batch1.delete(doc.reference);
+    }
+    await batch1.commit();
+
+    // Delete existing group-stage matches using cached data
+    final groupMatchIds = matchesFor(tournamentId)
+        .where((m) => m.groupId != null)
+        .map((m) => m.id)
+        .toList();
+    if (groupMatchIds.isNotEmpty) {
+      final batch2 = _db.batch();
+      for (final id in groupMatchIds) {
+        batch2.delete(ref.collection('matches').doc(id));
+      }
+      await batch2.commit();
+    }
+
+    // Create new groups
+    final batch3 = _db.batch();
+    for (int i = 0; i < count; i++) {
+      final groupRef = ref.collection('groups').doc();
+      batch3.set(groupRef, {
+        'tournamentId': tournamentId,
+        'name':         'Group ${String.fromCharCode(65 + i)}',
+        'teamIds':      <String>[],
+        'teamNames':    <String, String>{},
+        'createdAt':    Timestamp.fromDate(DateTime.now()),
+      });
+    }
+    await batch3.commit();
+
+    // Update tournament flags
+    await ref.update({'hasGroups': true, 'groupCount': count});
+
+    await loadDetail(tournamentId);
+    // Update cached tournament object
+    final idx = _tournaments.indexWhere((t) => t.id == tournamentId);
+    if (idx != -1) {
+      _tournaments[idx] =
+          _tournaments[idx].copyWith(hasGroups: true, groupCount: count);
+    }
+    notifyListeners();
+  }
+
+  /// Assign a team to a group (removes from any previous group first).
+  Future<void> assignTeamToGroup({
+    required String tournamentId,
+    required String groupId,
+    required String teamId,
+    required String teamName,
+  }) async {
+    final ref = _db.collection(_col).doc(tournamentId);
+
+    // Remove from any current group
+    final batch = _db.batch();
+    for (final g in groupsFor(tournamentId)) {
+      if (g.teamIds.contains(teamId)) {
+        batch.update(ref.collection('groups').doc(g.id), {
+          'teamIds':             FieldValue.arrayRemove([teamId]),
+          'teamNames.$teamId':   FieldValue.delete(),
+        });
+      }
+    }
+    // Add to target group
+    batch.update(ref.collection('groups').doc(groupId), {
+      'teamIds':             FieldValue.arrayUnion([teamId]),
+      'teamNames.$teamId':   teamName,
+    });
+    await batch.commit();
+    await loadDetail(tournamentId);
+  }
+
+  /// Remove a team from a group (moves it back to the unassigned pool).
+  Future<void> removeTeamFromGroup({
+    required String tournamentId,
+    required String groupId,
+    required String teamId,
+  }) async {
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('groups')
+        .doc(groupId)
+        .update({
+      'teamIds':           FieldValue.arrayRemove([teamId]),
+      'teamNames.$teamId': FieldValue.delete(),
+    });
+    await loadDetail(tournamentId);
+  }
+
+  /// Generate round-robin matches for a single group, replacing any existing
+  /// group matches for that group.
+  Future<void> generateGroupMatches(
+      String tournamentId, String groupId) async {
+    final group =
+        groupsFor(tournamentId).firstWhere((g) => g.id == groupId);
+    final allTeams  = teamsFor(tournamentId);
+    final groupTeams =
+        allTeams.where((t) => group.teamIds.contains(t.id)).toList();
+
+    if (groupTeams.length < 2) {
+      throw Exception('${group.name} needs at least 2 teams.');
+    }
+
+    final ref = _db.collection(_col).doc(tournamentId);
+
+    // Delete existing matches for this group
+    final oldIds = matchesFor(tournamentId)
+        .where((m) => m.groupId == groupId)
+        .map((m) => m.id)
+        .toList();
+    if (oldIds.isNotEmpty) {
+      final del = _db.batch();
+      for (final id in oldIds) {
+        del.delete(ref.collection('matches').doc(id));
+      }
+      await del.commit();
+    }
+
+    // Circle-method round-robin
+    final n = groupTeams.length;
+    final pool = [...groupTeams];
+    // Pad to even count so every round has n/2 matches
+    final needsBye = n % 2 != 0;
+    // For odd n we just skip if both indices happen to collide (won't happen
+    // with even after padding, handled below)
+
+    final totalRounds = needsBye ? n : n - 1;
+    final batch = _db.batch();
+    int matchIndex = 0;
+
+    for (int round = 1; round <= totalRounds; round++) {
+      final pairsCount = needsBye ? (n - 1) ~/ 2 : n ~/ 2;
+      for (int i = 0; i < pairsCount; i++) {
+        final a = pool[i];
+        final b = pool[n - 1 - i];
+        final mRef = ref.collection('matches').doc();
+        final match = TournamentMatch(
+          id:           mRef.id,
+          tournamentId: tournamentId,
+          round:        round,
+          matchIndex:   matchIndex++,
+          teamAId:      a.id,
+          teamAName:    a.teamName,
+          teamBId:      b.id,
+          teamBName:    b.teamName,
+          groupId:      groupId,
+          note:         '${group.name} · Round $round',
+        );
+        batch.set(mRef, match.toMap());
+      }
+      // Rotate all except first element
+      if (pool.length > 1) {
+        final last = pool.removeLast();
+        pool.insert(1, last);
+      }
+    }
+    await batch.commit();
+    await loadDetail(tournamentId);
+  }
+
+  /// Remove all groups (and their matches) for a tournament.
+  Future<void> deleteAllGroups(String tournamentId) async {
+    final ref = _db.collection(_col).doc(tournamentId);
+
+    // Delete group-stage matches
+    final groupMatchIds = matchesFor(tournamentId)
+        .where((m) => m.groupId != null)
+        .map((m) => m.id)
+        .toList();
+    if (groupMatchIds.isNotEmpty) {
+      final b1 = _db.batch();
+      for (final id in groupMatchIds) {
+        b1.delete(ref.collection('matches').doc(id));
+      }
+      await b1.commit();
+    }
+
+    // Delete group docs
+    final snap = await ref.collection('groups').get();
+    if (snap.docs.isNotEmpty) {
+      final b2 = _db.batch();
+      for (final doc in snap.docs) {
+        b2.delete(doc.reference);
+      }
+      await b2.commit();
+    }
+
+    // Update tournament flags
+    await ref.update({'hasGroups': false, 'groupCount': 0});
+    _groups[tournamentId] = [];
+
+    final idx = _tournaments.indexWhere((t) => t.id == tournamentId);
+    if (idx != -1) {
+      _tournaments[idx] =
+          _tournaments[idx].copyWith(hasGroups: false, groupCount: 0);
+    }
+    await loadDetail(tournamentId);
+  }
 }

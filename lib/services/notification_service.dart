@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'user_service.dart';
 
 /// Types of in-app notifications.
-enum NotifType { follow, like, comment, matchResult, gameInvite, nearby }
+enum NotifType { follow, like, comment, matchResult, gameInvite, nearby, rsvpUpdate, tournamentUpdate }
 
 /// A single notification item.
 class AppNotification {

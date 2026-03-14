@@ -55,6 +55,13 @@ flutter:
   assets:
     - assets/1.jpg
     - assets/2.jpg
+    - assets/sports/cricket.jpg
+    - assets/sports/football.jpg
+    - assets/sports/basketball.jpg
+    - assets/sports/badminton.jpg
+    - assets/sports/tennis.jpg
+    - assets/sports/volleyball.jpg
+    - assets/sports/chess.jpg
 
 
 

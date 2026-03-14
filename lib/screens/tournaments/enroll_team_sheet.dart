@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
+import '../../widgets/player_search_field.dart';
 
 /// Bottom sheet for enrolling a team into a tournament.
 /// Call via [EnrollTeamSheet.show(...)].
@@ -260,21 +261,24 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
                       separatorBuilder: (_, _) =>
                           const SizedBox(height: 8),
                       itemBuilder: (_, i) => Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: _field(
-                              _playerCtrls[i],
-                              'Player ${i + 1} name',
-                              Icons.sports_outlined,
+                            child: PlayerSearchField(
+                              controller: _playerCtrls[i],
+                              hint: 'Player ${i + 1} name or ID',
                             ),
                           ),
                           if (!_countLocked && _playerCtrls.length > 1)
-                            IconButton(
-                              icon: const Icon(
-                                  Icons.remove_circle_outline,
-                                  color: Colors.red,
-                                  size: 20),
-                              onPressed: () => _removePlayer(i),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: IconButton(
+                                icon: const Icon(
+                                    Icons.remove_circle_outline,
+                                    color: Colors.red,
+                                    size: 20),
+                                onPressed: () => _removePlayer(i),
+                              ),
                             ),
                         ],
                       ),

@@ -7,15 +7,12 @@ import '../../design/spacing.dart';
 import '../../services/game_service.dart';
 import '../../services/user_service.dart';
 import '../nearby/game_detail_screen.dart';
-import '../register/register_game_screen.dart';
 
 class ScheduledMatchesScreen extends StatelessWidget {
   final String sport;
-  final bool myGamesOnly;
   const ScheduledMatchesScreen({
     super.key,
     required this.sport,
-    this.myGamesOnly = false,
   });
 
   @override
@@ -25,22 +22,13 @@ class ScheduledMatchesScreen extends StatelessWidget {
         final myId = UserService().userId;
         final all = gameSvc.bySport(sport);
 
-        // Registered by me
-        final mine =
-            myId != null ? all.where((g) => g.registeredBy == myId).toList() : <Game>[];
-
-        // Opted-in or tentative (not registered by me — shown separately)
-        final rsvpd = myGamesOnly
-            ? <Game>[]
-            : all
-                .where((g) =>
-                    g.registeredBy != myId &&
-                    (g.status == ParticipationStatus.inGame ||
-                        g.status == ParticipationStatus.tentative))
-                .toList();
-
-        final appBarTitle = myGamesOnly ? 'My $sport Games' : '$sport — Scheduled';
-        final isEmpty = myGamesOnly ? mine.isEmpty : (rsvpd.isEmpty && mine.isEmpty);
+        // Opted-in or tentative games
+        final rsvpd = all
+            .where((g) =>
+                g.registeredBy != myId &&
+                (g.status == ParticipationStatus.inGame ||
+                    g.status == ParticipationStatus.tentative))
+            .toList();
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -49,54 +37,29 @@ class ScheduledMatchesScreen extends StatelessWidget {
             elevation: 0,
             iconTheme: const IconThemeData(color: Colors.white),
             title: Text(
-              appBarTitle,
+              '$sport · My Schedule',
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 17,
                   fontWeight: FontWeight.w600),
             ),
           ),
-          body: isEmpty
-              ? _EmptyState(sport: sport, myGamesOnly: myGamesOnly)
+          body: rsvpd.isEmpty
+              ? _EmptyState(sport: sport)
               : ListView(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   children: [
-                    // ── My Registered Games ───────────────────────────────
-                    if (mine.isNotEmpty) ...[
-                      _sectionHeader(
-                        myGamesOnly ? 'Your Registered Games' : 'Registered by You',
-                        Icons.edit_calendar_outlined,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      ...mine.map((g) => _ScheduleCard(
-                            game: g,
-                            badge: 'ORGANISER',
-                            badgeColor: AppColors.primary,
-                            onEdit: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RegisterGameScreen(
-                                    sport: sport, existingGame: g),
-                              ),
-                            ),
-                          )),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
-
-                    // ── RSVP'd Games ──────────────────────────────────────
-                    if (!myGamesOnly && rsvpd.isNotEmpty) ...[
-                      _sectionHeader('Your RSVP', Icons.how_to_reg_outlined),
-                      const SizedBox(height: AppSpacing.sm),
-                      ...rsvpd.map((g) => _ScheduleCard(
-                            game: g,
-                            badge: g.status == ParticipationStatus.inGame
-                                ? 'GOING'
-                                : 'MAYBE',
-                            badgeColor: g.status == ParticipationStatus.inGame
-                                ? Colors.green
-                                : Colors.amber,
-                          )),
-                    ],
+                    _sectionHeader('Your RSVP', Icons.how_to_reg_outlined),
+                    const SizedBox(height: AppSpacing.sm),
+                    ...rsvpd.map((g) => _ScheduleCard(
+                          game: g,
+                          badge: g.status == ParticipationStatus.inGame
+                              ? 'GOING'
+                              : 'MAYBE',
+                          badgeColor: g.status == ParticipationStatus.inGame
+                              ? Colors.green
+                              : Colors.amber,
+                        )),
                   ],
                 ),
         );
@@ -124,13 +87,10 @@ class _ScheduleCard extends StatelessWidget {
   final Game game;
   final String badge;
   final Color badgeColor;
-  final VoidCallback? onEdit;
-
   const _ScheduleCard({
     required this.game,
     required this.badge,
     required this.badgeColor,
-    this.onEdit,
   });
 
   String _formatDate(DateTime dt) {
@@ -172,13 +132,43 @@ class _ScheduleCard extends StatelessWidget {
             width: isToday ? 1.2 : 0.8,
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Row: location + badge
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Top half: photo or sport banner ──────────────────────────
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(15)),
+              child: game.photoUrls.isNotEmpty
+                  ? Image.network(
+                      game.photoUrls.first,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, prog) => prog == null
+                          ? child
+                          : const SizedBox(
+                              height: 160,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primary),
+                              ),
+                            ),
+                      errorBuilder: (context, e, s) =>
+                          _SportBanner(sport: game.sport),
+                    )
+                  : _SportBanner(sport: game.sport),
+            ),
+
+            // ── Bottom half: details ──────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Row: location + badge
+                  Row(
                 children: [
                   const Icon(Icons.location_on_outlined,
                       color: AppColors.primary, size: 16),
@@ -247,38 +237,10 @@ class _ScheduleCard extends StatelessWidget {
                 ),
               ],
 
-              // Edit row (for owned games)
-              if (onEdit != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    onTap: onEdit,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.edit_outlined,
-                              color: Colors.white60, size: 14),
-                          SizedBox(width: 4),
-                          Text('Edit',
-                              style: TextStyle(
-                                  color: Colors.white60, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -296,12 +258,78 @@ class _ScheduleCard extends StatelessWidget {
       );
 }
 
+// ── Sport gradient banner ─────────────────────────────────────────────────────
+
+class _SportBanner extends StatelessWidget {
+  final String sport;
+  const _SportBanner({required this.sport});
+
+  static (List<Color>, String) _theme(String sport) {
+    final s = sport.toLowerCase();
+    if (s.contains('cricket')) {
+      return ([const Color(0xFF1B5E20), const Color(0xFF388E3C)], '🏏');
+    } else if (s.contains('football') || s.contains('soccer')) {
+      return ([const Color(0xFF0D47A1), const Color(0xFF1976D2)], '⚽');
+    } else if (s.contains('basketball')) {
+      return ([const Color(0xFFE65100), const Color(0xFFF57C00)], '🏀');
+    } else if (s.contains('badminton')) {
+      return ([const Color(0xFF4A148C), const Color(0xFF7B1FA2)], '🏸');
+    } else if (s.contains('tennis')) {
+      return ([const Color(0xFF33691E), const Color(0xFF689F38)], '🎾');
+    } else if (s.contains('volleyball')) {
+      return ([const Color(0xFF1A237E), const Color(0xFF3949AB)], '🏐');
+    } else if (s.contains('hockey')) {
+      return ([const Color(0xFF37474F), const Color(0xFF546E7A)], '🏑');
+    } else if (s.contains('boxing') || s.contains('mma')) {
+      return ([const Color(0xFFB71C1C), const Color(0xFFD32F2F)], '🥊');
+    } else {
+      return ([const Color(0xFF212121), const Color(0xFF424242)], '🏆');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (colors, emoji) = _theme(sport);
+    return Container(
+      height: 160,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(children: [
+        Positioned(
+          right: -10,
+          bottom: -10,
+          child: Text(emoji,
+              style: TextStyle(
+                  fontSize: 110,
+                  color: Colors.white.withValues(alpha: 0.08))),
+        ),
+        Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(emoji, style: const TextStyle(fontSize: 40)),
+            const SizedBox(height: 8),
+            Text(sport,
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
 // ── Empty State ───────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   final String sport;
-  final bool myGamesOnly;
-  const _EmptyState({required this.sport, this.myGamesOnly = false});
+  const _EmptyState({required this.sport});
 
   @override
   Widget build(BuildContext context) {
@@ -309,23 +337,20 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(myGamesOnly ? '🏅' : '📅', style: const TextStyle(fontSize: 56)),
+          const Text('📅', style: TextStyle(fontSize: 56)),
           const SizedBox(height: AppSpacing.md),
           Text(
-            myGamesOnly ? 'No $sport games registered yet' : 'No scheduled $sport matches',
+            'No $sport games in your schedule',
             style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            myGamesOnly
-                ? 'Tap "Register Game" to create\nyour first $sport game.'
-                : 'RSVP to a nearby game or register\none to see it here.',
+          const Text(
+            'RSVP to a nearby game\nto see it here.',
             textAlign: TextAlign.center,
-            style:
-                const TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
+            style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
           ),
         ],
       ),

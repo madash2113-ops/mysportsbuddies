@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../core/models/game.dart';
+import 'notification_service.dart';
+import 'user_service.dart';
 
 /// Game store backed by Cloud Firestore.
 ///
@@ -65,11 +67,66 @@ class GameService extends ChangeNotifier {
       String id, ParticipationStatus status) async {
     final idx = _games.indexWhere((g) => g.id == id);
     if (idx < 0) return;
-    _games[idx] = _games[idx].copyWith(status: status);
+    final game = _games[idx];
+    _games[idx] = game.copyWith(status: status);
     notifyListeners();
 
+    final myId   = UserService().userId ?? '';
+    final myName = UserService().profile?.name ?? 'Someone';
+
     try {
+      // Persist RSVP on the game document
       await _db.collection(_col).doc(id).update({'status': status.name});
+
+      // Track per-user RSVP in a subcollection
+      await _db
+          .collection(_col)
+          .doc(id)
+          .collection('rsvps')
+          .doc(myId)
+          .set({
+        'userId':    myId,
+        'name':      myName,
+        'status':    status.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Build a human-readable action label
+      final action = switch (status) {
+        ParticipationStatus.inGame    => 'joined',
+        ParticipationStatus.tentative => 'is tentative for',
+        ParticipationStatus.out       => 'dropped out of',
+      };
+
+      // Notify the host
+      final hostId = game.registeredBy ?? '';
+      if (hostId.isNotEmpty && hostId != myId) {
+        await NotificationService.send(
+          toUserId: hostId,
+          type:     NotifType.rsvpUpdate,
+          title:    '${game.sport} Game Update',
+          body:     '$myName $action your game at ${game.location}',
+        );
+      }
+
+      // Notify other "In" participants from the rsvps subcollection
+      final rsvpSnap = await _db
+          .collection(_col)
+          .doc(id)
+          .collection('rsvps')
+          .where('status', isEqualTo: ParticipationStatus.inGame.name)
+          .get();
+
+      for (final doc in rsvpSnap.docs) {
+        final participantId = doc['userId'] as String? ?? doc.id;
+        if (participantId == myId || participantId == hostId) continue;
+        await NotificationService.send(
+          toUserId: participantId,
+          type:     NotifType.rsvpUpdate,
+          title:    '${game.sport} Game Update',
+          body:     '$myName $action the game at ${game.location}',
+        );
+      }
     } catch (e) {
       debugPrint('GameService.updateGameStatus Firestore error: $e');
     }

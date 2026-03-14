@@ -97,23 +97,27 @@ class _NotifTile extends StatelessWidget {
 
   IconData get _icon {
     switch (notif.type) {
-      case NotifType.follow:      return Icons.person_add_outlined;
-      case NotifType.like:        return Icons.favorite_outline;
-      case NotifType.comment:     return Icons.chat_bubble_outline;
-      case NotifType.matchResult: return Icons.emoji_events_outlined;
-      case NotifType.gameInvite:  return Icons.sports_outlined;
-      case NotifType.nearby:      return Icons.location_on_outlined;
+      case NotifType.follow:           return Icons.person_add_outlined;
+      case NotifType.like:             return Icons.favorite_outline;
+      case NotifType.comment:          return Icons.chat_bubble_outline;
+      case NotifType.matchResult:      return Icons.emoji_events_outlined;
+      case NotifType.gameInvite:       return Icons.sports_outlined;
+      case NotifType.nearby:           return Icons.location_on_outlined;
+      case NotifType.rsvpUpdate:       return Icons.how_to_reg_outlined;
+      case NotifType.tournamentUpdate: return Icons.emoji_events_outlined;
     }
   }
 
   Color get _iconColor {
     switch (notif.type) {
-      case NotifType.follow:      return Colors.purple;
-      case NotifType.like:        return AppColors.primary;
-      case NotifType.comment:     return Colors.blue;
-      case NotifType.matchResult: return Colors.amber;
-      case NotifType.gameInvite:  return Colors.green;
-      case NotifType.nearby:      return Colors.teal;
+      case NotifType.follow:           return Colors.purple;
+      case NotifType.like:             return AppColors.primary;
+      case NotifType.comment:          return Colors.blue;
+      case NotifType.matchResult:      return Colors.amber;
+      case NotifType.gameInvite:       return Colors.green;
+      case NotifType.nearby:           return Colors.teal;
+      case NotifType.rsvpUpdate:       return Colors.green;
+      case NotifType.tournamentUpdate: return Colors.orange;
     }
   }
 
@@ -136,6 +140,10 @@ class _NotifTile extends StatelessWidget {
         ));
       case NotifType.gameInvite:
       case NotifType.nearby:
+      case NotifType.rsvpUpdate:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AllSportsScreen()));
+      case NotifType.tournamentUpdate:
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => const AllSportsScreen()));
     }

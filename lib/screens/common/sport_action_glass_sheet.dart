@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../home/scheduled_matches_screen.dart';
 import '../nearby/nearby_games_screen.dart';
-import '../register/register_game_screen.dart';
+import '../nearby/host_a_game_screen.dart';
 import '../scoreboard/match_setup_screen.dart';
 import '../scoreboard/live_matches_screen.dart';
 
@@ -155,33 +155,20 @@ class SportActionGlassScreen extends StatelessWidget {
                       ),
 
                       _ActionRow(
-                        icon: Icons.add_circle_rounded,
-                        title: 'Create a Game',
+                        icon: Icons.sports_handball_outlined,
+                        title: 'Host a Game',
                         primary: primary,
                         isDark: isDark,
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => RegisterGameScreen(sport: sport),
-                          ),
-                        ),
-                      ),
-
-                      _ActionRow(
-                        icon: Icons.manage_accounts_outlined,
-                        title: 'Games I\'m Hosting',
-                        primary: primary,
-                        isDark: isDark,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ScheduledMatchesScreen(
-                                sport: sport, myGamesOnly: true),
+                            builder: (_) => HostAGameScreen(sport: sport),
                           ),
                         ),
                       ),
 
                       _ActionRow(
                         icon: Icons.calendar_today_outlined,
-                        title: 'Scheduled Matches',
+                        title: 'My Schedule',
                         primary: primary,
                         isDark: isDark,
                         onTap: () => Navigator.of(context).push(

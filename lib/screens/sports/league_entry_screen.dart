@@ -47,7 +47,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   bool _freeEntry = true;
 
   // ── Banner ─────────────────────────────────────────────────────────────────
-  File? _bannerImage;
+  File?   _bannerImage;
+  String? _existingBannerUrl;
 
   bool get _isEditMode => widget.existingTournament != null;
 
@@ -83,7 +84,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         TournamentFormat.roundRobin:     'Round Robin',
         TournamentFormat.leagueKnockout: 'League',
       };
-      _format = fmtMap[t.format] ?? 'Knockout';
+      _format             = fmtMap[t.format] ?? 'Knockout';
+      _existingBannerUrl  = t.bannerUrl;
     }
   }
 
@@ -222,8 +224,9 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
       };
 
       if (_isEditMode) {
+        final tid = widget.existingTournament!.id;
         await TournamentService().updateTournament(
-          tournamentId:   widget.existingTournament!.id,
+          tournamentId:   tid,
           name:           name,
           sport:          _sport,
           format:         formatMap[_format] ?? TournamentFormat.knockout,
@@ -237,6 +240,14 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           playersPerTeam: playersPerTeam,
           rules:          _rulesCtrl.text.trim().isEmpty ? null : _rulesCtrl.text.trim(),
         );
+        // Upload new banner if host picked one
+        if (_bannerImage != null) {
+          try {
+            await TournamentService().uploadBanner(tid, _bannerImage!);
+          } catch (_) {
+            // non-fatal
+          }
+        }
         if (!mounted) return;
         setState(() => _loading = false);
         Navigator.pop(context, true);
@@ -417,54 +428,91 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
             GestureDetector(
               onTap: _pickBanner,
               child: _bannerImage != null
-                  ? Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(_bannerImage!,
+                  // newly picked file
+                  ? Stack(children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(_bannerImage!,
+                            width: double.infinity,
+                            height: 120,
+                            fit: BoxFit.cover),
+                      ),
+                      Positioned(
+                        top: 8, right: 8,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _bannerImage = null),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(Icons.close,
+                                color: Colors.white, size: 16),
+                          ),
+                        ),
+                      ),
+                    ])
+                  : _existingBannerUrl != null
+                      // existing uploaded banner (edit mode)
+                      ? Stack(children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              _existingBannerUrl!,
                               width: double.infinity,
                               height: 120,
-                              fit: BoxFit.cover),
-                        ),
-                        Positioned(
-                          top: 8, right: 8,
-                          child: GestureDetector(
-                            onTap: () => setState(() => _bannerImage = null),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const SizedBox(),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 8, right: 8,
                             child: Container(
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: Colors.black54,
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close,
-                                  color: Colors.white, size: 16),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.edit, color: Colors.white,
+                                      size: 12),
+                                  SizedBox(width: 4),
+                                  Text('Tap to change',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11)),
+                                ],
+                              ),
                             ),
                           ),
+                        ])
+                      // no banner yet
+                      : Container(
+                          width: double.infinity,
+                          height: 90,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A1A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: Colors.white12, width: 1.5),
+                          ),
+                          child: const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_photo_alternate_outlined,
+                                  color: Colors.white38, size: 28),
+                              SizedBox(height: 4),
+                              Text('Tap to upload banner',
+                                  style: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 12)),
+                            ],
+                          ),
                         ),
-                      ],
-                    )
-                  : Container(
-                      width: double.infinity,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A1A1A),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: Colors.white12, width: 1.5,
-                            style: BorderStyle.solid),
-                      ),
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_photo_alternate_outlined,
-                              color: Colors.white38, size: 28),
-                          SizedBox(height: 4),
-                          Text('Tap to upload banner',
-                              style: TextStyle(
-                                  color: Colors.white38, fontSize: 12)),
-                        ],
-                      ),
-                    ),
             ),
 
             const SizedBox(height: 20),

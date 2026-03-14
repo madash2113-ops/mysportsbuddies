@@ -41,6 +41,8 @@ class Tournament {
   final String?          bannerUrl;
   final String?          description;
   final List<String>     adminIds;         // userIds of assigned admins
+  final bool             hasGroups;        // true once groups have been created
+  final int              groupCount;       // number of groups (0 = no groups)
 
   const Tournament({
     required this.id,
@@ -66,6 +68,8 @@ class Tournament {
     this.bannerUrl,
     this.description,
     this.adminIds = const [],
+    this.hasGroups = false,
+    this.groupCount = 0,
   });
 
   double get totalFee => entryFee + serviceFee;
@@ -93,6 +97,8 @@ class Tournament {
     'bannerUrl':        bannerUrl,
     'description':      description,
     'adminIds':         adminIds,
+    'hasGroups':        hasGroups,
+    'groupCount':       groupCount,
   };
 
   static Tournament fromFirestore(DocumentSnapshot doc) =>
@@ -129,6 +135,8 @@ class Tournament {
     bannerUrl:        m['bannerUrl']    as String?,
     description:      m['description'] as String?,
     adminIds:         List<String>.from(m['adminIds'] as List? ?? []),
+    hasGroups:        m['hasGroups']  as bool? ?? false,
+    groupCount:       (m['groupCount'] as num?)?.toInt() ?? 0,
   );
 
   Tournament copyWith({
@@ -138,6 +146,8 @@ class Tournament {
     int? playersPerTeam,
     List<String>? adminIds,
     String? description,
+    bool? hasGroups,
+    int? groupCount,
   }) => Tournament(
     id:               id,
     name:             name,
@@ -162,6 +172,8 @@ class Tournament {
     bannerUrl:        bannerUrl,
     description:      description      ?? this.description,
     adminIds:         adminIds         ?? this.adminIds,
+    hasGroups:        hasGroups        ?? this.hasGroups,
+    groupCount:       groupCount       ?? this.groupCount,
   );
 }
 
@@ -266,6 +278,7 @@ class TournamentMatch {
   final bool        isBye;
   TournamentMatchResult result;
   final String?     note;         // e.g. "Group A", "Semi-Final"
+  final String?     groupId;      // non-null = group-stage match
   final String?     venueId;
   final String?     venueName;
   bool              isLive;
@@ -289,6 +302,7 @@ class TournamentMatch {
     this.isBye = false,
     this.result = TournamentMatchResult.pending,
     this.note,
+    this.groupId,
     this.venueId,
     this.venueName,
     this.isLive = false,
@@ -314,7 +328,8 @@ class TournamentMatch {
     'scheduledAt':    scheduledAt != null ? Timestamp.fromDate(scheduledAt!) : null,
     'isBye':          isBye,
     'result':         result.name,
-    if (note != null) 'note': note,
+    if (note != null)    'note':    note,
+    if (groupId != null) 'groupId': groupId,
     'venueId':        venueId,
     'venueName':      venueName,
     'isLive':         isLive,
@@ -346,6 +361,7 @@ class TournamentMatch {
                      (e) => e.name == m['result'],
                      orElse: () => TournamentMatchResult.pending),
     note:          m['note']          as String?,
+    groupId:       m['groupId']       as String?,
     venueId:       m['venueId']       as String?,
     venueName:     m['venueName']     as String?,
     isLive:        m['isLive']        as bool? ?? false,
@@ -538,4 +554,63 @@ class TournamentSquadPlayer {
     isViceCaptain: isViceCaptain ?? this.isViceCaptain,
     jerseyNumber:  jerseyNumber  ?? this.jerseyNumber,
   );
+}
+
+// ── TournamentGroup ────────────────────────────────────────────────────────
+
+class TournamentGroup {
+  final String              id;
+  final String              tournamentId;
+  final String              name;       // "Group A", "Group B", …
+  final List<String>        teamIds;
+  final Map<String, String> teamNames;  // teamId → teamName
+  final DateTime            createdAt;
+
+  const TournamentGroup({
+    required this.id,
+    required this.tournamentId,
+    required this.name,
+    required this.teamIds,
+    required this.teamNames,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'tournamentId': tournamentId,
+    'name':         name,
+    'teamIds':      teamIds,
+    'teamNames':    teamNames,
+    'createdAt':    Timestamp.fromDate(createdAt),
+  };
+
+  static TournamentGroup fromFirestore(DocumentSnapshot doc) =>
+      fromMap(doc.id, doc.data() as Map<String, dynamic>);
+
+  static TournamentGroup fromMap(String id, Map<String, dynamic> m) =>
+      TournamentGroup(
+        id:           id,
+        tournamentId: m['tournamentId'] as String? ?? '',
+        name:         m['name']         as String,
+        teamIds:      List<String>.from(m['teamIds'] as List? ?? []),
+        teamNames:    Map<String, String>.from(
+          ((m['teamNames'] as Map?) ?? {})
+              .map((k, v) => MapEntry(k.toString(), v.toString())),
+        ),
+        createdAt: m['createdAt'] != null
+            ? (m['createdAt'] as Timestamp).toDate()
+            : DateTime.now(),
+      );
+
+  TournamentGroup copyWith({
+    List<String>?        teamIds,
+    Map<String, String>? teamNames,
+  }) =>
+      TournamentGroup(
+        id:           id,
+        tournamentId: tournamentId,
+        name:         name,
+        teamIds:      teamIds    ?? this.teamIds,
+        teamNames:    teamNames  ?? this.teamNames,
+        createdAt:    createdAt,
+      );
 }

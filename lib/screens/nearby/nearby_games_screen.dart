@@ -24,6 +24,9 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
   Position? _userPos;
   bool      _locating = true;
   late TabController _tabCtrl;
+  final _searchCtrl = TextEditingController();
+  String _locationQuery = '';
+  double? _radiusMiles; // null = no radius filter
 
   static const _tabs = ['Upcoming', 'Today', 'Past'];
 
@@ -37,6 +40,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
   @override
   void dispose() {
     _tabCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -134,6 +138,29 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
     return '$h:$m $ap';
   }
 
+  Future<void> _onGpsTap() async {
+    setState(() => _locating = true);
+    final pos = await LocationService().getCurrentPosition();
+    if (mounted) setState(() { _userPos = pos; _locating = false; });
+  }
+
+  void _showRadiusSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _RadiusSheet(
+        initial: _radiusMiles ?? 10,
+        onApply: (miles) {
+          Navigator.pop(context);
+          setState(() => _radiusMiles = miles <= 0 ? null : miles);
+        },
+      ),
+    );
+  }
+
   Future<void> _goToRegister() async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => RegisterGameScreen(sport: widget.sport),
@@ -168,34 +195,11 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
           ],
         ),
         actions: [
-          if (_locating)
-            const Padding(
-              padding: EdgeInsets.all(14),
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppColors.primary),
-              ),
-            )
-          else
-            IconButton(
-              icon: Icon(
-                _userPos != null
-                    ? Icons.my_location
-                    : Icons.location_disabled_outlined,
-                color:
-                    _userPos != null ? AppColors.primary : Colors.white38,
-              ),
-              onPressed: _initLocation,
-              tooltip: 'Refresh location',
-            ),
-          TextButton.icon(
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline,
+                color: AppColors.primary, size: 30),
             onPressed: _goToRegister,
-            icon: const Icon(Icons.add, color: AppColors.primary, size: 18),
-            label: const Text('Add',
-                style: TextStyle(
-                    color: AppColors.primary, fontWeight: FontWeight.w600)),
+            tooltip: 'Add a game',
           ),
         ],
         bottom: TabBar(
@@ -214,26 +218,173 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
       ),
       body: Consumer<GameService>(
         builder: (ctx, gameSvc, _) {
-          final sorted = _sorted(gameSvc.bySport(widget.sport));
-          final splits = _split(sorted);   // [upcoming, today, past]
+          final allSorted = _sorted(gameSvc.bySport(widget.sport));
+          final filtered = allSorted.where((g) {
+            final matchText = _locationQuery.isEmpty ||
+                g.location.toLowerCase().contains(_locationQuery.toLowerCase());
+            // convert miles → km for distance comparison
+            final matchRadius = _radiusMiles == null ||
+                (_distanceTo(g) != null &&
+                    _distanceTo(g)! <= _radiusMiles! * 1.60934);
+            return matchText && matchRadius;
+          }).toList();
+          final splits = _split(filtered);   // [upcoming, today, past]
 
           return Column(
             children: [
-              if (_userPos != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 6),
-                  color: AppColors.primary.withValues(alpha: 0.08),
+              // ── Location search bar ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (v) =>
+                            setState(() => _locationQuery = v.trim()),
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search by location…',
+                          hintStyle: const TextStyle(
+                              color: Colors.white38, fontSize: 13),
+                          prefixIcon: const Icon(Icons.search_rounded,
+                              color: Colors.white38, size: 18),
+                          suffixIcon: _locationQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close,
+                                      color: Colors.white38, size: 18),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _locationQuery = '');
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: const Color(0xFF1A1A1A),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Colors.white12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Colors.white12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: AppColors.primary, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Combined GPS + radius pill
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _radiusMiles != null
+                            ? AppColors.primary.withValues(alpha: 0.12)
+                            : const Color(0xFF1A1A1A),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _radiusMiles != null
+                              ? AppColors.primary
+                              : Colors.white12,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // GPS tap — gets current location
+                          GestureDetector(
+                            onTap: _locating ? null : _onGpsTap,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12),
+                              child: _locating
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.primary),
+                                    )
+                                  : Icon(
+                                      Icons.my_location_rounded,
+                                      color: _userPos != null
+                                          ? AppColors.primary
+                                          : Colors.white38,
+                                      size: 20,
+                                    ),
+                            ),
+                          ),
+                          // Divider
+                          Container(
+                              width: 1, height: 22, color: Colors.white12),
+                          // Radius dropdown arrow
+                          GestureDetector(
+                            onTap: _showRadiusSheet,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10),
+                              child: Icon(
+                                Icons.expand_more_rounded,
+                                color: _radiusMiles != null
+                                    ? AppColors.primary
+                                    : Colors.white38,
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Active radius chip
+              if (_radiusMiles != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.my_location,
-                          color: AppColors.primary, size: 13),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color:
+                                  AppColors.primary.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.radio_button_checked,
+                                color: AppColors.primary, size: 12),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Within ${_radiusMiles!.toStringAsFixed(_radiusMiles! == _radiusMiles!.roundToDouble() ? 0 : 1)} mi',
+                              style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(width: 6),
-                      Text(
-                        'Sorted by distance from your location',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 12),
+                      GestureDetector(
+                        onTap: () => setState(() => _radiusMiles = null),
+                        child: const Icon(Icons.close,
+                            color: Colors.white38, size: 16),
                       ),
                     ],
                   ),
@@ -241,54 +392,57 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
               Expanded(
                 child: TabBarView(
                   controller: _tabCtrl,
-                  children: List.generate(3, (tabIdx) {
-                    final games = splits[tabIdx];
-                    if (games.isEmpty) {
-                      return _EmptyTab(
-                        label: _tabs[tabIdx],
-                        sport: widget.sport,
-                        onAdd: tabIdx == 0 ? _goToRegister : null,
-                      );
-                    }
-                    return RefreshIndicator(
-                      color: AppColors.primary,
-                      backgroundColor: AppColors.card,
-                      onRefresh: () async => _initLocation(),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        itemCount: games.length,
-                        itemBuilder: (_, i) {
-                          final game = games[i];
-                          return _GameCard(
-                            game: game,
-                            distance: _distanceTo(game),
-                            formatDate: _formatDate,
-                            formatTime: _formatTime,
-                            isOwner: myId != null &&
-                                game.registeredBy == myId,
-                            onTap: () => Navigator.push(
-                              ctx,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    GameDetailScreen(game: game),
-                              ),
-                            ),
-                            onEdit: () async {
-                              await Navigator.of(context).push(
+                  children: [
+                    // ── Tabs 0-2: Upcoming / Today / Past ────────────────
+                    ...List.generate(3, (tabIdx) {
+                      final games = splits[tabIdx];
+                      if (games.isEmpty) {
+                        return _EmptyTab(
+                          label: _tabs[tabIdx],
+                          sport: widget.sport,
+                          onAdd: null,
+                        );
+                      }
+                      return RefreshIndicator(
+                        color: AppColors.primary,
+                        backgroundColor: AppColors.card,
+                        onRefresh: () async => _initLocation(),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          itemCount: games.length,
+                          itemBuilder: (_, i) {
+                            final game = games[i];
+                            return _GameCard(
+                              game: game,
+                              distance: _distanceTo(game),
+                              formatDate: _formatDate,
+                              formatTime: _formatTime,
+                              isOwner: myId != null &&
+                                  game.registeredBy == myId,
+                              onTap: () => Navigator.push(
+                                ctx,
                                 MaterialPageRoute(
-                                  builder: (_) => RegisterGameScreen(
-                                    sport: widget.sport,
-                                    existingGame: game,
-                                  ),
+                                  builder: (_) =>
+                                      GameDetailScreen(game: game),
                                 ),
-                              );
-                              setState(() {});
-                            },
-                          );
-                        },
-                      ),
-                    );
-                  }),
+                              ),
+                              onEdit: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => RegisterGameScreen(
+                                      sport: widget.sport,
+                                      existingGame: game,
+                                    ),
+                                  ),
+                                );
+                                setState(() {});
+                              },
+                            );
+                          },
+                        ),
+                      );
+                    }),
+                  ],
                 ),
               ),
             ],
@@ -413,6 +567,33 @@ class _GameCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Top half: uploaded photo or sport gradient banner ─────────
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(15)),
+              child: game.photoUrls.isNotEmpty
+                  ? Image.network(
+                      game.photoUrls.first,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, prog) => prog == null
+                          ? child
+                          : const SizedBox(
+                              height: 160,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primary),
+                              ),
+                            ),
+                      errorBuilder: (context, e, s) =>
+                          _SportBanner(sport: game.sport),
+                    )
+                  : _SportBanner(sport: game.sport),
+            ),
+
+            // ── Bottom half: match details ────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
@@ -741,6 +922,279 @@ class _InfoChip extends StatelessWidget {
           BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
       child: Text(label,
           style: const TextStyle(color: Colors.white70, fontSize: 11)),
+    );
+  }
+}
+
+// ── Radius Sheet (slider + text input, 0-100 miles) ──────────────────────────
+
+class _RadiusSheet extends StatefulWidget {
+  final double initial;
+  final void Function(double miles) onApply;
+  const _RadiusSheet({required this.initial, required this.onApply});
+
+  @override
+  State<_RadiusSheet> createState() => _RadiusSheetState();
+}
+
+class _RadiusSheetState extends State<_RadiusSheet> {
+  late double _miles;
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _miles = widget.initial.clamp(0, 100);
+    _ctrl = TextEditingController(text: _miles.toInt().toString());
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onSlider(double v) {
+    setState(() => _miles = v);
+    _ctrl.text = v.toInt().toString();
+    _ctrl.selection =
+        TextSelection.collapsed(offset: _ctrl.text.length);
+  }
+
+  void _onText(String v) {
+    final parsed = int.tryParse(v);
+    if (parsed == null) return;
+    final clamped = parsed.clamp(0, 100).toDouble();
+    setState(() => _miles = clamped);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Text('Search Radius',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 20),
+
+          // Slider row
+          Row(
+            children: [
+              const Text('0',
+                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: AppColors.primary,
+                    inactiveTrackColor:
+                        AppColors.primary.withValues(alpha: 0.2),
+                    thumbColor: AppColors.primary,
+                    overlayColor:
+                        AppColors.primary.withValues(alpha: 0.15),
+                    thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 10),
+                    trackHeight: 4,
+                  ),
+                  child: Slider(
+                    value: _miles,
+                    min: 0,
+                    max: 100,
+                    divisions: 100,
+                    onChanged: _onSlider,
+                  ),
+                ),
+              ),
+              const Text('100',
+                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Text input
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 90,
+                child: TextField(
+                  controller: _ctrl,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF252525),
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                          color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                  onChanged: _onText,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('miles',
+                  style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.white24),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => widget.onApply(0), // 0 = clear filter
+                  child: const Text('Clear',
+                      style: TextStyle(
+                          color: Colors.white54,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => widget.onApply(_miles),
+                  child: const Text('Apply',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sport gradient banner (shown when no photo is uploaded) ───────────────────
+
+class _SportBanner extends StatelessWidget {
+  final String sport;
+  const _SportBanner({required this.sport});
+
+  static (List<Color>, String) _theme(String sport) {
+    final s = sport.toLowerCase();
+    if (s.contains('cricket')) {
+      return ([const Color(0xFF1B5E20), const Color(0xFF388E3C)], '🏏');
+    } else if (s.contains('football') || s.contains('soccer')) {
+      return ([const Color(0xFF0D47A1), const Color(0xFF1976D2)], '⚽');
+    } else if (s.contains('basketball')) {
+      return ([const Color(0xFFE65100), const Color(0xFFF57C00)], '🏀');
+    } else if (s.contains('badminton')) {
+      return ([const Color(0xFF4A148C), const Color(0xFF7B1FA2)], '🏸');
+    } else if (s.contains('tennis')) {
+      return ([const Color(0xFF33691E), const Color(0xFF689F38)], '🎾');
+    } else if (s.contains('volleyball')) {
+      return ([const Color(0xFF1A237E), const Color(0xFF3949AB)], '🏐');
+    } else if (s.contains('hockey')) {
+      return ([const Color(0xFF37474F), const Color(0xFF546E7A)], '🏑');
+    } else if (s.contains('rugby')) {
+      return ([const Color(0xFF3E2723), const Color(0xFF6D4C41)], '🏉');
+    } else if (s.contains('swimming')) {
+      return ([const Color(0xFF006064), const Color(0xFF00838F)], '🏊');
+    } else if (s.contains('boxing') || s.contains('mma')) {
+      return ([const Color(0xFFB71C1C), const Color(0xFFD32F2F)], '🥊');
+    } else if (s.contains('esport') || s.contains('gaming')) {
+      return ([const Color(0xFF1A237E), const Color(0xFF283593)], '🎮');
+    } else {
+      return ([const Color(0xFF212121), const Color(0xFF424242)], '🏆');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (colors, emoji) = _theme(sport);
+    return Container(
+      height: 160,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Large faded emoji as background texture
+          Positioned(
+            right: -10,
+            bottom: -10,
+            child: Text(emoji,
+                style: TextStyle(
+                    fontSize: 110,
+                    color: Colors.white.withValues(alpha: 0.08))),
+          ),
+          // Sport label + emoji centred
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 40)),
+                const SizedBox(height: 8),
+                Text(
+                  sport,
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/tournament.dart';
+import '../../core/models/user_profile.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
-import '../../services/user_service.dart';
+import '../../widgets/player_search_field.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SquadManagementScreen
@@ -332,14 +333,10 @@ class _AddPlayerSheet extends StatefulWidget {
 }
 
 class _AddPlayerSheetState extends State<_AddPlayerSheet> {
-  final _idCtrl    = TextEditingController();
-  final _nameCtrl  = TextEditingController();
-  final _roleCtrl  = TextEditingController();
+  final _nameCtrl   = TextEditingController();
   final _jerseyCtrl = TextEditingController();
-  bool  _searching = false;
-  bool  _saving    = false;
-  String? _foundUserId;
-  String? _searchError;
+  bool  _saving     = false;
+  UserProfile? _selectedProfile;
 
   static const _roles = [
     'Batsman', 'Bowler', 'All-Rounder', 'Wicket Keeper',
@@ -352,35 +349,9 @@ class _AddPlayerSheetState extends State<_AddPlayerSheet> {
 
   @override
   void dispose() {
-    _idCtrl.dispose(); _nameCtrl.dispose();
-    _roleCtrl.dispose(); _jerseyCtrl.dispose();
+    _nameCtrl.dispose();
+    _jerseyCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _searchByNumericId() async {
-    final raw = _idCtrl.text.trim();
-    final numId = int.tryParse(raw);
-    if (numId == null) {
-      setState(() => _searchError = 'Enter a valid numeric ID');
-      return;
-    }
-    setState(() { _searching = true; _searchError = null; _foundUserId = null; });
-    try {
-      final profile = await UserService().searchByNumericId(numId);
-      if (!mounted) return;
-      if (profile != null) {
-        setState(() {
-          _foundUserId = profile.id;
-          _nameCtrl.text = profile.name;
-        });
-      } else {
-        setState(() => _searchError = 'No user found with ID $raw');
-      }
-    } catch (e) {
-      if (mounted) setState(() => _searchError = e.toString());
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
   }
 
   Future<void> _addPlayer() async {
@@ -388,13 +359,13 @@ class _AddPlayerSheetState extends State<_AddPlayerSheet> {
     setState(() => _saving = true);
     try {
       await TournamentService().addPlayerToSquad(
-        tournamentId:  widget.tournamentId,
-        teamId:        widget.teamId,
-        playerId:      _idCtrl.text.trim(),
-        userId:        _foundUserId ?? '',
-        playerName:    _nameCtrl.text.trim(),
-        role:          _selectedRole,
-        jerseyNumber:  int.tryParse(_jerseyCtrl.text.trim()) ?? 0,
+        tournamentId: widget.tournamentId,
+        teamId:       widget.teamId,
+        playerId:     _selectedProfile?.numericId?.toString() ?? '',
+        userId:       _selectedProfile?.id ?? '',
+        playerName:   _nameCtrl.text.trim(),
+        role:         _selectedRole,
+        jerseyNumber: int.tryParse(_jerseyCtrl.text.trim()) ?? 0,
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -423,45 +394,13 @@ class _AddPlayerSheetState extends State<_AddPlayerSheet> {
                   fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 20),
 
-          // Player ID search
-          Row(children: [
-            Expanded(child: _TxtField(
-              ctrl: _idCtrl, hint: '6-digit Player ID',
-              keyboardType: TextInputType.number,
-            )),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2A2A2A),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              onPressed: _searching ? null : _searchByNumericId,
-              child: _searching
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Find', style: TextStyle(color: Colors.white70,
-                      fontSize: 13, fontWeight: FontWeight.w600)),
-            ),
-          ]),
-          if (_searchError != null) ...[
-            const SizedBox(height: 6),
-            Text(_searchError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-          ],
-          if (_foundUserId != null) ...[
-            const SizedBox(height: 6),
-            Row(children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 14),
-              const SizedBox(width: 6),
-              Text('User found: ${_nameCtrl.text}',
-                  style: const TextStyle(color: Colors.green, fontSize: 12)),
-            ]),
-          ],
-          const SizedBox(height: 12),
-
-          // Player name (editable)
-          _TxtField(ctrl: _nameCtrl, hint: 'Player name *'),
+          // Live player search (name or 6-digit ID)
+          PlayerSearchField(
+            controller: _nameCtrl,
+            hint: 'Search by name or player ID',
+            onProfileSelected: (p) =>
+                setState(() => _selectedProfile = p),
+          ),
           const SizedBox(height: 10),
 
           // Role dropdown
