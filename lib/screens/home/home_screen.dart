@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../controllers/profile_controller.dart';
 import '../../core/models/match_score.dart';
 import '../../design/colors.dart';
+import '../../design/spacing.dart';
 import '../../services/scoreboard_service.dart';
 import '../../services/user_service.dart';
 import '../common/sport_action_glass_sheet.dart';
@@ -18,10 +19,7 @@ import '../tournaments/tournament_detail_screen.dart';
 import '../../core/models/tournament.dart';
 import '../../services/tournament_service.dart';
 import '../common/app_drawer.dart';
-import '../nearby/nearby_games_screen.dart';
-import '../nearby/host_a_game_screen.dart';
 import '../settings/settings_screen.dart';
-import 'my_matches_screen.dart';
 import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -431,154 +429,25 @@ class _InfoChip extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOME TAB — modern advanced layout
+// HOME TAB — full reimagined content
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HomeTab extends StatelessWidget {
   const _HomeTab();
 
-  static String _greeting() {
-    final h = DateTime.now().hour;
-    if (h < 5)  return 'Good night';
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    if (h < 21) return 'Good evening';
-    return 'Good night';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDark   = Theme.of(context).brightness == Brightness.dark;
-    final primary  = isDark ? AppColors.primary : AppColorsLight.primary;
-    final textCol  = isDark ? Colors.white : const Color(0xFF111827);
-    final profile  = UserService().profile;
-    final firstName = (profile?.name ?? '').split(' ').first;
-    final imageUrl  = profile?.imageUrl;
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
-          // ── Greeting + Avatar ──────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _greeting(),
-                        style: TextStyle(
-                          color: isDark ? Colors.white38 : Colors.black38,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        firstName.isNotEmpty
-                            ? 'Hey, $firstName! 👋'
-                            : 'Welcome back! 👋',
-                        style: TextStyle(
-                          color: textCol,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const EditProfileScreen())),
-                  child: CircleAvatar(
-                    radius: 22,
-                    backgroundColor: primary.withValues(alpha: 0.15),
-                    backgroundImage:
-                        imageUrl != null ? NetworkImage(imageUrl) : null,
-                    child: imageUrl == null
-                        ? Text(
-                            firstName.isNotEmpty
-                                ? firstName[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          // ── Hero Banner ────────────────────────────────────────────────
+          // ── Hero Banner ─────────────────────────────────────────────────
           const _HeroBanner(),
 
-          const SizedBox(height: 18),
-
-          // ── Quick Actions ──────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-            child: Text(
-              'Quick Actions',
-              style: TextStyle(
-                color: textCol,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                _QuickAction(
-                  icon: Icons.search_rounded,
-                  label: 'Find\nGame',
-                  color: const Color(0xFF1565C0),
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const NearbyGamesScreen())),
-                ),
-                const SizedBox(width: 10),
-                _QuickAction(
-                  icon: Icons.add_circle_outline_rounded,
-                  label: 'Host\nGame',
-                  color: const Color(0xFF2E7D32),
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const HostAGameScreen())),
-                ),
-                const SizedBox(width: 10),
-                _QuickAction(
-                  icon: Icons.emoji_events_outlined,
-                  label: 'Tourna-\nments',
-                  color: primary,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const TournamentsListScreen())),
-                ),
-                const SizedBox(width: 10),
-                _QuickAction(
-                  icon: Icons.sports_score_outlined,
-                  label: 'Live\nScores',
-                  color: const Color(0xFF6A1B9A),
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const MyMatchesScreen())),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Live Scoreboard ────────────────────────────────────────────
+          // ── Resume Scoreboard Banner (above Browse Sports) ───────────────
           Consumer<ScoreboardService>(
             builder: (context, svc, _) {
               final live = svc.all
@@ -586,304 +455,73 @@ class _HomeTab extends StatelessWidget {
                   .toList();
               if (live.isEmpty) return const SizedBox.shrink();
               return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                padding: const EdgeInsets.only(
+                    top: AppSpacing.sm, left: AppSpacing.md, right: AppSpacing.md),
                 child: _ResumeScoreboardBanner(match: live.first),
               );
             },
           ),
 
-          // ── Active Tournament ──────────────────────────────────────────
+          // ── Active Tournament Banner ─────────────────────────────────────
           ListenableBuilder(
             listenable: TournamentService(),
             builder: (ctx, _) {
               final svc = TournamentService();
-              final ongoing = svc.tournaments
-                  .where((t) =>
-                      t.status == TournamentStatus.ongoing &&
-                      svc.myEnrolledIds.contains(t.id))
-                  .toList();
+              final ongoing = svc.tournaments.where((t) =>
+                  t.status == TournamentStatus.ongoing &&
+                  svc.myEnrolledIds.contains(t.id)).toList();
               if (ongoing.isEmpty) return const SizedBox.shrink();
               return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
                 child: _ActiveTournamentBanner(tournament: ongoing.first),
               );
             },
           ),
 
-          const SizedBox(height: 22),
+          const SizedBox(height: AppSpacing.md),
 
-          // ── Browse Sports ──────────────────────────────────────────────
+          // ── Browse Sports heading ────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Text(
-                  'Browse Sports',
-                  style: TextStyle(
-                    color: textCol,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const AllSportsScreen())),
-                  child: Text(
-                    'See all',
-                    style: TextStyle(
-                        color: primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Text(
+              'Browse Sports',
+              style: TextStyle(
+                color: textCol,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: GridView.count(
+              crossAxisCount: 3,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: const [
+                SportTile(label: 'Cricket',      emoji: '🏏'),
+                SportTile(label: 'Football',     emoji: '⚽'),
+                SportTile(label: 'Basketball',   emoji: '🏀'),
+                SportTile(label: 'Badminton',    emoji: '🏸'),
+                SportTile(label: 'Tennis',       emoji: '🎾'),
+                SportTile(label: 'Volleyball',   emoji: '🏐'),
+                SportTile(label: 'Table Tennis', emoji: '🏓'),
+                SportTile(label: 'Boxing',       emoji: '🥊'),
+                SportTile(label: 'More',         emoji: '➕', isMore: true),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          const _SportsHorizontalScroll(),
 
-          // ── Explore Feed CTA ───────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: _ExploreFeedCard(primary: primary, isDark: isDark),
+          // Bottom padding accounts for nav bar + system nav
+          SizedBox(
+            height: MediaQuery.of(context).padding.bottom + 80,
           ),
-
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 80),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// QUICK ACTION BUTTON
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _QuickAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: isDark ? 0.12 : 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-                color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SPORTS HORIZONTAL SCROLL
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SportsHorizontalScroll extends StatelessWidget {
-  const _SportsHorizontalScroll();
-
-  static const _sports = [
-    ['Cricket', '🏏'],
-    ['Football', '⚽'],
-    ['Basketball', '🏀'],
-    ['Badminton', '🏸'],
-    ['Tennis', '🎾'],
-    ['Volleyball', '🏐'],
-    ['Table Tennis', '🏓'],
-    ['Boxing', '🥊'],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 88,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _sports.length,
-        itemBuilder: (ctx, i) => _SportScrollCard(
-          label: _sports[i][0],
-          emoji: _sports[i][1],
-        ),
-      ),
-    );
-  }
-}
-
-class _SportScrollCard extends StatelessWidget {
-  final String label;
-  final String emoji;
-
-  const _SportScrollCard({required this.label, required this.emoji});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
-
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(PageRouteBuilder(
-        opaque: false,
-        pageBuilder: (ctx, anim, sec) => SportActionGlassScreen(sport: label),
-        transitionsBuilder: (ctx, anim, sec, child) =>
-            FadeTransition(opacity: anim, child: child),
-      )),
-      child: Container(
-        width: 72,
-        margin: const EdgeInsets.only(right: 10),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.card : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: primary.withValues(alpha: isDark ? 0.25 : 0.18),
-          ),
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 26)),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isDark ? Colors.white60 : const Color(0xFF374151),
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EXPLORE FEED CTA CARD
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ExploreFeedCard extends StatelessWidget {
-  final Color primary;
-  final bool isDark;
-
-  const _ExploreFeedCard({required this.primary, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => const CommunityFeedScreen(allowBack: true))),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.card : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.06),
-          ),
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: primary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.dynamic_feed_rounded, color: primary, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Sports Community Feed',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : const Color(0xFF111827),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Posts, stories & highlights from players nearby',
-                    style: TextStyle(
-                      color: isDark ? Colors.white38 : Colors.black45,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: isDark ? Colors.white30 : Colors.black26,
-              size: 22,
-            ),
-          ],
-        ),
       ),
     );
   }
