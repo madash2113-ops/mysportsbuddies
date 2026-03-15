@@ -14,8 +14,9 @@ import '../../services/user_service.dart';
 import '../../services/message_service.dart';
 import '../../widgets/map_picker_sheet.dart';
 import '../community/chat_screen.dart';
-import '../community/create_post_sheet.dart';
+import '../community/community_feed_screen.dart';
 import '../community/user_profile_screen.dart';
+import '../../services/feed_service.dart';
 import '../home/scheduled_matches_screen.dart';
 import '../register/register_game_screen.dart';
 
@@ -73,6 +74,38 @@ class GameDetailScreen extends StatelessWidget {
     final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m ${dt.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  void _shareToFeed(BuildContext context) {
+    final buf = StringBuffer();
+    buf.writeln('${_sportEmoji(game.sport)} ${game.sport} game at ${game.location}');
+    buf.writeln('📅 ${_formatDate(game.dateTime)}  ·  ${_formatTime(game.dateTime)}');
+    if (game.maxPlayers != null) buf.writeln('👥 ${game.maxPlayers} players');
+    if (game.skillLevel != null) buf.writeln('🎯 ${game.skillLevel}');
+    if (game.format != null)     buf.writeln('⚡ ${game.format}');
+    buf.write('\nJoin us! 🎉');
+
+    FeedService().createPost(text: buf.toString(), sport: game.sport);
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Posted to Feed!'),
+        backgroundColor: const Color(0xFF1E1E1E),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'View Feed',
+          textColor: AppColors.primary,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const CommunityFeedScreen(allowBack: true),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -526,12 +559,7 @@ class GameDetailScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () => showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (_) => const CreatePostSheet(),
-                      ),
+                      onPressed: () => _shareToFeed(context),
                       icon: const Icon(Icons.forum_outlined, size: 18),
                       label: const Text('Share to Feed'),
                       style: OutlinedButton.styleFrom(

@@ -142,6 +142,32 @@ class MessageService extends ChangeNotifier {
     } catch (_) {}
   }
 
+  // ── Typing indicator ─────────────────────────────────────────────────────
+
+  Future<void> setTyping(String conversationId, bool isTyping) async {
+    final myId = UserService().userId;
+    if (myId == null) return;
+    try {
+      await _db.collection(_col).doc(conversationId).update({
+        'typing.$myId': isTyping,
+      });
+    } catch (_) {}
+  }
+
+  /// Emits true when [otherId] is currently typing in this conversation.
+  Stream<bool> typingStream(String conversationId, String otherId) {
+    return _db
+        .collection(_col)
+        .doc(conversationId)
+        .snapshots()
+        .map((doc) {
+      final data = doc.data();
+      if (data == null) return false;
+      final typing = data['typing'] as Map<String, dynamic>? ?? {};
+      return typing[otherId] == true;
+    });
+  }
+
   // ── Total unread count (for badge on DM icon) ─────────────────────────────
 
   int get totalUnread =>

@@ -13,8 +13,8 @@ import '../register/register_game_screen.dart';
 import 'game_detail_screen.dart';
 
 class NearbyGamesScreen extends StatefulWidget {
-  final String sport;
-  const NearbyGamesScreen({super.key, required this.sport});
+  final String? sport;
+  const NearbyGamesScreen({super.key, this.sport});
 
   @override
   State<NearbyGamesScreen> createState() => _NearbyGamesScreenState();
@@ -164,7 +164,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
 
   Future<void> _goToRegister() async {
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => RegisterGameScreen(sport: widget.sport),
+      builder: (_) => RegisterGameScreen(sport: widget.sport ?? ''),
     ));
     setState(() {}); // trigger rebuild
   }
@@ -181,11 +181,11 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
         iconTheme: const IconThemeData(color: Colors.white),
         title: Row(
           children: [
-            Text(_emoji(widget.sport), style: const TextStyle(fontSize: 20)),
+            Text(_emoji(widget.sport ?? ''), style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                'Nearby ${widget.sport} Games',
+                'Nearby${widget.sport != null ? ' ${widget.sport}' : ''} Games',
                 style: const TextStyle(
                     color: Colors.white,
                     fontSize: 17,
@@ -219,7 +219,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
       ),
       body: Consumer<GameService>(
         builder: (ctx, gameSvc, _) {
-          final allSorted = _sorted(gameSvc.bySport(widget.sport));
+          final allSorted = _sorted(widget.sport != null ? gameSvc.bySport(widget.sport!) : gameSvc.all);
           final filtered = allSorted.where((g) {
             final matchText = _locationQuery.isEmpty ||
                 g.location.toLowerCase().contains(_locationQuery.toLowerCase());
@@ -400,7 +400,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                       if (games.isEmpty) {
                         return _EmptyTab(
                           label: _tabs[tabIdx],
-                          sport: widget.sport,
+                          sport: widget.sport ?? '',
                           onAdd: null,
                         );
                       }
@@ -431,7 +431,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                                 await Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => RegisterGameScreen(
-                                      sport: widget.sport,
+                                      sport: game.sport,
                                       existingGame: game,
                                     ),
                                   ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -28,6 +30,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _ctrl   = TextEditingController();
   final _scroll = ScrollController();
   bool _sending = false;
+  Timer? _typingTimer;
 
   String get _myId => UserService().userId ?? 'anonymous';
 
@@ -35,10 +38,26 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     MessageService().markRead(widget.conversationId);
+    _ctrl.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final svc = MessageService();
+    svc.setTyping(widget.conversationId, _ctrl.text.isNotEmpty);
+    _typingTimer?.cancel();
+    if (_ctrl.text.isNotEmpty) {
+      // Auto-clear typing after 3s of inactivity
+      _typingTimer = Timer(const Duration(seconds: 3), () {
+        svc.setTyping(widget.conversationId, false);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _typingTimer?.cancel();
+    MessageService().setTyping(widget.conversationId, false);
+    _ctrl.removeListener(_onTextChanged);
     _ctrl.dispose();
     _scroll.dispose();
     super.dispose();
@@ -224,6 +243,43 @@ class _ChatScreenState extends State<ChatScreen> {
                 );
               },
             ),
+          ),
+
+          // ── Typing indicator ────────────────────────────────────────────
+          StreamBuilder<bool>(
+            stream: context
+                .read<MessageService>()
+                .typingStream(widget.conversationId, widget.otherId),
+            builder: (_, snap) {
+              if (snap.data != true) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: const Color(0xFF2A2A2A),
+                      backgroundImage: widget.otherImageUrl != null
+                          ? NetworkImage(widget.otherImageUrl!)
+                          : null,
+                      child: widget.otherImageUrl == null
+                          ? Text(
+                              widget.otherName.isNotEmpty
+                                  ? widget.otherName[0].toUpperCase()
+                                  : 'U',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    const _TypingDots(),
+                  ],
+                ),
+              );
+            },
           ),
 
           // ── Input bar ───────────────────────────────────────────────────
@@ -444,6 +500,76 @@ class _InputBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Typing dots animation ─────────────────────────────────────────────────────
+
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with TickerProviderStateMixin {
+  late final List<AnimationController> _ctrls;
+  late final List<Animation<double>> _anims;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrls = List.generate(3, (i) => AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    ));
+    _anims = _ctrls.map((c) =>
+        Tween<double>(begin: 0, end: -6).animate(
+          CurvedAnimation(parent: c, curve: Curves.easeInOut),
+        )).toList();
+
+    // Stagger each dot by 150ms
+    for (var i = 0; i < 3; i++) {
+      Future.delayed(Duration(milliseconds: i * 150), () {
+        if (mounted) { _ctrls[i].repeat(reverse: true); }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls) { c.dispose(); }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (i) => AnimatedBuilder(
+          animation: _anims[i],
+          builder: (context, child) => Container(
+            margin: EdgeInsets.only(
+              right: i < 2 ? 4 : 0,
+              top: _anims[i].value.abs(),
+            ),
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: Colors.white54,
+              shape: BoxShape.circle,
+            ),
+          ),
+        )),
       ),
     );
   }

@@ -11,8 +11,8 @@ import 'game_detail_screen.dart';
 import '../../widgets/sport_filter_bar.dart';
 
 class HostAGameScreen extends StatefulWidget {
-  final String sport;
-  const HostAGameScreen({super.key, required this.sport});
+  final String? sport;
+  const HostAGameScreen({super.key, this.sport});
 
   @override
   State<HostAGameScreen> createState() => _HostAGameScreenState();
@@ -24,7 +24,7 @@ class _HostAGameScreenState extends State<HostAGameScreen> {
   @override
   void initState() {
     super.initState();
-    _filterSport = widget.sport;
+    _filterSport = widget.sport ?? 'All';
   }
 
   String _emoji(String sport) {
@@ -60,7 +60,7 @@ class _HostAGameScreenState extends State<HostAGameScreen> {
   Future<void> _goToRegister({Game? existing}) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => RegisterGameScreen(
-          sport: widget.sport, existingGame: existing),
+          sport: widget.sport ?? '', existingGame: existing),
     ));
     setState(() {});
   }
@@ -76,12 +76,12 @@ class _HostAGameScreenState extends State<HostAGameScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Row(children: [
-          Text(_emoji(widget.sport),
+          Text(_emoji(widget.sport ?? ''),
               style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              'Host a ${widget.sport} Game',
+              'Host a${widget.sport != null ? ' ${widget.sport}' : ''} Game',
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 17,
@@ -153,7 +153,7 @@ class _HostAGameScreenState extends State<HostAGameScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Host a ${widget.sport} Game',
+                              'Host a${widget.sport != null ? ' ${widget.sport}' : ''} Game',
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 17,
