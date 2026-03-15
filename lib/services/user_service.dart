@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -27,7 +26,12 @@ class UserService extends ChangeNotifier {
   static const _prefKey = 'msb_user_id';   // kept for migration fallback
 
   FirebaseFirestore  get _db      => FirebaseFirestore.instance;
-  FirebaseStorage    get _storage => FirebaseStorage.instance;
+  // Explicitly target the new-format bucket (firebasestorage.app).
+  // FirebaseStorage.instance can default to the legacy appspot.com bucket
+  // which doesn't exist for this project, causing object-not-found errors.
+  FirebaseStorage    get _storage => FirebaseStorage.instanceFor(
+    bucket: 'gs://mysportsbuddies-4d077.firebasestorage.app',
+  );
   FirebaseAuth       get _auth    => FirebaseAuth.instance;
 
   String?      _userId;
@@ -233,12 +237,62 @@ class UserService extends ChangeNotifier {
     }
   }
 
-  /// Uploads profile image to Firebase Storage and returns the download URL.
-  Future<String> uploadProfileImage(File imageFile) async {
-    final id  = _userId ?? _auth.currentUser?.uid ?? 'unknown';
-    final ref = _storage.ref('profile_images/$id.jpg');
-    await ref.putFile(imageFile).timeout(const Duration(seconds: 60));
-    return ref.getDownloadURL();
+  /// Uploads profile image bytes to Firebase Storage and returns the download URL.
+  Future<String> uploadProfileImageBytes(Uint8List bytes) async {
+    final authUser = _auth.currentUser;
+    final id       = _userId ?? authUser?.uid ?? 'unknown';
+
+    // ── Diagnostics ──────────────────────────────────────────────────────────
+    debugPrint('📸 UPLOAD START');
+    debugPrint('   userId      : $id');
+    debugPrint('   authUid     : ${authUser?.uid}');
+    debugPrint('   isAnonymous : ${authUser?.isAnonymous}');
+    debugPrint('   bytes       : ${bytes.length}');
+    debugPrint('   bucket      : ${_storage.bucket}');
+    debugPrint('   path        : profile_images/$id.jpg');
+
+    if (authUser == null) {
+      throw FirebaseException(
+        plugin: 'firebase_storage',
+        code: 'unauthenticated',
+        message: 'Not signed in. Restart the app and try again.',
+      );
+    }
+
+    if (bytes.isEmpty) {
+      throw FirebaseException(
+        plugin: 'firebase_storage',
+        code: 'empty-file',
+        message: 'Image has no data. Pick the photo again.',
+      );
+    }
+
+    final ref = _storage.ref().child('profile_images').child('$id.jpg');
+
+    TaskSnapshot snapshot;
+    try {
+      snapshot = await ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+    } catch (e) {
+      debugPrint('📸 putData FAILED: $e');
+      rethrow;
+    }
+
+    debugPrint('📸 putData state: ${snapshot.state}');
+
+    if (snapshot.state != TaskState.success) {
+      throw FirebaseException(
+        plugin: 'firebase_storage',
+        code: 'upload-failed',
+        message: 'Upload state: ${snapshot.state}',
+      );
+    }
+
+    final url = await snapshot.ref.getDownloadURL();
+    debugPrint('📸 UPLOAD SUCCESS: $url');
+    return url;
   }
 
   // ── Player search ─────────────────────────────────────────────────────────

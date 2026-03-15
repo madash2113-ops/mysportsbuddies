@@ -12,10 +12,12 @@ class FeedPost {
   final String? sport;
   final int likes;
   final bool likedByMe;
-  final List<String> likedBy; // UIDs who liked — persisted in Firestore
+  final List<String> likedBy;
   final int commentCount;
   final DateTime createdAt;
   final FeedPostType type;
+  final List<String> savedBy;
+  final bool savedByMe;
 
   const FeedPost({
     required this.id,
@@ -31,6 +33,8 @@ class FeedPost {
     this.commentCount = 0,
     required this.createdAt,
     this.type = FeedPostType.manual,
+    this.savedBy = const [],
+    this.savedByMe = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -46,10 +50,12 @@ class FeedPost {
         'commentCount': commentCount,
         'createdAt': Timestamp.fromDate(createdAt),
         'type': type.name,
+        'savedBy': savedBy,
       };
 
   factory FeedPost.fromMap(Map<String, dynamic> map, {String? myUserId}) {
     final likedBy = List<String>.from(map['likedBy'] as List? ?? []);
+    final savedBy = List<String>.from(map['savedBy'] as List? ?? []);
     return FeedPost(
       id: map['id'] as String? ?? '',
       userId: map['userId'] as String? ?? '',
@@ -69,6 +75,8 @@ class FeedPost {
         (e) => e.name == map['type'],
         orElse: () => FeedPostType.manual,
       ),
+      savedBy: savedBy,
+      savedByMe: myUserId != null && savedBy.contains(myUserId),
     );
   }
 
@@ -81,6 +89,8 @@ class FeedPost {
     bool? likedByMe,
     List<String>? likedBy,
     int? commentCount,
+    List<String>? savedBy,
+    bool? savedByMe,
   }) =>
       FeedPost(
         id: id,
@@ -88,7 +98,7 @@ class FeedPost {
         userName: userName,
         userImageUrl: userImageUrl,
         text: text,
-        imageUrl: imageUrl,
+        imageUrl: imageUrl ?? this.imageUrl,
         sport: sport,
         likes: likes ?? this.likes,
         likedByMe: likedByMe ?? this.likedByMe,
@@ -96,5 +106,7 @@ class FeedPost {
         commentCount: commentCount ?? this.commentCount,
         createdAt: createdAt,
         type: type,
+        savedBy: savedBy ?? this.savedBy,
+        savedByMe: savedByMe ?? this.savedByMe,
       );
 }

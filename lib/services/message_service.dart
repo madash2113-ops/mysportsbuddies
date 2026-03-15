@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../core/models/chat_message.dart';
 import '../core/models/conversation.dart';
+import 'notification_service.dart';
 import 'user_service.dart';
 
 /// Manages direct messages between users.
@@ -116,6 +117,26 @@ class MessageService extends ChangeNotifier {
       debugPrint('MessageService.sendMessage error: $e');
       rethrow;
     }
+
+    // Notify recipient
+    try {
+      final myId   = UserService().userId ?? 'anonymous';
+      final myName = UserService().profile?.name.isNotEmpty == true
+          ? UserService().profile!.name
+          : 'Someone';
+      // Determine the other participant from conversationId (sorted UIDs joined by _)
+      final parts = conversationId.split('_');
+      final toUserId = parts.firstWhere((p) => p != myId, orElse: () => '');
+      if (toUserId.isNotEmpty) {
+        await NotificationService.send(
+          toUserId: toUserId,
+          type: NotifType.message,
+          title: 'New message from $myName',
+          body: trimmed.length > 80 ? '${trimmed.substring(0, 80)}…' : trimmed,
+          targetId: conversationId,
+        );
+      }
+    } catch (_) {}
   }
 
   // ── Real-time message stream ──────────────────────────────────────────────

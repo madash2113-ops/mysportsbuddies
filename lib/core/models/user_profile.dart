@@ -44,7 +44,7 @@ class UserProfile {
         'location': location,
         'dob': dob,
         'bio': bio,
-        'imageUrl': imageUrl,
+        if (imageUrl != null) 'imageUrl': imageUrl,
         'updatedAt': Timestamp.fromDate(updatedAt),
         'isPremium': isPremium,
         'tournamentsPlayed': tournamentsPlayed,

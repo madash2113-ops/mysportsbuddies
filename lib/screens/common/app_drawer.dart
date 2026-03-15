@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:provider/provider.dart';
+import '../../controllers/profile_controller.dart';
 import '../../services/user_service.dart';
 import '../home/scheduled_matches_screen.dart';
 import '../home/my_matches_screen.dart';
@@ -15,10 +18,19 @@ class AppDrawer extends StatelessWidget {
     return ListenableBuilder(
       listenable: UserService(),
       builder: (context, _) {
-        final profile = UserService().profile;
+        final profile  = UserService().profile;
         final imageUrl = profile?.imageUrl;
-        final ImageProvider? avatar =
-            imageUrl != null && imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null;
+
+        // Also watch ProfileController so the drawer updates immediately
+        // after the user picks or saves a new photo.
+        final pc = context.watch<ProfileController>();
+        final ImageProvider? avatar = pc.profileImage != null
+            ? FileImage(pc.profileImage!)
+            : (imageUrl != null && imageUrl.isNotEmpty
+                // Key on the URL so Flutter doesn't serve a stale cached copy
+                // when the Firebase Storage token changes after re-upload.
+                ? NetworkImage(imageUrl)
+                : null);
 
         return Drawer(
           backgroundColor: Colors.black,
@@ -81,23 +93,46 @@ class AppDrawer extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 5),
-                            // App ID pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                profile?.numericId != null
-                                    ? 'Player ID: #${profile!.numericId}'
-                                    : 'Player ID: ------',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
+                            // App ID pill with copy button
+                            GestureDetector(
+                              onTap: () {
+                                if (profile?.numericId != null) {
+                                  Clipboard.setData(ClipboardData(
+                                      text: '${profile!.numericId}'));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Player ID copied!'),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      profile?.numericId != null
+                                          ? 'ID: #${profile!.numericId}'
+                                          : 'ID: ------',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.copy_rounded,
+                                        color: Colors.white70, size: 11),
+                                  ],
                                 ),
                               ),
                             ),

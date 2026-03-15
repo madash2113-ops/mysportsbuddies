@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../controllers/profile_controller.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../../design/colors.dart';
@@ -63,11 +65,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: ListenableBuilder(
                   listenable: UserService(),
                   builder: (ctx2, _) {
-                    final prof = UserService().profile;
-                    final imageUrl = prof?.imageUrl;
-                    final ImageProvider? avatar = imageUrl != null && imageUrl.isNotEmpty
-                        ? NetworkImage(imageUrl)
-                        : null;
+                    final prof   = UserService().profile;
+                    final pc     = ctx2.watch<ProfileController>();
+                    final avatar = pc.avatarImage;
                     return GestureDetector(
                       onTap: () => Navigator.push(
                         context,

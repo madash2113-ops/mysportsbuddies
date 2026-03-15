@@ -6,9 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/feed_post.dart';
+import '../../core/models/saved_collection.dart';
 import '../../design/colors.dart';
 import '../../services/feed_service.dart';
 import '../../services/message_service.dart';
+import '../../controllers/profile_controller.dart';
 import '../../services/user_service.dart';
 import 'comments_screen.dart';
 import 'create_post_sheet.dart';
@@ -275,8 +277,13 @@ class _StoriesBar extends StatelessWidget {
     final myStories   = feedSvc.storiesByUser(myId);
     final hasMyStory  = myStories.isNotEmpty;
 
-    // Build story circles: "Your Story" first, then other users
+    // Only show circles for users with active stories.
     final otherGroups = groups.where((g) => g.first.userId != myId).toList();
+
+    // Hide the entire bar when nobody (including current user) has a status.
+    if (!hasMyStory && otherGroups.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       color: Colors.black,
@@ -289,41 +296,40 @@ class _StoriesBar extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
-                // ── Your Story ──
-                // Tapping the circle opens your stories if you have any,
-                // or goes straight to create a story if you don't yet.
-                _StoryCircle(
-                  label: 'Your Story',
-                  imageUrl: UserService().profile?.imageUrl,
-                  initials: '',
-                  isOwn: true,
-                  hasOwnStory: hasMyStory,
-                  isViewed: false,
-                  onTap: hasMyStory
-                      ? () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => StoryViewerScreen(
-                                storyGroups: [myStories, ...otherGroups],
-                                initialGroupIndex: 0,
-                              ),
-                            ),
-                          )
-                      : onAddStory,
-                  onPlusTap: onAddStory,
-                ),
-                const SizedBox(width: 18),
+                // ── Your Story (only shown when you have an active status) ──
+                if (hasMyStory)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 18),
+                    child: _StoryCircle(
+                      label: 'Your Story',
+                      imageUrl: context.watch<ProfileController>().networkImageUrl
+                          ?? UserService().profile?.imageUrl,
+                      initials: '',
+                      isOwn: true,
+                      hasOwnStory: true,
+                      isViewed: false,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StoryViewerScreen(
+                            storyGroups: [myStories, ...otherGroups],
+                            initialGroupIndex: 0,
+                          ),
+                        ),
+                      ),
+                      onPlusTap: onAddStory,
+                    ),
+                  ),
 
-                // ── Other users' stories ──
+                // ── Other users — only those with active status ──
                 ...otherGroups.asMap().entries.map((entry) {
-                  final idx     = entry.key;
-                  final grp     = entry.value;
-                  final first   = grp.first;
-                  final name    = first.userName;
+                  final idx      = entry.key;
+                  final grp      = entry.value;
+                  final first    = grp.first;
+                  final name     = first.userName;
                   final initials =
                       name.isNotEmpty ? name[0].toUpperCase() : 'U';
-                  final isViewed =
-                      grp.every((s) => s.isViewedBy(myId));
+                  final isViewed = grp.every((s) => s.isViewedBy(myId));
 
                   return Padding(
                     padding: const EdgeInsets.only(right: 18),
@@ -350,10 +356,6 @@ class _StoriesBar extends StatelessWidget {
                     ),
                   );
                 }),
-
-                // ── If no stories yet, show demo circles from posts ──
-                if (groups.isEmpty)
-                  ..._demoCircles(context, feedSvc),
               ],
             ),
           ),
@@ -364,37 +366,6 @@ class _StoriesBar extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  // Fallback story circles derived from post authors when no real stories exist.
-  // These people have no active story — show plain ring (isViewed: true = grey).
-  List<Widget> _demoCircles(BuildContext context, FeedService feedSvc) {
-    final seen  = <String>{};
-    final items = <Widget>[];
-    for (final p in feedSvc.posts) {
-      if (seen.contains(p.userId)) continue;
-      seen.add(p.userId);
-      final name     = p.userName;
-      final initials = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-      items.add(Padding(
-        padding: const EdgeInsets.only(right: 18),
-        child: _StoryCircle(
-          label: name.length > 9 ? '${name.substring(0, 9)}…' : name,
-          imageUrl: p.userImageUrl,
-          initials: initials,
-          isOwn: false,
-          isViewed: true,   // no real story → plain grey ring, not gradient
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => UserProfileScreen(userId: p.userId),
-            ),
-          ),
-        ),
-      ));
-      if (items.length >= 8) break;
-    }
-    return items;
   }
 }
 
@@ -530,7 +501,6 @@ class _PostCard extends StatefulWidget {
 }
 
 class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
-  bool _bookmarked = false;
   bool _showHeart  = false;
   late AnimationController _heartCtrl;
   late Animation<double>   _heartAnim;
@@ -581,6 +551,15 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
     );
   }
 
+  void _onBookmark() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _SaveCollectionSheet(post: widget.post),
+    );
+  }
+
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inSeconds < 60) return 'just now';
@@ -622,23 +601,32 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                         decoration: const BoxDecoration(
                             shape: BoxShape.circle, color: Colors.black),
                         padding: const EdgeInsets.all(1.5),
-                        child: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: const Color(0xFF2A2A2A),
-                          backgroundImage: post.userImageUrl != null
-                              ? NetworkImage(post.userImageUrl!)
-                              : null,
-                          child: post.userImageUrl == null
-                              ? Text(
-                                  post.userName.isNotEmpty
-                                      ? post.userName[0].toUpperCase()
-                                      : 'S',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13),
-                                )
-                              : null,
+                        child: ListenableBuilder(
+                          listenable: UserService(),
+                          builder: (ctx, _) {
+                            final myId = UserService().userId;
+                            final displayImgUrl = post.userId == myId
+                                ? (UserService().profile?.imageUrl ?? post.userImageUrl)
+                                : post.userImageUrl;
+                            return CircleAvatar(
+                              radius: 16,
+                              backgroundColor: const Color(0xFF2A2A2A),
+                              backgroundImage: displayImgUrl != null
+                                  ? NetworkImage(displayImgUrl)
+                                  : null,
+                              child: displayImgUrl == null
+                                  ? Text(
+                                      post.userName.isNotEmpty
+                                          ? post.userName[0].toUpperCase()
+                                          : 'S',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13),
+                                    )
+                                  : null,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -739,14 +727,13 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                 ),
               // Bookmark
               GestureDetector(
-                onTap: () =>
-                    setState(() => _bookmarked = !_bookmarked),
+                onTap: _onBookmark,
                 child: Padding(
                   padding: const EdgeInsets.all(6),
                   child: Icon(
-                    _bookmarked
+                    widget.post.savedByMe
                         ? Icons.bookmark
-                        : Icons.bookmark_border,
+                        : Icons.bookmark_border_outlined,
                     color: Colors.white,
                     size: 26,
                   ),
@@ -1231,6 +1218,174 @@ class _CreateOption extends StatelessWidget {
                 style: const TextStyle(color: Colors.white60, fontSize: 11)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Save to Collection Sheet ──────────────────────────────────────────────────
+
+class _SaveCollectionSheet extends StatefulWidget {
+  final FeedPost post;
+  const _SaveCollectionSheet({required this.post});
+
+  @override
+  State<_SaveCollectionSheet> createState() => _SaveCollectionSheetState();
+}
+
+class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
+  List<SavedCollection> _collections = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final cols = await FeedService().loadCollections();
+    if (mounted) setState(() { _collections = cols; _loading = false; });
+  }
+
+  Future<void> _saveToCollection(String collectionId, String collectionName) async {
+    await FeedService().toggleSave(widget.post.id);
+    await FeedService().savePostToCollection(widget.post.id, collectionId);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Saved to $collectionName'),
+      backgroundColor: const Color(0xFF1E1E1E),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  Future<void> _createCollection() async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('New Collection',
+            style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Collection name',
+            hintStyle: TextStyle(color: Colors.white38),
+            enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.white24)),
+            focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: AppColors.primary)),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Colors.white54))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+              child: const Text('Create',
+                  style: TextStyle(color: AppColors.primary))),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      final col = await FeedService().createCollection(name);
+      await _saveToCollection(col.id, col.name);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          0, 0, 0, MediaQuery.of(context).viewInsets.bottom + 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(top: 10, bottom: 16),
+            decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Icon(Icons.bookmark_outline, color: Colors.white, size: 22),
+                SizedBox(width: 10),
+                Text('Save to Collection',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white10, height: 1),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(
+                  color: AppColors.primary, strokeWidth: 2),
+            )
+          else ...[
+            if (_collections.isEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'No collections yet. Create one below!',
+                  style: TextStyle(color: Colors.white38, fontSize: 13),
+                ),
+              )
+            else
+              ..._collections.map((col) => ListTile(
+                    leading: Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.bookmark,
+                          color: AppColors.primary, size: 22),
+                    ),
+                    title: Text(col.name,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 14)),
+                    subtitle: Text(
+                        '${col.postIds.length} saved',
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 12)),
+                    onTap: () => _saveToCollection(col.id, col.name),
+                  )),
+            ListTile(
+              leading: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.add, color: Colors.white70, size: 22),
+              ),
+              title: const Text('Create New Collection',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              onTap: _createCollection,
+            ),
+          ],
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:http/http.dart' as http;
@@ -30,9 +31,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _dobCtrl      = TextEditingController();
   final _bioCtrl      = TextEditingController();
 
-  File?   _profileImage;
-  bool    _saving = false;
-  bool    _imageChanged = false;
+  File?         _profileImage;
+  Uint8List?    _imageBytes;   // bytes read immediately after crop — survives temp cleanup
+  bool          _saving = false;
+  bool          _imageChanged = false;
 
   // ── Location autocomplete ──────────────────────────────────────────────────
   Timer?       _locationDebounce;
@@ -357,11 +359,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (cropped == null) return;
     if (!mounted) return;
 
-    final file = File(cropped.path);
+    final file  = File(cropped.path);
+    // Read bytes immediately — the cropper writes to a temp dir that the OS
+    // can delete before the user taps Save, causing object-not-found on upload.
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
     context.read<ProfileController>().setProfileImage(file);
     setState(() {
-      _profileImage  = file;
-      _imageChanged  = true;
+      _profileImage = file;
+      _imageBytes   = bytes;
+      _imageChanged = true;
     });
   }
 
@@ -489,25 +496,77 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         numericId:       profile.numericId,
       );
 
-      // ── Step 3: Pop immediately — don't make user wait for image upload ──
+      // ── Step 3: Upload image and store URL in Firestore ─────────────────
+      if (_imageChanged && _imageBytes != null) {
+        String? imageUrl;
+        try {
+          imageUrl = await userSvc.uploadProfileImageBytes(_imageBytes!);
+        } catch (e) {
+          debugPrint('EditProfileScreen: image upload FAILED: $e');
+          if (mounted) {
+            await showDialog<void>(
+              context: context,
+              builder: (_) => AlertDialog(
+                backgroundColor: const Color(0xFF1A1A1A),
+                title: const Text('Photo Upload Failed',
+                    style: TextStyle(color: Colors.white)),
+                content: Text(
+                  '$e\n\nMake sure Firebase Storage is enabled in the '
+                  'Firebase Console and your rules allow writes.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+
+        if (imageUrl != null) {
+          try {
+            // Store the new photo URL in Firestore
+            final updated = profile.copyWith(imageUrl: imageUrl);
+            await userSvc.saveProfile(updated);
+            if (mounted) {
+              context.read<ProfileController>().setProfile(
+                name:            updated.name,
+                email:           updated.email,
+                phone:           updated.phone,
+                location:        updated.location,
+                dob:             updated.dob,
+                bio:             updated.bio,
+                networkImageUrl: imageUrl,
+                numericId:       updated.numericId,
+              );
+            }
+          } catch (e) {
+            debugPrint('EditProfileScreen: saving imageUrl to Firestore failed: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Could not save photo URL: $e'),
+                  backgroundColor: Colors.red.shade900,
+                ),
+              );
+            }
+          }
+        }
+      }
+
+      // ── Step 4: Pop with success ─────────────────────────────────────────
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _imageChanged && _profileImage != null
-                ? 'Profile saved! Uploading photo in background...'
-                : 'Profile saved \u2713',
-          ),
-          backgroundColor: const Color(0xFFB71C1C),
-          duration: const Duration(seconds: 2),
+        const SnackBar(
+          content: Text('Profile saved \u2713'),
+          backgroundColor: Color(0xFFB71C1C),
+          duration: Duration(seconds: 2),
         ),
       );
       Navigator.pop(context);
-
-      // ── Step 4: Upload image in background (doesn't block navigation) ────
-      if (_imageChanged && _profileImage != null) {
-        _uploadImageInBackground(userSvc, profile);
-      }
     } catch (e) {
       debugPrint('EditProfileScreen._save error: $e');
       if (!mounted) return;
@@ -519,20 +578,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  /// Uploads the profile image after the screen has already popped.
-  /// Updates Firestore with the final image URL once upload completes.
-  Future<void> _uploadImageInBackground(
-      UserService userSvc, UserProfile savedProfile) async {
-    try {
-      final imageUrl = await userSvc.uploadProfileImage(_profileImage!);
-      final updated  = savedProfile.copyWith(imageUrl: imageUrl);
-      await userSvc.saveProfile(updated);
-      debugPrint('EditProfileScreen: background image upload complete');
-    } catch (e) {
-      debugPrint('EditProfileScreen: background image upload failed: $e');
     }
   }
 
@@ -579,10 +624,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _ProfileAvatar(
-              image: _profileImage,
-              networkUrl: UserService().profile?.imageUrl,
-              onTap: _openProfileOptions,
+            ListenableBuilder(
+              listenable: context.read<ProfileController>(),
+              builder: (context, _) => _ProfileAvatar(
+                image: _profileImage,
+                networkUrl: context.read<ProfileController>().networkImageUrl,
+                onTap: _openProfileOptions,
+              ),
             ),
             const SizedBox(height: 24),
             _Field(

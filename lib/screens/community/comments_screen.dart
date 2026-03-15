@@ -5,6 +5,7 @@ import '../../core/models/comment.dart';
 import '../../core/models/feed_post.dart';
 import '../../design/colors.dart';
 import '../../services/feed_service.dart';
+import '../../controllers/profile_controller.dart';
 import '../../services/user_service.dart';
 
 class CommentsScreen extends StatefulWidget {
@@ -336,18 +337,32 @@ class _CommentInput extends StatelessWidget {
             12, 8, 12, MediaQuery.of(context).viewInsets.bottom + 8),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 17,
-              backgroundColor: const Color(0xFF2A2A2A),
-              child: Text(
-                (UserService().profile?.name.isNotEmpty == true
-                        ? UserService().profile!.name[0].toUpperCase()
-                        : 'S'),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13),
-              ),
+            ListenableBuilder(
+              listenable: UserService(),
+              builder: (context, _) {
+                final pc       = context.watch<ProfileController>();
+                final imageUrl = UserService().profile?.imageUrl;
+                final name     = UserService().profile?.name ?? '';
+                final ImageProvider? img = pc.profileImage != null
+                    ? FileImage(pc.profileImage!)
+                    : (imageUrl != null && imageUrl.isNotEmpty
+                        ? NetworkImage(imageUrl)
+                        : null);
+                return CircleAvatar(
+                  radius: 17,
+                  backgroundColor: const Color(0xFF2A2A2A),
+                  backgroundImage: img,
+                  child: img == null
+                      ? Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13),
+                        )
+                      : null,
+                );
+              },
             ),
             const SizedBox(width: 10),
             Expanded(

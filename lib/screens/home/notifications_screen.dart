@@ -7,6 +7,7 @@ import '../../services/game_service.dart';
 import '../../services/notification_service.dart';
 import '../community/comments_screen.dart';
 import '../community/community_feed_screen.dart';
+import '../community/messages_screen.dart';
 import '../nearby/game_detail_screen.dart';
 import '../nearby/nearby_games_screen.dart';
 import '../scoreboard/scoreboard_menu_screen.dart';
@@ -112,6 +113,7 @@ class _NotifTile extends StatelessWidget {
       case NotifType.nearby:           return Icons.location_on_outlined;
       case NotifType.rsvpUpdate:       return Icons.how_to_reg_outlined;
       case NotifType.tournamentUpdate: return Icons.emoji_events_outlined;
+      case NotifType.message:          return Icons.near_me_outlined;
     }
   }
 
@@ -125,6 +127,7 @@ class _NotifTile extends StatelessWidget {
       case NotifType.nearby:           return Colors.teal;
       case NotifType.rsvpUpdate:       return Colors.green;
       case NotifType.tournamentUpdate: return Colors.orange;
+      case NotifType.message:          return Colors.cyan;
     }
   }
 
@@ -206,6 +209,9 @@ class _NotifTile extends StatelessWidget {
         }
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => const AllSportsScreen()));
+      case NotifType.message:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const MessagesScreen()));
     }
   }
 

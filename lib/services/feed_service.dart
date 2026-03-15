@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../core/models/comment.dart';
 import '../core/models/feed_post.dart';
+import '../core/models/saved_collection.dart';
 import '../core/models/story.dart';
 import 'notification_service.dart';
 import 'user_service.dart';
@@ -105,9 +106,13 @@ class FeedService extends ChangeNotifier {
   // ── Real-time stories listener ────────────────────────────────────────────
 
   void listenToStories() {
+    // Server-side: only fetch stories that haven't expired yet.
+    // Client-side isActive check is kept as a safety net for clock skew.
+    final cutoff = Timestamp.fromDate(DateTime.now());
     _db
         .collection(_storiesCol)
-        .orderBy('createdAt', descending: true)
+        .where('expiresAt', isGreaterThan: cutoff)
+        .orderBy('expiresAt', descending: true)
         .limit(100)
         .snapshots()
         .listen(
@@ -522,6 +527,117 @@ class FeedService extends ChangeNotifier {
       groups[s.userId]!.add(s);
     }
     return seen.map((uid) => groups[uid]!).toList();
+  }
+
+  // ── Save / Bookmark ───────────────────────────────────────────────────────
+
+  Future<void> toggleSave(String postId) async {
+    final myId = UserService().userId ?? '';
+    final idx  = _posts.indexWhere((p) => p.id == postId);
+    if (idx < 0 || myId.isEmpty) return;
+    final post = _posts[idx];
+
+    if (post.savedByMe) {
+      _posts[idx] = post.copyWith(
+        savedBy: post.savedBy.where((uid) => uid != myId).toList(),
+        savedByMe: false,
+      );
+      notifyListeners();
+      if (!postId.startsWith('demo_')) {
+        try {
+          await _db.collection(_feedCol).doc(postId).update({
+            'savedBy': FieldValue.arrayRemove([myId]),
+          });
+        } catch (e) {
+          debugPrint('FeedService.toggleSave remove error: $e');
+          _posts[idx] = post;
+          notifyListeners();
+        }
+      }
+    } else {
+      _posts[idx] = post.copyWith(
+        savedBy: [...post.savedBy, myId],
+        savedByMe: true,
+      );
+      notifyListeners();
+      if (!postId.startsWith('demo_')) {
+        try {
+          await _db.collection(_feedCol).doc(postId).update({
+            'savedBy': FieldValue.arrayUnion([myId]),
+          });
+        } catch (e) {
+          debugPrint('FeedService.toggleSave add error: $e');
+          _posts[idx] = post;
+          notifyListeners();
+        }
+      }
+    }
+  }
+
+  // ── Collections ────────────────────────────────────────────────────────────
+
+  Future<List<SavedCollection>> loadCollections() async {
+    final myId = UserService().userId;
+    if (myId == null) return [];
+    try {
+      final snap = await _db
+          .collection('users')
+          .doc(myId)
+          .collection('saved_collections')
+          .orderBy('createdAt')
+          .get();
+      return snap.docs.map(SavedCollection.fromFirestore).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<SavedCollection> createCollection(String name) async {
+    final myId = UserService().userId ?? 'anonymous';
+    final docRef = _db
+        .collection('users')
+        .doc(myId)
+        .collection('saved_collections')
+        .doc();
+    final col = SavedCollection(
+      id: docRef.id,
+      name: name.trim(),
+      postIds: [],
+      createdAt: DateTime.now(),
+    );
+    await docRef.set(col.toMap());
+    return col;
+  }
+
+  Future<void> savePostToCollection(String postId, String collectionId) async {
+    final myId = UserService().userId;
+    if (myId == null) return;
+    await _db
+        .collection('users')
+        .doc(myId)
+        .collection('saved_collections')
+        .doc(collectionId)
+        .update({
+      'postIds': FieldValue.arrayUnion([postId]),
+    });
+  }
+
+  Future<void> removePostFromCollection(String postId, String collectionId) async {
+    final myId = UserService().userId;
+    if (myId == null) return;
+    await _db
+        .collection('users')
+        .doc(myId)
+        .collection('saved_collections')
+        .doc(collectionId)
+        .update({
+      'postIds': FieldValue.arrayRemove([postId]),
+    });
+  }
+
+  List<FeedPost> savedPosts() {
+    final myId = UserService().userId ?? '';
+    return _posts.where((p) => p.savedBy.contains(myId)).toList();
   }
 
   // ── Share match result ────────────────────────────────────────────────────

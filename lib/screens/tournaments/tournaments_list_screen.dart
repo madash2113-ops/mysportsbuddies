@@ -575,9 +575,13 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
   }
 
   List<Tournament> _filtered(List<Tournament> all) {
+    // Only show open/ongoing tournaments — no completed or cancelled
+    final active = all.where((t) =>
+        t.status == TournamentStatus.open ||
+        t.status == TournamentStatus.ongoing).toList();
     var list = _sport == 'All'
-        ? all
-        : all.where((t) => t.sport == _sport).toList();
+        ? active
+        : active.where((t) => t.sport == _sport).toList();
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       list = list
@@ -606,7 +610,7 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                 pinned: true,
                 backgroundColor: AppColors.background,
                 elevation: 0,
-                title: const Text('Browse & Register',
+                title: const Text('Open Tournaments',
                     style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700)),
@@ -788,7 +792,25 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                   : SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (ctx, i) {
-                          final t = filtered[i];
+                          final ongoing = filtered
+                              .where((t) => t.status == TournamentStatus.ongoing)
+                              .toList();
+                          final open = filtered
+                              .where((t) => t.status == TournamentStatus.open)
+                              .toList();
+                          final combined = [
+                            if (ongoing.isNotEmpty) ...[
+                              const _SectionHeader(label: 'Ongoing', color: AppColors.primary),
+                              ...ongoing,
+                            ],
+                            if (open.isNotEmpty) ...[
+                              const _SectionHeader(label: 'Registrations Open', color: Color(0xFF2E7D32)),
+                              ...open,
+                            ],
+                          ];
+                          final item = combined[i];
+                          if (item is _SectionHeader) return item;
+                          final t = item as Tournament;
                           return _TournamentCard(
                             tournament: t,
                             onTap: () => Navigator.push(
@@ -800,7 +822,17 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                             ),
                           );
                         },
-                        childCount: filtered.length,
+                        childCount: (() {
+                          final ongoing = filtered
+                              .where((t) => t.status == TournamentStatus.ongoing)
+                              .length;
+                          final open = filtered
+                              .where((t) => t.status == TournamentStatus.open)
+                              .length;
+                          return filtered.length +
+                              (ongoing > 0 ? 1 : 0) +
+                              (open > 0 ? 1 : 0);
+                        })(),
                       ),
                     ),
 
@@ -2023,6 +2055,28 @@ class _TournamentCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _SectionHeader({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
         ),
       ),
     );

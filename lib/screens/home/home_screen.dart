@@ -199,6 +199,13 @@ class _ProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: UserService(),
+      builder: (context, _) => _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final isDark  = Theme.of(context).brightness == Brightness.dark;
     final primary = isDark ? AppColors.primary : AppColorsLight.primary;
     final profile = UserService().profile;
@@ -207,7 +214,6 @@ class _ProfileTab extends StatelessWidget {
     final email             = profile?.email    ?? '';
     final location          = profile?.location ?? '';
     final bio               = profile?.bio      ?? '';
-    final imageUrl          = profile?.imageUrl;
     final numId             = profile?.numericId;
     final tournamentsPlayed = profile?.tournamentsPlayed ?? 0;
     final matchesPlayed     = profile?.matchesPlayed     ?? 0;
@@ -218,21 +224,23 @@ class _ProfileTab extends StatelessWidget {
       child: Column(
         children: [
           // Avatar
-          CircleAvatar(
-            radius: 52,
-            backgroundColor: primary.withValues(alpha: 0.15),
-            backgroundImage:
-                imageUrl != null ? NetworkImage(imageUrl) : null,
-            child: imageUrl == null
-                ? Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.w700,
-                        color: primary),
-                  )
-                : null,
-          ),
+          Builder(builder: (context) {
+            final img = context.watch<ProfileController>().avatarImage;
+            return CircleAvatar(
+              radius: 52,
+              backgroundColor: primary.withValues(alpha: 0.15),
+              backgroundImage: img,
+              child: img == null
+                  ? Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.w700,
+                          color: primary),
+                    )
+                  : null,
+            );
+          }),
           const SizedBox(height: 14),
 
           // Name
