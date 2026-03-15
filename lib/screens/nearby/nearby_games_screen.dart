@@ -8,6 +8,7 @@ import '../../design/spacing.dart';
 import '../../services/game_service.dart';
 import '../../services/location_service.dart';
 import '../../services/user_service.dart';
+import '../../widgets/map_picker_sheet.dart';
 import '../register/register_game_screen.dart';
 import 'game_detail_screen.dart';
 
@@ -599,31 +600,41 @@ class _GameCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined,
-                          color: AppColors.primary, size: 16),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          game.location,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => showMapPickerSheet(
+                      context,
+                      lat: game.latitude,
+                      lng: game.longitude,
+                      label: game.location,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            color: AppColors.primary, size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            game.location,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.none),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      if (distance != null) ...[
+                        if (distance != null) ...[
+                          const SizedBox(width: 4),
+                          _DistanceChip(km: distance!),
+                        ],
                         const SizedBox(width: 4),
-                        _DistanceChip(km: distance!),
+                        _DateChip(
+                            label: dateLabel,
+                            isToday: isToday,
+                            isTomorrow: isTomorrow),
                       ],
-                      const SizedBox(width: 4),
-                      _DateChip(
-                          label: dateLabel,
-                          isToday: isToday,
-                          isTomorrow: isTomorrow),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Row(

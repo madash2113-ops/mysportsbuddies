@@ -13,6 +13,11 @@ class UserProfile {
   final DateTime updatedAt;
   final bool isPremium;
 
+  // ── Player statistics ─────────────────────────────────────────────────────
+  final int tournamentsPlayed;
+  final int matchesPlayed;
+  final int matchesWon;
+
   const UserProfile({
     required this.id,
     this.numericId,
@@ -25,6 +30,9 @@ class UserProfile {
     this.imageUrl,
     required this.updatedAt,
     this.isPremium = false,
+    this.tournamentsPlayed = 0,
+    this.matchesPlayed = 0,
+    this.matchesWon = 0,
   });
 
   Map<String, dynamic> toMap() => {
@@ -39,6 +47,9 @@ class UserProfile {
         'imageUrl': imageUrl,
         'updatedAt': Timestamp.fromDate(updatedAt),
         'isPremium': isPremium,
+        'tournamentsPlayed': tournamentsPlayed,
+        'matchesPlayed':     matchesPlayed,
+        'matchesWon':        matchesWon,
       };
 
   factory UserProfile.fromMap(Map<String, dynamic> map) => UserProfile(
@@ -54,7 +65,10 @@ class UserProfile {
         updatedAt: map['updatedAt'] != null
             ? (map['updatedAt'] as Timestamp).toDate()
             : DateTime.now(),
-        isPremium: map['isPremium'] as bool? ?? false,
+        isPremium:          map['isPremium']          as bool? ?? false,
+        tournamentsPlayed:  (map['tournamentsPlayed'] as num?)?.toInt() ?? 0,
+        matchesPlayed:      (map['matchesPlayed']     as num?)?.toInt() ?? 0,
+        matchesWon:         (map['matchesWon']        as num?)?.toInt() ?? 0,
       );
 
   factory UserProfile.fromFirestore(DocumentSnapshot doc) =>
@@ -70,6 +84,9 @@ class UserProfile {
     String? bio,
     String? imageUrl,
     bool? isPremium,
+    int? tournamentsPlayed,
+    int? matchesPlayed,
+    int? matchesWon,
   }) =>
       UserProfile(
         id: id,
@@ -83,5 +100,8 @@ class UserProfile {
         imageUrl: imageUrl ?? this.imageUrl,
         updatedAt: DateTime.now(),
         isPremium: isPremium ?? this.isPremium,
+        tournamentsPlayed: tournamentsPlayed ?? this.tournamentsPlayed,
+        matchesPlayed:     matchesPlayed     ?? this.matchesPlayed,
+        matchesWon:        matchesWon        ?? this.matchesWon,
       );
 }

@@ -92,7 +92,10 @@ class FeedService extends ChangeNotifier {
         .snapshots()
         .listen(
       (snap) {
-        _mergeWithDemos(snap.docs.map(FeedPost.fromFirestore).toList());
+        final myId = UserService().userId;
+        _mergeWithDemos(snap.docs
+            .map((doc) => FeedPost.fromFirestore(doc, myUserId: myId))
+            .toList());
         notifyListeners();
       },
       onError: (e) => debugPrint('FeedService.listenToFeed error: $e'),
@@ -132,7 +135,10 @@ class FeedService extends ChangeNotifier {
           .orderBy('createdAt', descending: true)
           .limit(50)
           .get();
-      _mergeWithDemos(snap.docs.map(FeedPost.fromFirestore).toList());
+      final myId = UserService().userId;
+      _mergeWithDemos(snap.docs
+          .map((doc) => FeedPost.fromFirestore(doc, myUserId: myId))
+          .toList());
     } catch (e) {
       debugPrint('FeedService.loadPosts error: $e');
       if (_posts.isEmpty) _posts.addAll(_demoPosts());
@@ -154,28 +160,16 @@ class FeedService extends ChangeNotifier {
     final userName   = svc.profile?.name.isNotEmpty == true ? svc.profile!.name : 'Sports Buddy';
     final userImgUrl = svc.profile?.imageUrl;
 
-    // Upload image with a 30-second timeout — never blocks forever
-    String? imageUrl;
-    if (imageFile != null) {
-      try {
-        final ref = _storage
-            .ref('feed_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await ref.putFile(imageFile).timeout(const Duration(seconds: 10));
-        imageUrl = await ref.getDownloadURL();
-      } catch (e) {
-        debugPrint('FeedService.createPost upload error: $e');
-        // Continue without image rather than blocking the post
-      }
-    }
-
-    final id   = DateTime.now().millisecondsSinceEpoch.toString();
+    final id  = DateTime.now().millisecondsSinceEpoch.toString();
+    // Use the local file path immediately so the image shows right away.
+    // It will be replaced with the network URL once the upload completes.
     final post = FeedPost(
       id: id,
       userId: userId,
       userName: userName,
       userImageUrl: userImgUrl,
       text: text,
-      imageUrl: imageUrl,
+      imageUrl: imageFile?.path, // local path for instant display
       sport: sport,
       createdAt: DateTime.now(),
     );
@@ -184,51 +178,102 @@ class FeedService extends ChangeNotifier {
     _posts.insert(0, post);
     notifyListeners();
 
-    // Firestore write in background — does NOT block the caller.
-    // We do NOT roll back on failure so the post stays visible even if
-    // Firestore rules are not yet configured (anonymous auth pending setup).
+    // Upload image + write to Firestore in the background
+    _persistPost(id, post, imageFile);
+  }
+
+  Future<void> _persistPost(String id, FeedPost post, File? imageFile) async {
+    String? imageUrl;
+    if (imageFile != null) {
+      try {
+        final ref = _storage
+            .ref('feed_images/$id.jpg');
+        await ref.putFile(imageFile).timeout(const Duration(seconds: 60));
+        imageUrl = await ref.getDownloadURL();
+
+        // Replace local path with network URL in the local list
+        final idx = _posts.indexWhere((p) => p.id == id);
+        if (idx >= 0) {
+          _posts[idx] = _posts[idx].copyWith(imageUrl: imageUrl);
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('FeedService._persistPost upload error: $e');
+        // Keep local path — image still shows from device
+      }
+    }
+
+    // Firestore write — use network URL if available, otherwise no image stored
     _db.collection(_feedCol).doc(id).set({
-      ...post.toMap(),
+      ...post.copyWith(imageUrl: imageUrl).toMap(),
       'createdAt': FieldValue.serverTimestamp(),
     }).catchError((dynamic e) {
-      debugPrint('FeedService.createPost Firestore error (post kept locally): $e');
+      debugPrint('FeedService._persistPost Firestore error (post kept locally): $e');
     });
   }
 
-  // ── Like post ─────────────────────────────────────────────────────────────
+  // ── Toggle like / unlike ──────────────────────────────────────────────────
 
-  Future<void> likePost(String id) async {
-    final idx = _posts.indexWhere((p) => p.id == id);
-    if (idx < 0) return;
+  Future<void> toggleLike(String id) async {
+    final myId = UserService().userId ?? '';
+    final idx  = _posts.indexWhere((p) => p.id == id);
+    if (idx < 0 || myId.isEmpty) return;
     final post = _posts[idx];
-    if (post.likedByMe) return;
 
-    _posts[idx] = post.copyWith(likes: post.likes + 1, likedByMe: true);
-    notifyListeners();
-
-    if (id.startsWith('demo_')) return;
-
-    try {
-      await _db
-          .collection(_feedCol)
-          .doc(id)
-          .update({'likes': FieldValue.increment(1)});
-
-      // Notify post owner if it's not my own post
-      final myId   = UserService().userId;
-      final myName = UserService().profile?.name ?? 'Someone';
-      if (post.userId != myId) {
-        await NotificationService.send(
-          toUserId: post.userId,
-          type:     NotifType.like,
-          title:    'New Like',
-          body:     '$myName liked your post',
-        );
-      }
-    } catch (e) {
-      debugPrint('FeedService.likePost error: $e');
-      _posts[idx] = post;
+    if (post.likedByMe) {
+      // ── Unlike ────────────────────────────────────────────────────────
+      _posts[idx] = post.copyWith(
+        likes: (post.likes - 1).clamp(0, 999999),
+        likedByMe: false,
+        likedBy: post.likedBy.where((uid) => uid != myId).toList(),
+      );
       notifyListeners();
+
+      if (id.startsWith('demo_')) return;
+
+      try {
+        await _db.collection(_feedCol).doc(id).update({
+          'likes':   FieldValue.increment(-1),
+          'likedBy': FieldValue.arrayRemove([myId]),
+        });
+      } catch (e) {
+        debugPrint('FeedService.toggleLike unlike error: $e');
+        _posts[idx] = post; // rollback
+        notifyListeners();
+      }
+    } else {
+      // ── Like ──────────────────────────────────────────────────────────
+      _posts[idx] = post.copyWith(
+        likes: post.likes + 1,
+        likedByMe: true,
+        likedBy: [...post.likedBy, myId],
+      );
+      notifyListeners();
+
+      if (id.startsWith('demo_')) return;
+
+      try {
+        await _db.collection(_feedCol).doc(id).update({
+          'likes':   FieldValue.increment(1),
+          'likedBy': FieldValue.arrayUnion([myId]),
+        });
+
+        // Notify post owner (not for own posts)
+        final myName = UserService().profile?.name ?? 'Someone';
+        if (post.userId != myId) {
+          await NotificationService.send(
+            toUserId: post.userId,
+            type:     NotifType.like,
+            title:    'New Like',
+            body:     '$myName liked your post',
+            targetId: id,
+          );
+        }
+      } catch (e) {
+        debugPrint('FeedService.toggleLike like error: $e');
+        _posts[idx] = post; // rollback
+        notifyListeners();
+      }
     }
   }
 
@@ -296,6 +341,7 @@ class FeedService extends ChangeNotifier {
           type:     NotifType.comment,
           title:    'New Comment',
           body:     '$userName commented: ${text.trim()}',
+          targetId: postId,
         );
       }
     } catch (e) {
@@ -337,18 +383,6 @@ class FeedService extends ChangeNotifier {
 
     if ((text == null || text.trim().isEmpty) && imageFile == null) return;
 
-    String? imageUrl;
-    if (imageFile != null) {
-      try {
-        final ref = _storage
-            .ref('story_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await ref.putFile(imageFile).timeout(const Duration(seconds: 10));
-        imageUrl = await ref.getDownloadURL();
-      } catch (e) {
-        debugPrint('FeedService.createStory upload error: $e');
-      }
-    }
-
     final id  = DateTime.now().millisecondsSinceEpoch.toString();
     final now = DateTime.now();
     final story = Story(
@@ -356,7 +390,7 @@ class FeedService extends ChangeNotifier {
       userId: userId,
       userName: userName,
       userImageUrl: imgUrl,
-      imageUrl: imageUrl,
+      imageUrl: imageFile?.path, // local path for instant display
       text: text?.trim(),
       createdAt: now,
       expiresAt: now.add(const Duration(hours: 24)),
@@ -366,9 +400,56 @@ class FeedService extends ChangeNotifier {
     _stories.insert(0, story);
     notifyListeners();
 
-    // Firestore write in background — story stays locally even if write fails.
-    _db.collection(_storiesCol).doc(id).set(story.toMap()).catchError((dynamic e) {
-      debugPrint('FeedService.createStory Firestore error (story kept locally): $e');
+    // Upload + Firestore write in background
+    _persistStory(id, story, imageFile);
+  }
+
+  Future<void> _persistStory(String id, Story story, File? imageFile) async {
+    String? imageUrl;
+    if (imageFile != null) {
+      try {
+        final ref = _storage.ref('story_images/$id.jpg');
+        await ref.putFile(imageFile).timeout(const Duration(seconds: 60));
+        imageUrl = await ref.getDownloadURL();
+
+        // Replace local path with network URL in the local list
+        final idx = _stories.indexWhere((s) => s.id == id);
+        if (idx >= 0) {
+          final s = _stories[idx];
+          _stories[idx] = Story(
+            id: s.id,
+            userId: s.userId,
+            userName: s.userName,
+            userImageUrl: s.userImageUrl,
+            imageUrl: imageUrl,
+            text: s.text,
+            createdAt: s.createdAt,
+            expiresAt: s.expiresAt,
+            viewedBy: s.viewedBy,
+          );
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('FeedService._persistStory upload error: $e');
+        // Keep local path — image still shows from device
+      }
+    }
+
+    final storyToSave = imageUrl != null
+        ? Story(
+            id: story.id,
+            userId: story.userId,
+            userName: story.userName,
+            userImageUrl: story.userImageUrl,
+            imageUrl: imageUrl,
+            text: story.text,
+            createdAt: story.createdAt,
+            expiresAt: story.expiresAt,
+          )
+        : story;
+
+    _db.collection(_storiesCol).doc(id).set(storyToSave.toMap()).catchError((dynamic e) {
+      debugPrint('FeedService._persistStory Firestore error (story kept locally): $e');
     });
   }
 

@@ -103,7 +103,7 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
                             label: 'Host',
                             icon: Icons.manage_accounts_outlined,
                             selected: _roleIndex == 1,
-                            selectedColor: const Color(0xFFE65100),
+                            selectedColor: AppColors.primary,
                             onTap: () => setState(() => _roleIndex = 1),
                           ),
                         ],
@@ -172,7 +172,7 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
                                 icon: Icons.manage_accounts_outlined,
                                 title: 'My Hosted Tournaments',
                                 subtitle: 'Manage teams, schedule & results',
-                                accent: const Color(0xFFE65100),
+                                accent: AppColors.primary,
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -186,7 +186,7 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFE65100),
+                                    backgroundColor: AppColors.primary,
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 14),
                                     shape: RoundedRectangleBorder(
@@ -475,7 +475,7 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                     children: [
                       if (ongoing.isNotEmpty) ...[
-                        _hostedGroupHeader('Ongoing', Colors.orange),
+                        _hostedGroupHeader('Ongoing', AppColors.primary),
                         ...ongoing.map((t) => _HostedTournamentCard(
                             tournament: t, onTap: () => _openDetail(t))),
                         const SizedBox(height: 16),
@@ -1685,7 +1685,7 @@ class _TournamentCard extends StatelessWidget {
   (Color, String) _statusStyle(TournamentStatus s) {
     switch (s) {
       case TournamentStatus.open:      return (Colors.green,  'OPEN');
-      case TournamentStatus.ongoing:   return (Colors.orange, 'LIVE');
+      case TournamentStatus.ongoing:   return (AppColors.primary, 'LIVE');
       case TournamentStatus.completed: return (const Color(0xFF42A5F5), 'ENDED');
       case TournamentStatus.cancelled: return (Colors.red,    'CANCELLED');
     }

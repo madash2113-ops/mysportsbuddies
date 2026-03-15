@@ -51,6 +51,7 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
   final _phoneCtrl      = TextEditingController();
 
   late final List<TextEditingController> _playerCtrls;
+  late final List<String?> _playerUserIds; // parallel — userId if registered
   bool _loading = false;
   String? _error;
 
@@ -61,7 +62,8 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
   void initState() {
     super.initState();
     final slots = widget.playersPerTeam > 0 ? widget.playersPerTeam : 1;
-    _playerCtrls = List.generate(slots, (_) => TextEditingController());
+    _playerCtrls   = List.generate(slots, (_) => TextEditingController());
+    _playerUserIds = List.filled(slots, null, growable: true);
   }
 
   @override
@@ -75,7 +77,10 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
 
   void _addPlayer() {
     if (_playerCtrls.length >= 20) return;
-    setState(() => _playerCtrls.add(TextEditingController()));
+    setState(() {
+      _playerCtrls.add(TextEditingController());
+      _playerUserIds.add(null);
+    });
   }
 
   void _removePlayer(int index) {
@@ -83,6 +88,7 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
     setState(() {
       _playerCtrls[index].dispose();
       _playerCtrls.removeAt(index);
+      _playerUserIds.removeAt(index);
     });
   }
 
@@ -94,6 +100,14 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
         .where((s) => s.isNotEmpty)
         .toList();
 
+    // Collect registered userIds aligned to non-empty player names
+    final playerUserIds = <String>[];
+    for (int i = 0; i < _playerCtrls.length; i++) {
+      if (_playerCtrls[i].text.trim().isNotEmpty) {
+        playerUserIds.add(_playerUserIds[i] ?? '');
+      }
+    }
+
     setState(() { _loading = true; _error = null; });
 
     // Simulate payment processing delay
@@ -101,11 +115,12 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
 
     try {
       await TournamentService().enrollTeam(
-        tournamentId: widget.tournamentId,
-        teamName:     _teamNameCtrl.text.trim(),
-        captainName:  _captainCtrl.text.trim(),
-        captainPhone: _phoneCtrl.text.trim(),
-        players:      players,
+        tournamentId:   widget.tournamentId,
+        teamName:       _teamNameCtrl.text.trim(),
+        captainName:    _captainCtrl.text.trim(),
+        captainPhone:   _phoneCtrl.text.trim(),
+        players:        players,
+        playerUserIds:  playerUserIds,
       );
 
       if (!mounted) return;
@@ -267,6 +282,8 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
                             child: PlayerSearchField(
                               controller: _playerCtrls[i],
                               hint: 'Player ${i + 1} name or ID',
+                              onProfileSelected: (p) =>
+                                  setState(() => _playerUserIds[i] = p.id),
                             ),
                           ),
                           if (!_countLocked && _playerCtrls.length > 1)

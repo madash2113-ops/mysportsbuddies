@@ -1,3 +1,5 @@
+import 'dart:io' as dart_io;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +10,6 @@ import '../../design/colors.dart';
 import '../../services/feed_service.dart';
 import '../../services/message_service.dart';
 import '../../services/user_service.dart';
-import '../profile/edit_profile_screen.dart';
 import 'comments_screen.dart';
 import 'create_post_sheet.dart';
 import 'create_story_sheet.dart';
@@ -17,7 +18,10 @@ import 'story_viewer_screen.dart';
 import 'user_profile_screen.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
-  const CommunityFeedScreen({super.key});
+  /// Set to true when pushed as a route (e.g. from notifications) so the
+  /// back button works normally. Defaults to false (tab mode — back blocked).
+  final bool allowBack;
+  const CommunityFeedScreen({super.key, this.allowBack = false});
 
   @override
   State<CommunityFeedScreen> createState() => _CommunityFeedScreenState();
@@ -64,22 +68,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     );
   }
 
-  /// Shows profile action options when user taps their own avatar/story.
-  void _openProfileOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ProfileOptionsSheet(
-        onEditProfile: _openEditProfile,
-      ),
-    );
-  }
-
-  void _openEditProfile() {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const EditProfileScreen()));
-  }
-
   void _openMessages() {
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => const MessagesScreen()));
@@ -95,21 +83,16 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        // Prevent back navigation from community screen
-        // Keep user on community tab
-      },
+      canPop: widget.allowBack,
       child: Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(
           backgroundColor: Colors.black,
           elevation: 0,
-          automaticallyImplyLeading: false,
+          automaticallyImplyLeading: widget.allowBack,
           iconTheme: const IconThemeData(color: Colors.white),
           title: const Text(
-            'SportsBuddies',
+            'SportsClub',
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
@@ -195,7 +178,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                   return _StoriesBar(
                     feedSvc: feedSvc,
                     onAddStory: _openCreateStory,
-                    onProfileTap: _openProfileOptions,
                   );
                 }
                 return _PostCard(post: feedSvc.posts[i - 1]);
@@ -280,12 +262,10 @@ const _igGradient = LinearGradient(
 class _StoriesBar extends StatelessWidget {
   final FeedService feedSvc;
   final VoidCallback onAddStory;
-  final VoidCallback onProfileTap;
 
   const _StoriesBar({
     required this.feedSvc,
     required this.onAddStory,
-    required this.onProfileTap,
   });
 
   @override
@@ -310,14 +290,27 @@ class _StoriesBar extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
                 // ── Your Story ──
+                // Tapping the circle opens your stories if you have any,
+                // or goes straight to create a story if you don't yet.
                 _StoryCircle(
                   label: 'Your Story',
                   imageUrl: UserService().profile?.imageUrl,
                   initials: '',
                   isOwn: true,
+                  hasOwnStory: hasMyStory,
                   isViewed: false,
-                  onTap: onProfileTap,   // profile circle → Edit/View Profile
-                  onPlusTap: onAddStory, // + badge → directly add status
+                  onTap: hasMyStory
+                      ? () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => StoryViewerScreen(
+                                storyGroups: [myStories, ...otherGroups],
+                                initialGroupIndex: 0,
+                              ),
+                            ),
+                          )
+                      : onAddStory,
+                  onPlusTap: onAddStory,
                 ),
                 const SizedBox(width: 18),
 
@@ -373,7 +366,8 @@ class _StoriesBar extends StatelessWidget {
     );
   }
 
-  // Fallback story circles derived from post authors when no real stories exist
+  // Fallback story circles derived from post authors when no real stories exist.
+  // These people have no active story — show plain ring (isViewed: true = grey).
   List<Widget> _demoCircles(BuildContext context, FeedService feedSvc) {
     final seen  = <String>{};
     final items = <Widget>[];
@@ -389,7 +383,7 @@ class _StoriesBar extends StatelessWidget {
           imageUrl: p.userImageUrl,
           initials: initials,
           isOwn: false,
-          isViewed: false,
+          isViewed: true,   // no real story → plain grey ring, not gradient
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
@@ -411,6 +405,7 @@ class _StoryCircle extends StatelessWidget {
   final String? imageUrl;
   final String initials;
   final bool isOwn;
+  final bool hasOwnStory; // only relevant when isOwn=true; shows gradient ring
   final bool isViewed;
   final VoidCallback onTap;
   final VoidCallback? onPlusTap;
@@ -420,6 +415,7 @@ class _StoryCircle extends StatelessWidget {
     required this.imageUrl,
     required this.initials,
     required this.isOwn,
+    this.hasOwnStory = false,
     required this.isViewed,
     required this.onTap,
     this.onPlusTap,
@@ -434,15 +430,33 @@ class _StoryCircle extends StatelessWidget {
         children: [
           Stack(
             children: [
+              // Ring logic:
+              //   own + has story  → IG gradient ring
+              //   own + no story   → dashed grey ring (add placeholder)
+              //   other + unviewed → IG gradient ring
+              //   other + viewed   → solid grey ring
               Container(
                 width: 66,
                 height: 66,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: isOwn || isViewed ? null : _igGradient,
-                  color: isOwn || isViewed
-                      ? const Color(0xFF333333)
+                  gradient: (isOwn && !hasOwnStory) || isViewed
+                      ? null
+                      : _igGradient,
+                  color: (isOwn && !hasOwnStory) || isViewed
+                      ? Colors.transparent
                       : null,
+                  border: (isOwn && !hasOwnStory)
+                      ? Border.all(
+                          color: Colors.white24,
+                          width: 1.5,
+                        )
+                      : isViewed
+                          ? Border.all(
+                              color: Colors.white24,
+                              width: 1.5,
+                            )
+                          : null,
                 ),
                 padding: const EdgeInsets.all(2.5),
                 child: Container(
@@ -541,7 +555,7 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
 
   void _doubleTapLike() {
     if (!widget.post.likedByMe) {
-      context.read<FeedService>().likePost(widget.post.id);
+      context.read<FeedService>().toggleLike(widget.post.id);
     }
     setState(() => _showHeart = true);
     _heartCtrl.forward(from: 0).then((_) {
@@ -1014,12 +1028,22 @@ class _NetworkImageSafe extends StatelessWidget {
   const _NetworkImageSafe({required this.url});
 
   bool get _isAsset => url.startsWith('assets/');
+  bool get _isLocal => !url.startsWith('http') && !url.startsWith('assets/');
 
   @override
   Widget build(BuildContext context) {
     if (_isAsset) {
       return Image.asset(url, fit: BoxFit.cover, width: double.infinity,
           errorBuilder: (context, error, stackTrace) => _broken());
+    }
+    if (_isLocal) {
+      // Local file path — shown while upload is in progress
+      return Image.file(
+        dart_io.File(url),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (context, error, stackTrace) => _broken(),
+      );
     }
     return Image.network(
       url, fit: BoxFit.cover, width: double.infinity,
@@ -1083,9 +1107,8 @@ class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
   }
 
   void _onTap() {
-    if (widget.post.likedByMe) return;
     _ctrl.forward(from: 0);
-    context.read<FeedService>().likePost(widget.post.id);
+    context.read<FeedService>().toggleLike(widget.post.id);
   }
 
   @override
@@ -1209,118 +1232,6 @@ class _CreateOption extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ── Profile options sheet ──────────────────────────────────────────────────
-class _ProfileOptionsSheet extends StatelessWidget {
-  final VoidCallback onEditProfile;
-  const _ProfileOptionsSheet({required this.onEditProfile});
-
-  @override
-  Widget build(BuildContext context) {
-    final profile  = UserService().profile;
-    final imageUrl = profile?.imageUrl;
-    final name     = profile?.name ?? 'Sports Buddy';
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF111111),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 36, height: 4,
-            margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2)),
-          ),
-          CircleAvatar(
-            radius: 36,
-            backgroundColor: const Color(0xFF2A2A2A),
-            backgroundImage:
-                imageUrl != null ? NetworkImage(imageUrl) : null,
-            child: imageUrl == null
-                ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700))
-                : null,
-          ),
-          const SizedBox(height: 10),
-          Text(name,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 20),
-          _ProfileOptionTile(
-            icon: Icons.edit_outlined,
-            iconColor: Colors.blue,
-            title: 'Edit Profile',
-            subtitle: 'Update name, photo, bio & sports',
-            onTap: () { Navigator.pop(context); onEditProfile(); },
-          ),
-          const Divider(color: Colors.white10, height: 1),
-          _ProfileOptionTile(
-            icon: Icons.person_outline,
-            iconColor: Colors.purple,
-            title: 'View My Profile',
-            subtitle: 'See how others see your profile',
-            onTap: () {
-              Navigator.pop(context);
-              final myId = UserService().userId;
-              if (myId != null) {
-                Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (_) => UserProfileScreen(userId: myId)));
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileOptionTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title, subtitle;
-  final VoidCallback onTap;
-  const _ProfileOptionTile({
-    required this.icon, required this.iconColor,
-    required this.title, required this.subtitle, required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      leading: Container(
-        width: 44, height: 44,
-        decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.15),
-            shape: BoxShape.circle),
-        child: Icon(icon, color: iconColor, size: 22),
-      ),
-      title: Text(title,
-          style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle,
-          style: const TextStyle(color: Colors.white54, fontSize: 12)),
-      trailing: const Icon(Icons.chevron_right,
-          color: Colors.white38, size: 20),
     );
   }
 }

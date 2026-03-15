@@ -186,6 +186,7 @@ class TournamentTeam {
   final String       captainName;
   final String       captainPhone;
   final List<String> players;
+  final List<String> playerUserIds; // parallel to players; '' if unregistered
   final String       enrolledBy;
   final DateTime     enrolledAt;
   final bool         paymentConfirmed;
@@ -204,6 +205,7 @@ class TournamentTeam {
     required this.captainName,
     required this.captainPhone,
     required this.players,
+    this.playerUserIds = const [],
     required this.enrolledBy,
     required this.enrolledAt,
     required this.paymentConfirmed,
@@ -221,6 +223,7 @@ class TournamentTeam {
     'captainName':      captainName,
     'captainPhone':     captainPhone,
     'players':          players,
+    'playerUserIds':    playerUserIds,
     'enrolledBy':       enrolledBy,
     'enrolledAt':       Timestamp.fromDate(enrolledAt),
     'paymentConfirmed': paymentConfirmed,
@@ -242,8 +245,9 @@ class TournamentTeam {
       teamName:         m['teamName']         as String,
       captainName:      m['captainName']      as String,
       captainPhone:     m['captainPhone']     as String,
-      players:          List<String>.from(m['players'] as List? ?? []),
-      enrolledBy:       m['enrolledBy']       as String? ?? '',
+      players:          List<String>.from(m['players']       as List? ?? []),
+      playerUserIds:    List<String>.from(m['playerUserIds'] as List? ?? []),
+      enrolledBy:       m['enrolledBy'] as String? ?? '',
       enrolledAt:       m['enrolledAt'] != null
                           ? (m['enrolledAt'] as Timestamp).toDate()
                           : DateTime.now(),

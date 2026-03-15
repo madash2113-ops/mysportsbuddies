@@ -106,6 +106,7 @@ class GameService extends ChangeNotifier {
           type:     NotifType.rsvpUpdate,
           title:    '${game.sport} Game Update',
           body:     '$myName $action your game at ${game.location}',
+          targetId: id,
         );
       }
 
@@ -125,6 +126,7 @@ class GameService extends ChangeNotifier {
           type:     NotifType.rsvpUpdate,
           title:    '${game.sport} Game Update',
           body:     '$myName $action the game at ${game.location}',
+          targetId: id,
         );
       }
     } catch (e) {
@@ -183,6 +185,18 @@ class GameService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('GameService.loadFromFirestore error: $e');
+    }
+  }
+
+  /// Fetch a single game from Firestore by ID (used for notification deep-links).
+  Future<Game?> fetchById(String id) async {
+    try {
+      final doc = await _db.collection(_col).doc(id).get();
+      if (!doc.exists) return null;
+      return Game.fromFirestore(doc);
+    } catch (e) {
+      debugPrint('GameService.fetchById error: $e');
+      return null;
     }
   }
 

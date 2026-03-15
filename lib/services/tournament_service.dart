@@ -224,6 +224,7 @@ class TournamentService extends ChangeNotifier {
     required String       captainName,
     required String       captainPhone,
     required List<String> players,
+    List<String>          playerUserIds = const [],
   }) async {
     final userId   = UserService().userId ?? '';
     final teamsRef = _db.collection(_col).doc(tournamentId).collection('teams');
@@ -238,6 +239,7 @@ class TournamentService extends ChangeNotifier {
       captainName:      captainName,
       captainPhone:     captainPhone,
       players:          players,
+      playerUserIds:    playerUserIds,
       enrolledBy:       userId,
       enrolledAt:       DateTime.now(),
       paymentConfirmed: true,
@@ -258,6 +260,15 @@ class TournamentService extends ChangeNotifier {
     await loadDetail(tournamentId);
     await loadMyEnrollments(userId);
 
+    // ── Increment stats for all registered players in the team ───────────────
+    final allUserIds = <String>{
+      if (userId.isNotEmpty) userId,
+      ...playerUserIds.where((id) => id.isNotEmpty),
+    };
+    for (final uid in allUserIds) {
+      await UserService.incrementStats(uid, tournamentsPlayed: 1);
+    }
+
     // ── Notifications ───────────────────────────────────────────────────────
     final tourn = _tournaments.firstWhere(
       (t) => t.id == tournamentId,
@@ -272,6 +283,7 @@ class TournamentService extends ChangeNotifier {
         type:     NotifType.tournamentUpdate,
         title:    '${tourn.name} — New Enrollment',
         body:     '$teamName (captain: $captainName) enrolled in your tournament',
+        targetId: tournamentId,
       );
     }
 
@@ -285,6 +297,7 @@ class TournamentService extends ChangeNotifier {
         type:     NotifType.tournamentUpdate,
         title:    '${tourn.name} — New Team',
         body:     '$enrollerName\'s team "$teamName" just enrolled',
+        targetId: tournamentId,
       );
     }
   }

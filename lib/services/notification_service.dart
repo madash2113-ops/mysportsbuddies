@@ -11,6 +11,7 @@ class AppNotification {
   final NotifType type;
   final String title;
   final String body;
+  final String? targetId; // postId / gameId / tournamentId for deep-linking
   final DateTime createdAt;
   bool isRead;
 
@@ -19,6 +20,7 @@ class AppNotification {
     required this.type,
     required this.title,
     required this.body,
+    this.targetId,
     required this.createdAt,
     this.isRead = false,
   });
@@ -30,10 +32,11 @@ class AppNotification {
       type:      NotifType.values.firstWhere(
                    (t) => t.name == (d['type'] as String? ?? 'like'),
                    orElse: () => NotifType.like),
-      title:     d['title']   as String? ?? '',
-      body:      d['body']    as String? ?? '',
+      title:     d['title']    as String? ?? '',
+      body:      d['body']     as String? ?? '',
+      targetId:  d['targetId'] as String?,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isRead:    d['isRead']  as bool?   ?? false,
+      isRead:    d['isRead']   as bool?   ?? false,
     );
   }
 
@@ -41,6 +44,7 @@ class AppNotification {
     'type':      type.name,
     'title':     title,
     'body':      body,
+    if (targetId != null) 'targetId': targetId,
     'isRead':    isRead,
     'createdAt': FieldValue.serverTimestamp(),
   };
@@ -89,6 +93,7 @@ class NotificationService extends ChangeNotifier {
     required NotifType type,
     required String title,
     required String body,
+    String? targetId,
   }) async {
     try {
       final db  = FirebaseFirestore.instance;
@@ -102,6 +107,7 @@ class NotificationService extends ChangeNotifier {
         'type':      type.name,
         'title':     title,
         'body':      body,
+        if (targetId != null) 'targetId': targetId,
         'isRead':    false,
         'createdAt': FieldValue.serverTimestamp(),
       });

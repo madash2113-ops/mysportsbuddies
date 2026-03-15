@@ -260,26 +260,77 @@ class UserService extends ChangeNotifier {
     }
   }
 
-  /// Search registered players by name prefix.
-  /// Returns up to [limit] results.
+  // ── Stats ──────────────────────────────────────────────────────────────────
+
+  /// Atomically increments one or more stat counters for any registered user.
+  /// Safe to call with 0 deltas (no-op for that field).
+  static Future<void> incrementStats(
+    String userId, {
+    int tournamentsPlayed = 0,
+    int matchesPlayed = 0,
+    int matchesWon = 0,
+  }) async {
+    if (userId.isEmpty) return;
+    try {
+      final data = <String, dynamic>{};
+      if (tournamentsPlayed != 0) {
+        data['tournamentsPlayed'] = FieldValue.increment(tournamentsPlayed);
+      }
+      if (matchesPlayed != 0) {
+        data['matchesPlayed'] = FieldValue.increment(matchesPlayed);
+      }
+      if (matchesWon != 0) {
+        data['matchesWon'] = FieldValue.increment(matchesWon);
+      }
+      if (data.isEmpty) return;
+      await FirebaseFirestore.instance
+          .collection(_col)
+          .doc(userId)
+          .set(data, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('UserService.incrementStats error: $e');
+    }
+  }
+
+  /// Search registered players by name prefix (case-insensitive best-effort).
+  /// Runs parallel prefix queries for original, title-cased, lowercase and
+  /// uppercase variants so partial matches work regardless of how the name
+  /// was stored.
   Future<List<UserProfile>> searchByName(String query, {int limit = 8}) async {
     final q = query.trim();
     if (q.isEmpty) return [];
-    try {
+
+    final titleQ = q[0].toUpperCase() + (q.length > 1 ? q.substring(1) : '');
+    final lowerQ  = q.toLowerCase();
+    final upperQ  = q.toUpperCase();
+    // Deduplicate variants (e.g. if user typed "John" → title == original)
+    final variants = {q, titleQ, lowerQ, upperQ}.toList();
+
+    // '\uf8ff' is the Unicode high-watermark — standard Firestore prefix trick
+    Future<List<UserProfile>> runQuery(String v) async {
       final snap = await _db
           .collection(_col)
-          .where('name', isGreaterThanOrEqualTo: q)
-          .where('name', isLessThan: '${q}z')
+          .where('name', isGreaterThanOrEqualTo: v)
+          .where('name', isLessThan: '$v\uf8ff')
           .limit(limit)
           .get();
       return snap.docs.map(UserProfile.fromFirestore).toList();
+    }
+
+    try {
+      final results = await Future.wait(variants.map(runQuery));
+      final seen = <String>{};
+      return results
+          .expand<UserProfile>((r) => r)
+          .where((p) => seen.add(p.id))
+          .toList();
     } catch (e) {
       debugPrint('UserService.searchByName error: $e');
       return [];
     }
   }
 
-  /// Search by email — exact match (used in player lookup).
+  /// Search by email — exact match.
   Future<UserProfile?> searchByEmail(String email) async {
     final q = email.trim().toLowerCase();
     if (q.isEmpty) return null;
@@ -293,6 +344,30 @@ class UserService extends ChangeNotifier {
       return UserProfile.fromFirestore(snap.docs.first);
     } catch (e) {
       debugPrint('UserService.searchByEmail error: $e');
+      return null;
+    }
+  }
+
+  /// Search by phone number — exact match (strips non-digit characters first).
+  Future<UserProfile?> searchByPhone(String phone) async {
+    final digits = phone.trim().replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return null;
+    try {
+      // Try both the raw input and digits-only form
+      final queries = <Future<QuerySnapshot>>[
+        _db.collection(_col).where('phone', isEqualTo: phone.trim()).limit(1).get(),
+        if (digits != phone.trim())
+          _db.collection(_col).where('phone', isEqualTo: digits).limit(1).get(),
+      ];
+      final snaps = await Future.wait(queries);
+      for (final snap in snaps) {
+        if (snap.docs.isNotEmpty) {
+          return UserProfile.fromFirestore(snap.docs.first);
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('UserService.searchByPhone error: $e');
       return null;
     }
   }

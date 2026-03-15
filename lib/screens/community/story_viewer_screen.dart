@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/story.dart';
 import '../../services/feed_service.dart';
+import '../../services/message_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
 
 /// Full-screen Instagram-style story viewer.
@@ -104,6 +108,10 @@ class _UserStoriesPageState extends State<_UserStoriesPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _progressCtrl;
   int _storyIndex = 0;
+  bool _sending = false;
+
+  final _replyCtrl = TextEditingController();
+  final _replyFocus = FocusNode();
 
   static const _storyDuration = Duration(seconds: 5);
 
@@ -116,12 +124,82 @@ class _UserStoriesPageState extends State<_UserStoriesPage>
       })
       ..forward();
     _markViewed();
+
+    // Pause progress while keyboard is open, resume when closed
+    _replyFocus.addListener(() {
+      if (_replyFocus.hasFocus) {
+        _progressCtrl.stop();
+      } else {
+        if (_progressCtrl.status != AnimationStatus.completed) {
+          _progressCtrl.forward();
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _progressCtrl.dispose();
+    _replyCtrl.dispose();
+    _replyFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendReply() async {
+    final text = _replyCtrl.text.trim();
+    if (text.isEmpty || _sending) return;
+
+    final story = _current;
+    final myId = UserService().userId;
+    if (myId == null || myId == story.userId) return; // can't reply to own story
+
+    setState(() => _sending = true);
+    _replyFocus.unfocus();
+
+    try {
+      final convId = await MessageService().getOrCreateConversation(
+        otherId: story.userId,
+        otherName: story.userName,
+        otherImageUrl: story.userImageUrl,
+      );
+      await MessageService().sendMessage(
+        convId,
+        '↩ Replied to your story: $text',
+      );
+
+      // Notify the story owner
+      final myName = UserService().profile?.name ?? 'Someone';
+      await NotificationService.send(
+        toUserId: story.userId,
+        type: NotifType.comment,
+        title: 'Story Reply',
+        body: '$myName replied to your story: $text',
+      );
+
+      _replyCtrl.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sent to ${story.userName}'),
+            backgroundColor: Colors.white12,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to send reply'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   Story get _current => widget.stories[_storyIndex];
@@ -267,10 +345,10 @@ class _UserStoriesPageState extends State<_UserStoriesPage>
             ),
           ),
 
-          // ── Text overlay (bottom) ──────────────────────────────────────
+          // ── Text overlay (above reply bar) ────────────────────────────
           if (story.text != null && story.text!.isNotEmpty)
             Positioned(
-              bottom: 60,
+              bottom: 80,
               left: 0,
               right: 0,
               child: Container(
@@ -292,7 +370,102 @@ class _UserStoriesPageState extends State<_UserStoriesPage>
                 ),
               ),
             ),
+
+          // ── Reply bar (hidden for own stories) ────────────────────────
+          if (story.userId != UserService().userId)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _ReplyBar(
+                storyOwnerName: story.userName,
+                controller: _replyCtrl,
+                focusNode: _replyFocus,
+                sending: _sending,
+                onSend: _sendReply,
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Reply bar ─────────────────────────────────────────────────────────────────
+
+class _ReplyBar extends StatelessWidget {
+  final String storyOwnerName;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool sending;
+  final VoidCallback onSend;
+
+  const _ReplyBar({
+    required this.storyOwnerName,
+    required this.controller,
+    required this.focusNode,
+    required this.sending,
+    required this.onSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.6)],
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white54),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  decoration: InputDecoration(
+                    hintText: 'Reply to $storyOwnerName...',
+                    hintStyle: const TextStyle(color: Colors.white54, fontSize: 14),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: sending ? null : onSend,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: sending ? Colors.white24 : Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: sending
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.black),
+                      )
+                    : const Icon(Icons.send_rounded, color: Colors.black, size: 20),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -306,20 +479,26 @@ class _StoryBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (story.imageUrl != null) {
-      final isAsset = story.imageUrl!.startsWith('assets/');
-      return isAsset
-          ? Image.asset(story.imageUrl!, fit: BoxFit.cover)
-          : Image.network(
-              story.imageUrl!,
-              fit: BoxFit.cover,
-              loadingBuilder: (_, child, p) {
-                if (p == null) return child;
-                return _Gradient(userName: story.userName);
-              },
-              errorBuilder: (context, error, stackTrace) =>
-                  _Gradient(userName: story.userName),
-            );
+    final url = story.imageUrl;
+    if (url != null) {
+      if (url.startsWith('assets/')) {
+        return Image.asset(url, fit: BoxFit.cover,
+            errorBuilder: (context, err, st) => _Gradient(userName: story.userName));
+      }
+      if (!url.startsWith('http')) {
+        // Local file path — shown while upload is in progress
+        return Image.file(File(url), fit: BoxFit.cover,
+            errorBuilder: (context, err, st) => _Gradient(userName: story.userName));
+      }
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, p) {
+          if (p == null) return child;
+          return _Gradient(userName: story.userName);
+        },
+        errorBuilder: (context, err, st) => _Gradient(userName: story.userName),
+      );
     }
     return _Gradient(userName: story.userName);
   }

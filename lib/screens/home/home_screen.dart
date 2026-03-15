@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
 
 import '../../controllers/profile_controller.dart';
@@ -18,6 +19,7 @@ import '../tournaments/tournament_detail_screen.dart';
 import '../../core/models/tournament.dart';
 import '../../services/tournament_service.dart';
 import '../common/app_drawer.dart';
+import '../settings/settings_screen.dart';
 import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -80,11 +82,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+
     final pages = [
       const _HomeTab(),
       const TournamentsListScreen(),
       const CommunityFeedScreen(),
-      const EditProfileScreen(),
+      const _ProfileTab(),
     ];
 
     return Scaffold(
@@ -95,12 +99,23 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _bottomNavIndex,
         children: pages,
       ),
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: Theme(
+        data: Theme.of(context).copyWith(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: BottomNavigationBar(
         currentIndex: _bottomNavIndex,
         onTap: (i) => setState(() => _bottomNavIndex = i),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: primary,
+        unselectedItemColor: isDark ? Colors.white38 : Colors.black38,
+        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
         selectedFontSize: 11,
         unselectedFontSize: 11,
+        elevation: 12,
         items: _navItems,
+      ),
       ),
     );
   }
@@ -163,7 +178,252 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        IconButton(
+          icon: Icon(Icons.settings_outlined, color: iconColor),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE TAB
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProfileTab extends StatelessWidget {
+  const _ProfileTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+    final profile = UserService().profile;
+
+    final name              = profile?.name     ?? 'Your Name';
+    final email             = profile?.email    ?? '';
+    final location          = profile?.location ?? '';
+    final bio               = profile?.bio      ?? '';
+    final imageUrl          = profile?.imageUrl;
+    final numId             = profile?.numericId;
+    final tournamentsPlayed = profile?.tournamentsPlayed ?? 0;
+    final matchesPlayed     = profile?.matchesPlayed     ?? 0;
+    final matchesWon        = profile?.matchesWon        ?? 0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 32, 20, 40),
+      child: Column(
+        children: [
+          // Avatar
+          CircleAvatar(
+            radius: 52,
+            backgroundColor: primary.withValues(alpha: 0.15),
+            backgroundImage:
+                imageUrl != null ? NetworkImage(imageUrl) : null,
+            child: imageUrl == null
+                ? Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w700,
+                        color: primary),
+                  )
+                : null,
+          ),
+          const SizedBox(height: 14),
+
+          // Name
+          Text(
+            name,
+            style: TextStyle(
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          // Numeric ID
+          if (numId != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '#$numId',
+                  style: TextStyle(
+                      color: primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: '$numId'));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('ID copied'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: Icon(Icons.copy_rounded, size: 14, color: primary),
+                ),
+              ],
+            ),
+          ],
+
+          // Bio
+          if (bio.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              bio,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: isDark ? Colors.white60 : Colors.black54,
+                  fontSize: 13),
+            ),
+          ],
+
+          // Info chips
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              if (email.isNotEmpty)
+                _InfoChip(
+                    icon: Icons.email_outlined,
+                    label: email,
+                    primary: primary),
+              if (location.isNotEmpty)
+                _InfoChip(
+                    icon: Icons.location_on_outlined,
+                    label: location,
+                    primary: primary),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Stats row
+          Row(
+            children: [
+              _StatBox(
+                  label: 'Tournaments',
+                  value: tournamentsPlayed,
+                  primary: primary),
+              const SizedBox(width: 10),
+              _StatBox(
+                  label: 'Matches', value: matchesPlayed, primary: primary),
+              const SizedBox(width: 10),
+              _StatBox(label: 'Won', value: matchesWon, primary: primary),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Edit Profile button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: primary),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: Icon(Icons.edit_outlined, color: primary, size: 18),
+              label: Text('Edit Profile',
+                  style: TextStyle(
+                      color: primary, fontWeight: FontWeight.w700)),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const EditProfileScreen()),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatBox extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color primary;
+  const _StatBox({required this.label, required this.value, required this.primary});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: primary.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              '$value',
+              style: TextStyle(
+                  color: primary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                  color: isDark ? Colors.white54 : Colors.black45,
+                  fontSize: 11),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color primary;
+  const _InfoChip(
+      {required this.icon, required this.label, required this.primary});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: primary, size: 14),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+                color: isDark ? Colors.white70 : const Color(0xFF1A1A1A),
+                fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 }

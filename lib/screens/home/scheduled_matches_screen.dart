@@ -8,27 +8,210 @@ import '../../services/game_service.dart';
 import '../../services/user_service.dart';
 import '../nearby/game_detail_screen.dart';
 
-class ScheduledMatchesScreen extends StatelessWidget {
-  final String sport;
-  const ScheduledMatchesScreen({
-    super.key,
-    required this.sport,
-  });
+class ScheduledMatchesScreen extends StatefulWidget {
+  final String? sport; // null = show all sports
+  const ScheduledMatchesScreen({super.key, this.sport});
+
+  @override
+  State<ScheduledMatchesScreen> createState() =>
+      _ScheduledMatchesScreenState();
+}
+
+class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tab;
+  String? _selectedSport; // only used when widget.sport == null
+
+  static const _knownSports = [
+    'Cricket', 'Football', 'Basketball', 'Badminton', 'Tennis',
+    'Volleyball', 'Table Tennis', 'Boxing', 'Baseball', 'Hockey',
+    'Running', 'Swimming', 'Cycling', 'MMA', 'Wrestling',
+  ];
+
+  String? get _activeSport => widget.sport ?? _selectedSport;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this, initialIndex: 1);
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
+  void _showSportPicker(BuildContext context, List<String> availableSports) {
+    final searchCtrl = TextEditingController();
+    List<String> filtered = availableSports;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.65,
+            decoration: const BoxDecoration(
+              color: Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  child: Row(
+                    children: [
+                      const Text('Filter by Sport',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700)),
+                      const Spacer(),
+                      if (_selectedSport != null)
+                        TextButton(
+                          onPressed: () {
+                            setState(() => _selectedSport = null);
+                            Navigator.pop(ctx);
+                          },
+                          child: const Text('Clear',
+                              style: TextStyle(color: AppColors.primary)),
+                        ),
+                    ],
+                  ),
+                ),
+                // Search box
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    controller: searchCtrl,
+                    autofocus: true,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search sport…',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                      filled: true,
+                      fillColor: Colors.white10,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onChanged: (q) {
+                      setModal(() {
+                        filtered = availableSports
+                            .where((s) =>
+                                s.toLowerCase().contains(q.toLowerCase()))
+                            .toList();
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // List
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    children: [
+                      // "All Sports" option
+                      _SportPickerTile(
+                        label: 'All Sports',
+                        emoji: '🏅',
+                        isSelected: _selectedSport == null,
+                        onTap: () {
+                          setState(() => _selectedSport = null);
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      ...filtered.map((s) => _SportPickerTile(
+                            label: s,
+                            emoji: _sportEmoji(s),
+                            isSelected: _selectedSport == s,
+                            onTap: () {
+                              setState(() => _selectedSport = s);
+                              Navigator.pop(ctx);
+                            },
+                          )),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  static String _sportEmoji(String sport) {
+    const m = {
+      'Cricket': '🏏', 'Football': '⚽', 'Basketball': '🏀',
+      'Badminton': '🏸', 'Tennis': '🎾', 'Volleyball': '🏐',
+      'Table Tennis': '🏓', 'Boxing': '🥊', 'Baseball': '⚾',
+      'Hockey': '🏑', 'Running': '🏃', 'Swimming': '🏊',
+      'Cycling': '🚴', 'MMA': '🥋', 'Wrestling': '🤼',
+    };
+    return m[sport] ?? '🏅';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<GameService>(
       builder: (ctx, gameSvc, _) {
         final myId = UserService().userId;
-        final all = gameSvc.bySport(sport);
 
-        // Opted-in or tentative games
-        final rsvpd = all
+        // Full pool filtered by active sport (or all)
+        final pool = _activeSport != null
+            ? gameSvc.bySport(_activeSport!)
+            : gameSvc.all;
+
+        // Sports present in the user's games (for picker list)
+        final userSports = {
+          ...gameSvc.all.map((g) => g.sport),
+          ..._knownSports,
+        }.toList()..sort();
+
+        // All games I RSVP'd to (going or maybe) — include hosted games too
+        final rsvpd = pool
             .where((g) =>
-                g.registeredBy != myId &&
-                (g.status == ParticipationStatus.inGame ||
-                    g.status == ParticipationStatus.tentative))
+                g.status == ParticipationStatus.inGame ||
+                g.status == ParticipationStatus.tentative ||
+                g.registeredBy == myId)
             .toList();
+
+        final now   = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+
+        final past = rsvpd.where((g) {
+          final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+          return d.isBefore(today);
+        }).toList()..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+
+        final present = rsvpd.where((g) {
+          final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+          return d == today;
+        }).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+
+        final upcoming = rsvpd.where((g) {
+          final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+          return d.isAfter(today);
+        }).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+
+        final titleSport = _activeSport;
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -37,48 +220,216 @@ class ScheduledMatchesScreen extends StatelessWidget {
             elevation: 0,
             iconTheme: const IconThemeData(color: Colors.white),
             title: Text(
-              '$sport · My Schedule',
+              titleSport != null ? '$titleSport · My Schedule' : 'My Schedule',
               style: const TextStyle(
                   color: Colors.white,
                   fontSize: 17,
                   fontWeight: FontWeight.w600),
             ),
+            bottom: TabBar(
+              controller: _tab,
+              indicatorColor: AppColors.primary,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: Colors.white38,
+              labelStyle: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700),
+              tabs: [
+                Tab(text: 'Past (${past.length})'),
+                Tab(text: 'Today (${present.length})'),
+                Tab(text: 'Upcoming (${upcoming.length})'),
+              ],
+            ),
           ),
-          body: rsvpd.isEmpty
-              ? _EmptyState(sport: sport)
-              : ListView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
+          body: Column(
+            children: [
+              // ── Sport filter row (hamburger only) ──────────────────────
+              if (widget.sport == null)
+                GestureDetector(
+                  onTap: () => _showSportPicker(context, userSports),
+                  child: Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: _selectedSport != null
+                          ? AppColors.primary.withValues(alpha: 0.1)
+                          : Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _selectedSport != null
+                            ? AppColors.primary.withValues(alpha: 0.5)
+                            : Colors.white24,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.sports_outlined,
+                          size: 18,
+                          color: _selectedSport != null
+                              ? AppColors.primary
+                              : Colors.white38,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _selectedSport != null
+                                ? '${_sportEmoji(_selectedSport!)}  $_selectedSport'
+                                : 'All Sports',
+                            style: TextStyle(
+                              color: _selectedSport != null
+                                  ? AppColors.primary
+                                  : Colors.white54,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 20,
+                          color: _selectedSport != null
+                              ? AppColors.primary
+                              : Colors.white38,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              // ── Tabs ────────────────────────────────────────────────────
+              Expanded(
+                child: TabBarView(
+                  controller: _tab,
                   children: [
-                    _sectionHeader('Your RSVP', Icons.how_to_reg_outlined),
-                    const SizedBox(height: AppSpacing.sm),
-                    ...rsvpd.map((g) => _ScheduleCard(
-                          game: g,
-                          badge: g.status == ParticipationStatus.inGame
-                              ? 'GOING'
-                              : 'MAYBE',
-                          badgeColor: g.status == ParticipationStatus.inGame
-                              ? Colors.green
-                              : Colors.amber,
-                        )),
+                    _GameList(games: past,     sport: _activeSport, emptyMsg: 'No past games'),
+                    _GameList(games: present,  sport: _activeSport, emptyMsg: 'No games today'),
+                    _GameList(games: upcoming, sport: _activeSport, emptyMsg: 'No upcoming games'),
                   ],
                 ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
+}
 
-  Widget _sectionHeader(String title, IconData icon) => Row(
-        children: [
-          Icon(icon, color: AppColors.primary, size: 16),
-          const SizedBox(width: 6),
-          Text(title,
-              style: const TextStyle(
-                  color: Colors.white60,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8)),
-        ],
+// ── Sport Picker Tile ─────────────────────────────────────────────────────────
+
+class _SportPickerTile extends StatelessWidget {
+  final String label;
+  final String emoji;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _SportPickerTile({
+    required this.label,
+    required this.emoji,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.5)
+                : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppColors.primary : Colors.white,
+                  fontSize: 15,
+                  fontWeight:
+                      isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_rounded,
+                  color: AppColors.primary, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GameList extends StatelessWidget {
+  final List<Game> games;
+  final String? sport;
+  final String emptyMsg;
+  const _GameList(
+      {required this.games, required this.sport, required this.emptyMsg});
+
+  @override
+  Widget build(BuildContext context) {
+    if (games.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('📅', style: TextStyle(fontSize: 52)),
+            const SizedBox(height: 14),
+            Text(emptyMsg,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(
+              emptyMsg == 'No games today'
+                  ? (sport != null ? 'RSVP to a nearby $sport game' : 'RSVP to a nearby game')
+                  : '',
+              style:
+                  const TextStyle(color: Colors.white38, fontSize: 13),
+            ),
+          ],
+        ),
       );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      itemCount: games.length,
+      itemBuilder: (_, i) {
+        final g = games[i];
+        final isOwner = g.registeredBy == UserService().userId;
+        return _ScheduleCard(
+          game: g,
+          badge: isOwner
+              ? 'HOST'
+              : g.status == ParticipationStatus.inGame
+                  ? 'GOING'
+                  : 'MAYBE',
+          badgeColor: isOwner
+              ? Colors.red
+              : g.status == ParticipationStatus.inGame
+                  ? Colors.green
+                  : Colors.amber,
+        );
+      },
+    );
+  }
 }
 
 // ── Schedule Card ─────────────────────────────────────────────────────────────
@@ -325,35 +676,3 @@ class _SportBanner extends StatelessWidget {
   }
 }
 
-// ── Empty State ───────────────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  final String sport;
-  const _EmptyState({required this.sport});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('📅', style: TextStyle(fontSize: 56)),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'No $sport games in your schedule',
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const Text(
-            'RSVP to a nearby game\nto see it here.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
-          ),
-        ],
-      ),
-    );
-  }
-}

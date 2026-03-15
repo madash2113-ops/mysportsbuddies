@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
+import '../../core/models/game.dart';
+import '../../services/feed_service.dart';
+import '../../services/game_service.dart';
 import '../../services/notification_service.dart';
+import '../community/comments_screen.dart';
 import '../community/community_feed_screen.dart';
+import '../nearby/game_detail_screen.dart';
+import '../nearby/nearby_games_screen.dart';
 import '../scoreboard/scoreboard_menu_screen.dart';
 import '../sports/all_sports_screen.dart';
+import '../tournaments/tournament_detail_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -121,16 +128,39 @@ class _NotifTile extends StatelessWidget {
     }
   }
 
-  void _navigate(BuildContext context) {
+  // Extract sport name from notification title e.g. "Cricket Game Update" → "Cricket"
+  String? _sportFromTitle(String title) {
+    const sports = [
+      'Cricket', 'Football', 'Basketball', 'Badminton', 'Tennis',
+      'Volleyball', 'Hockey', 'Baseball', 'Rugby', 'Swimming',
+    ];
+    for (final s in sports) {
+      if (title.contains(s)) return s;
+    }
+    return null;
+  }
+
+  Future<void> _navigate(BuildContext context) async {
     NotificationService().markRead(notif.id);
     switch (notif.type) {
       case NotifType.like:
       case NotifType.comment:
+        final targetId = notif.targetId;
+        if (targetId != null && targetId.isNotEmpty) {
+          final post = FeedService().posts
+              .where((p) => p.id == targetId)
+              .firstOrNull;
+          if (post != null) {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => CommentsScreen(post: post)));
+            return;
+          }
+        }
         Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const CommunityFeedScreen()));
+            MaterialPageRoute(builder: (_) => const CommunityFeedScreen(allowBack: true)));
       case NotifType.follow:
         Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const CommunityFeedScreen()));
+            MaterialPageRoute(builder: (_) => const CommunityFeedScreen(allowBack: true)));
       case NotifType.matchResult:
         Navigator.of(context).push(PageRouteBuilder(
           opaque: false,
@@ -141,9 +171,39 @@ class _NotifTile extends StatelessWidget {
       case NotifType.gameInvite:
       case NotifType.nearby:
       case NotifType.rsvpUpdate:
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const AllSportsScreen()));
+        final gameId = notif.targetId;
+        final nav = Navigator.of(context);
+        if (gameId != null && gameId.isNotEmpty) {
+          // 1. Try local cache first
+          Game? game = GameService().all
+              .where((g) => g.id == gameId)
+              .firstOrNull;
+
+          // 2. Not in cache — fetch directly from Firestore
+          game ??= await GameService().fetchById(gameId);
+
+          if (game != null) {
+            nav.push(MaterialPageRoute(
+                builder: (_) => GameDetailScreen(game: game!)));
+            return;
+          }
+        }
+        // 3. Fall back: go to that sport's game list if we can parse the sport
+        final sport = _sportFromTitle(notif.title);
+        if (sport != null) {
+          nav.push(MaterialPageRoute(
+              builder: (_) => NearbyGamesScreen(sport: sport)));
+          return;
+        }
+        nav.push(MaterialPageRoute(builder: (_) => const AllSportsScreen()));
       case NotifType.tournamentUpdate:
+        final tournamentId = notif.targetId;
+        if (tournamentId != null && tournamentId.isNotEmpty) {
+          Navigator.push(context,
+              MaterialPageRoute(
+                  builder: (_) => TournamentDetailScreen(tournamentId: tournamentId)));
+          return;
+        }
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => const AllSportsScreen()));
     }

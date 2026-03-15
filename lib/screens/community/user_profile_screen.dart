@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -351,6 +352,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                           ),
 
+                        const SizedBox(height: 16),
+                        _SportStatsRow(userId: widget.userId),
                         const SizedBox(height: 14),
                         const Divider(height: 1, color: Color(0xFF222222)),
                       ],
@@ -440,6 +443,136 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Sport Stats Row ───────────────────────────────────────────────────────────
+
+class _SportStatsRow extends StatelessWidget {
+  final String userId;
+  const _SportStatsRow({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<int>>(
+      future: _loadStats(),
+      builder: (context, snap) {
+        final games       = snap.data?[0] ?? 0;
+        final tournaments = snap.data?[1] ?? 0;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+          child: Row(
+            children: [
+              _SportStat(
+                icon: Icons.sports_outlined,
+                label: 'Games\nJoined',
+                value: games,
+                color: Colors.green,
+              ),
+              _divider(),
+              _SportStat(
+                icon: Icons.emoji_events_outlined,
+                label: 'Tournaments\nPlayed',
+                value: tournaments,
+                color: Colors.amber,
+              ),
+              _divider(),
+              _SportStat(
+                icon: Icons.star_outline_rounded,
+                label: 'Sports\nActive',
+                value: snap.data?[2] ?? 0,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _divider() => Container(
+        width: 1, height: 36,
+        color: Colors.white12,
+      );
+
+  Future<List<int>> _loadStats() async {
+    final db = FirebaseFirestore.instance;
+
+    // Games joined (inGame RSVPs across all games)
+    final rsvpSnap = await db
+        .collectionGroup('rsvps')
+        .where('userId', isEqualTo: userId)
+        .where('status', isEqualTo: 'inGame')
+        .get();
+    final gamesJoined = rsvpSnap.docs.length;
+
+    // Tournaments: teams enrolled by this user
+    final tournSnap = await db
+        .collectionGroup('teams')
+        .where('enrolledBy', isEqualTo: userId)
+        .get();
+    final tournamentsPlayed = tournSnap.docs.length;
+
+    // Unique sports from their games
+    final sportsSet = <String>{};
+    for (final doc in rsvpSnap.docs) {
+      // The game doc ID is the parent's parent
+      final gameId = doc.reference.parent.parent?.id;
+      if (gameId != null) {
+        final gameDoc = await db.collection('games').doc(gameId).get();
+        final sport = gameDoc.data()?['sport'] as String?;
+        if (sport != null) sportsSet.add(sport);
+      }
+    }
+
+    return [gamesJoined, tournamentsPlayed, sportsSet.length];
+  }
+}
+
+class _SportStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int value;
+  final Color color;
+  const _SportStat(
+      {required this.icon,
+      required this.label,
+      required this.value,
+      required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+                color: color,
+                fontSize: 20,
+                fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 10,
+                height: 1.3),
+          ),
+        ],
       ),
     );
   }

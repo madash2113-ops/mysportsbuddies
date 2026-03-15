@@ -139,7 +139,7 @@ class HostDashboardScreen extends StatelessWidget {
                     _DashCard(
                       icon:  Icons.admin_panel_settings_outlined,
                       label: 'Admins',
-                      color: Colors.orange,
+                      color: Colors.red,
                       onTap: () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => AdminManagementScreen(tournamentId: tournamentId))),
                     ),
@@ -323,7 +323,7 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = {
       TournamentStatus.open:      Colors.green,
-      TournamentStatus.ongoing:   Colors.orange,
+      TournamentStatus.ongoing:   Colors.red,
       TournamentStatus.completed: Colors.blue,
       TournamentStatus.cancelled: Colors.red,
     };

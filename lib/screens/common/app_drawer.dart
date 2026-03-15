@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/user_service.dart';
-import '../home/my_schedules_screen.dart';
+import '../home/scheduled_matches_screen.dart';
 import '../home/my_matches_screen.dart';
 import '../home/help_screen.dart';
 import '../scoreboard/scoreboard_menu_screen.dart';
@@ -152,7 +152,7 @@ class AppDrawer extends StatelessWidget {
                       Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const MySchedulesScreen()));
+                              builder: (_) => const ScheduledMatchesScreen()));
                     }),
                     _item(context, Icons.bar_chart_outlined, 'My Scorecards', () {
                       Navigator.pop(context);
