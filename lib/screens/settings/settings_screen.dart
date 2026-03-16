@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../controllers/profile_controller.dart';
 import '../../services/auth_service.dart';
@@ -25,6 +26,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notifTourneys  = true;
   bool _privateProfile = false;
   bool _showLocation   = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _notifGames     = p.getBool('set_notif_games')     ?? true;
+      _notifScores    = p.getBool('set_notif_scores')    ?? true;
+      _notifCommunity = p.getBool('set_notif_community') ?? false;
+      _notifTourneys  = p.getBool('set_notif_tourneys')  ?? true;
+      _privateProfile = p.getBool('set_private_profile') ?? false;
+      _showLocation   = p.getBool('set_show_location')   ?? true;
+    });
+  }
+
+  Future<void> _savePref(String key, bool value) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(key, value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     primary: primary,
                     textCol: textCol,
                     subCol: subCol,
-                    onChanged: (v) => setState(() => _notifGames = v),
+                    onChanged: (v) { setState(() => _notifGames = v); _savePref('set_notif_games', v); },
                   ),
                   _Divider(color: divCol),
                   _ToggleTile(
@@ -156,7 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     primary: primary,
                     textCol: textCol,
                     subCol: subCol,
-                    onChanged: (v) => setState(() => _notifScores = v),
+                    onChanged: (v) { setState(() => _notifScores = v); _savePref('set_notif_scores', v); },
                   ),
                   _Divider(color: divCol),
                   _ToggleTile(
@@ -166,8 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     primary: primary,
                     textCol: textCol,
                     subCol: subCol,
-                    onChanged: (v) =>
-                        setState(() => _notifCommunity = v),
+                    onChanged: (v) { setState(() => _notifCommunity = v); _savePref('set_notif_community', v); },
                   ),
                   _Divider(color: divCol),
                   _ToggleTile(
@@ -177,8 +201,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     primary: primary,
                     textCol: textCol,
                     subCol: subCol,
-                    onChanged: (v) =>
-                        setState(() => _notifTourneys = v),
+                    onChanged: (v) { setState(() => _notifTourneys = v); _savePref('set_notif_tourneys', v); },
                   ),
                 ],
               ),
@@ -205,8 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     primary: primary,
                     textCol: textCol,
                     subCol: subCol,
-                    onChanged: (v) =>
-                        setState(() => _privateProfile = v),
+                    onChanged: (v) { setState(() => _privateProfile = v); _savePref('set_private_profile', v); },
                   ),
                   _Divider(color: divCol),
                   _ToggleTile(
@@ -216,8 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     primary: primary,
                     textCol: textCol,
                     subCol: subCol,
-                    onChanged: (v) =>
-                        setState(() => _showLocation = v),
+                    onChanged: (v) { setState(() => _showLocation = v); _savePref('set_show_location', v); },
                   ),
                 ],
               ),

@@ -7,6 +7,7 @@ import '../../core/models/chat_message.dart';
 import '../../design/colors.dart';
 import '../../services/message_service.dart';
 import '../../services/user_service.dart';
+import 'user_profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -168,7 +169,12 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: const Icon(Icons.info_outline,
                 color: Colors.white, size: 24),
-            onPressed: () {},
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UserProfileScreen(userId: widget.otherId),
+              ),
+            ),
           ),
         ],
       ),

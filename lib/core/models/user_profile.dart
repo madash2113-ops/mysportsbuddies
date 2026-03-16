@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// User role — determines which home shell is shown after login.
+enum UserRole { player, merchant }
+
 class UserProfile {
   final String id;
   final int? numericId;   // Unique 6-digit player ID, e.g. 483921
@@ -12,6 +15,7 @@ class UserProfile {
   final String? imageUrl;
   final DateTime updatedAt;
   final bool isPremium;
+  final UserRole role;
 
   // ── Player statistics ─────────────────────────────────────────────────────
   final int tournamentsPlayed;
@@ -30,6 +34,7 @@ class UserProfile {
     this.imageUrl,
     required this.updatedAt,
     this.isPremium = false,
+    this.role = UserRole.player,
     this.tournamentsPlayed = 0,
     this.matchesPlayed = 0,
     this.matchesWon = 0,
@@ -47,6 +52,7 @@ class UserProfile {
         if (imageUrl != null) 'imageUrl': imageUrl,
         'updatedAt': Timestamp.fromDate(updatedAt),
         'isPremium': isPremium,
+        'role': role.name,
         'tournamentsPlayed': tournamentsPlayed,
         'matchesPlayed':     matchesPlayed,
         'matchesWon':        matchesWon,
@@ -66,6 +72,10 @@ class UserProfile {
             ? (map['updatedAt'] as Timestamp).toDate()
             : DateTime.now(),
         isPremium:          map['isPremium']          as bool? ?? false,
+        role: UserRole.values.firstWhere(
+          (r) => r.name == (map['role'] as String? ?? 'player'),
+          orElse: () => UserRole.player,
+        ),
         tournamentsPlayed:  (map['tournamentsPlayed'] as num?)?.toInt() ?? 0,
         matchesPlayed:      (map['matchesPlayed']     as num?)?.toInt() ?? 0,
         matchesWon:         (map['matchesWon']        as num?)?.toInt() ?? 0,
@@ -84,6 +94,7 @@ class UserProfile {
     String? bio,
     String? imageUrl,
     bool? isPremium,
+    UserRole? role,
     int? tournamentsPlayed,
     int? matchesPlayed,
     int? matchesWon,
@@ -100,6 +111,7 @@ class UserProfile {
         imageUrl: imageUrl ?? this.imageUrl,
         updatedAt: DateTime.now(),
         isPremium: isPremium ?? this.isPremium,
+        role: role ?? this.role,
         tournamentsPlayed: tournamentsPlayed ?? this.tournamentsPlayed,
         matchesPlayed:     matchesPlayed     ?? this.matchesPlayed,
         matchesWon:        matchesWon        ?? this.matchesWon,

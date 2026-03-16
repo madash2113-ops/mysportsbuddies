@@ -590,45 +590,60 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Avatar with IG-gradient ring
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: const BoxDecoration(
-                          shape: BoxShape.circle, gradient: _igGradient),
-                      padding: const EdgeInsets.all(2),
-                      child: Container(
-                        decoration: const BoxDecoration(
-                            shape: BoxShape.circle, color: Colors.black),
-                        padding: const EdgeInsets.all(1.5),
-                        child: ListenableBuilder(
-                          listenable: UserService(),
-                          builder: (ctx, _) {
-                            final myId = UserService().userId;
-                            final displayImgUrl = post.userId == myId
-                                ? (UserService().profile?.imageUrl ?? post.userImageUrl)
-                                : post.userImageUrl;
-                            return CircleAvatar(
-                              radius: 16,
-                              backgroundColor: const Color(0xFF2A2A2A),
-                              backgroundImage: displayImgUrl != null
-                                  ? NetworkImage(displayImgUrl)
-                                  : null,
-                              child: displayImgUrl == null
-                                  ? Text(
-                                      post.userName.isNotEmpty
-                                          ? post.userName[0].toUpperCase()
-                                          : 'S',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13),
-                                    )
-                                  : null,
-                            );
-                          },
-                        ),
-                      ),
+                    // Avatar: gradient ring only when author has active status
+                    ListenableBuilder(
+                      listenable: FeedService(),
+                      builder: (ctx, _) {
+                        final hasStory = FeedService()
+                            .activeStories
+                            .any((s) => s.userId == post.userId);
+                        return Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: hasStory ? _igGradient : null,
+                            border: hasStory
+                                ? null
+                                : Border.all(
+                                    color: Colors.white24, width: 1.5),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                                shape: BoxShape.circle, color: Colors.black),
+                            padding: const EdgeInsets.all(1.5),
+                            child: ListenableBuilder(
+                              listenable: UserService(),
+                              builder: (ctx2, _) {
+                                final myId = UserService().userId;
+                                final displayImgUrl = post.userId == myId
+                                    ? (UserService().profile?.imageUrl ??
+                                        post.userImageUrl)
+                                    : post.userImageUrl;
+                                return CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: const Color(0xFF2A2A2A),
+                                  backgroundImage: displayImgUrl != null
+                                      ? NetworkImage(displayImgUrl)
+                                      : null,
+                                  child: displayImgUrl == null
+                                      ? Text(
+                                          post.userName.isNotEmpty
+                                              ? post.userName[0].toUpperCase()
+                                              : 'S',
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13),
+                                        )
+                                      : null,
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(width: 10),
                     Column(

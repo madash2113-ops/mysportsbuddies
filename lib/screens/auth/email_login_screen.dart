@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/auth_service.dart';
+import 'auth_router.dart';
 
 class EmailLoginScreen extends StatefulWidget {
   const EmailLoginScreen({super.key});
@@ -41,7 +42,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
 
     if (!mounted) return;
     if (ok) {
-      Navigator.pushReplacementNamed(context, '/home');
+      await navigateAfterLogin(context);
     } else {
       setState(() {
         _loading = false;

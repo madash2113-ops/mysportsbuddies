@@ -628,7 +628,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               listenable: context.read<ProfileController>(),
               builder: (context, _) => _ProfileAvatar(
                 image: _profileImage,
-                networkUrl: context.read<ProfileController>().networkImageUrl,
+                // Fallback to Firestore value so photo shows even if
+                // ProfileController hasn't synced yet (e.g. cold start).
+                networkUrl: context.read<ProfileController>().networkImageUrl
+                    ?? UserService().profile?.imageUrl,
                 onTap: _openProfileOptions,
               ),
             ),
@@ -897,13 +900,28 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _StatItem(value: '24', label: 'Games\nPlayed'),
-        _StatItem(value: '156', label: 'Buddies'),
-        _StatItem(value: '18', label: 'Wins'),
-      ],
+    return ListenableBuilder(
+      listenable: UserService(),
+      builder: (ctx, _) {
+        final p = UserService().profile;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _StatItem(
+              value: '${p?.tournamentsPlayed ?? 0}',
+              label: 'Tournaments\nPlayed',
+            ),
+            _StatItem(
+              value: '${p?.matchesPlayed ?? 0}',
+              label: 'Matches\nPlayed',
+            ),
+            _StatItem(
+              value: '${p?.matchesWon ?? 0}',
+              label: 'Matches\nWon',
+            ),
+          ],
+        );
+      },
     );
   }
 }

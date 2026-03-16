@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/auth_service.dart';
+import 'auth_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,13 +16,29 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool    _googleLoading = false;
   String? _error;
+  String  _pendingRole   = 'player'; // read from SharedPreferences
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPendingRole();
+  }
+
+  Future<void> _loadPendingRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _pendingRole = prefs.getString('pending_role') ?? 'player';
+      });
+    }
+  }
 
   Future<void> _googleSignIn() async {
     setState(() { _googleLoading = true; _error = null; });
     final ok = await AuthService().signInWithGoogle();
     if (!mounted) return;
     if (ok) {
-      Navigator.pushReplacementNamed(context, '/home');
+      await navigateAfterLogin(context);
     } else {
       setState(() {
         _googleLoading = false;
@@ -39,7 +57,61 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 52),
+              const SizedBox(height: 16),
+
+              // ── Role badge + back ────────────────────────────────────────
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pushReplacementNamed(context, '/welcome'),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.arrow_back_ios_new, color: Colors.white54, size: 14),
+                        SizedBox(width: 4),
+                        Text('Change', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _pendingRole == 'merchant'
+                          ? const Color(0xFF1A237E)
+                          : AppColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _pendingRole == 'merchant'
+                            ? const Color(0xFF3949AB)
+                            : AppColors.primary,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _pendingRole == 'merchant'
+                              ? Icons.storefront_rounded
+                              : Icons.sports_soccer_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _pendingRole == 'merchant' ? 'Venue Owner' : 'Player',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 32),
 
               // ── Logo ────────────────────────────────────────────────────
               Container(

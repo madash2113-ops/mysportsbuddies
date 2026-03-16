@@ -600,8 +600,9 @@ class _GoLiveSheetState extends State<_GoLiveSheet> {
   String _sport = 'Cricket';
 
   static const _sports = [
-    'Cricket', 'Football', 'Basketball', 'Badminton',
-    'Tennis', 'Volleyball', 'Hockey', 'Boxing',
+    'Cricket', 'Football', 'Throwball', 'Handball',
+    'Basketball', 'Badminton', 'Tennis', 'Volleyball',
+    'Kabaddi', 'Hockey', 'Boxing',
   ];
 
   @override

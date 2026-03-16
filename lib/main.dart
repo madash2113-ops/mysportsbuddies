@@ -17,6 +17,8 @@ import 'services/scoreboard_service.dart';
 import 'services/theme_service.dart';
 import 'services/tournament_service.dart';
 import 'services/user_service.dart';
+import 'services/game_listing_service.dart';
+import 'services/venue_service.dart';
 
 // ======================================================
 // MAIN ENTRY POINT
@@ -58,6 +60,8 @@ void main() async {
     NotificationService().listen();
     TournamentService().listenToTournaments();
     await TournamentService().loadTournaments(); // ensure data on first frame
+    VenueService().listenToVenues();
+    GameListingService().listenToOpenGames();
     debugPrint('✅ Real-time listeners started');
   } catch (e) {
     debugPrint('❌ Firebase error: $e');
@@ -77,6 +81,8 @@ void main() async {
         ChangeNotifierProvider(create: (_) => MessageService()),
         ChangeNotifierProvider(create: (_) => NotificationService()),
         ChangeNotifierProvider(create: (_) => TournamentService()),
+        ChangeNotifierProvider(create: (_) => VenueService()),
+        ChangeNotifierProvider(create: (_) => GameListingService()),
       ],
       child: const MySportsApp(),
     ),

@@ -80,6 +80,7 @@ const List<SportItem> allSports = [
   SportItem(name: 'FIFA Esports',     emoji: '⚽'),
 
   // ── Regional / Traditional ──────────────────────────────────────────────
+  SportItem(name: 'Throwball',        emoji: '🎯'),
   SportItem(name: 'Kabaddi',          emoji: '🤼'),
   SportItem(name: 'Kho Kho',          emoji: '🏃'),
 ];

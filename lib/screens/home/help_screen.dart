@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 
@@ -161,7 +162,9 @@ class HelpScreen extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => launchUrl(
+                      Uri.parse('mailto:support@mysportsbuddies.com?subject=App%20Support'),
+                    ),
                     icon: const Icon(Icons.email_outlined, size: 18),
                     label: const Text('Contact Support'),
                     style: ElevatedButton.styleFrom(

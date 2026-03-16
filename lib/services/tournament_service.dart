@@ -226,11 +226,41 @@ class TournamentService extends ChangeNotifier {
     required List<String> players,
     List<String>          playerUserIds = const [],
   }) async {
-    final userId   = UserService().userId ?? '';
+    final userId = UserService().userId ?? '';
+
+    // ── Pre-flight checks (read before any write) ────────────────────────
+    final tourn = _tournaments.firstWhere(
+      (t) => t.id == tournamentId,
+      orElse: () => throw Exception('Tournament not found'),
+    );
+
     final teamsRef = _db.collection(_col).doc(tournamentId).collection('teams');
     final existing = await teamsRef.get();
-    final seed     = existing.docs.length + 1;
 
+    // Guard: max teams
+    if (tourn.maxTeams > 0 && existing.docs.length >= tourn.maxTeams) {
+      throw Exception(
+          'Tournament is full — maximum ${tourn.maxTeams} teams allowed');
+    }
+
+    // Guard: duplicate team name
+    final nameLower = teamName.trim().toLowerCase();
+    final duplicate = existing.docs.any(
+      (d) => (d.data()['teamName'] as String? ?? '').toLowerCase() == nameLower,
+    );
+    if (duplicate) {
+      throw Exception('A team named "$teamName" is already enrolled');
+    }
+
+    // Guard: same user already enrolled
+    final alreadyEnrolled = existing.docs.any(
+      (d) => (d.data()['enrolledBy'] as String? ?? '') == userId,
+    );
+    if (alreadyEnrolled) {
+      throw Exception('You have already enrolled a team in this tournament');
+    }
+
+    final seed = existing.docs.length + 1;
     final ref  = teamsRef.doc();
     final team = TournamentTeam(
       id:               ref.id,
@@ -246,17 +276,23 @@ class TournamentService extends ChangeNotifier {
       seed:             seed,
     );
 
-    await ref.set(team.toMap());
+    // ── Atomic batch: all writes succeed or none do ───────────────────────
+    final batch = _db.batch();
 
-    // Mirror to flat enrollments collection (doc ID = teamId) for index-free queries
-    await _db.collection('enrollments').doc(ref.id).set(team.toMap());
+    // 1. Team document in subcollection
+    batch.set(ref, team.toMap());
 
-    // Increment registeredTeams counter
-    await _db.collection(_col).doc(tournamentId).update({
+    // 2. Mirror to flat enrollments collection
+    batch.set(_db.collection('enrollments').doc(ref.id), team.toMap());
+
+    // 3. Increment counter on the parent tournament doc
+    batch.update(_db.collection(_col).doc(tournamentId), {
       'registeredTeams': FieldValue.increment(1),
     });
 
-    // Refresh local cache
+    await batch.commit(); // throws on any permission error — nothing is written
+
+    // Refresh local cache only after successful commit
     await loadDetail(tournamentId);
     await loadMyEnrollments(userId);
 
@@ -270,10 +306,6 @@ class TournamentService extends ChangeNotifier {
     }
 
     // ── Notifications ───────────────────────────────────────────────────────
-    final tourn = _tournaments.firstWhere(
-      (t) => t.id == tournamentId,
-      orElse: () => throw Exception('Tournament not found'),
-    );
     final enrollerName = UserService().profile?.name ?? 'Someone';
 
     // Notify the host

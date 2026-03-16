@@ -15,8 +15,8 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
   String _searchQuery = '';
 
   static const _sports = [
-    'All', 'Cricket', 'Football', 'Basketball',
-    'Badminton', 'Tennis', 'Volleyball',
+    'All', 'Cricket', 'Football', 'Throwball', 'Handball',
+    'Basketball', 'Badminton', 'Tennis', 'Volleyball', 'Kabaddi',
   ];
 
   static const _tournaments = [

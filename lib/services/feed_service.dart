@@ -24,7 +24,11 @@ class FeedService extends ChangeNotifier {
   static const _storiesCol = 'stories';
 
   FirebaseFirestore get _db      => FirebaseFirestore.instance;
-  FirebaseStorage   get _storage => FirebaseStorage.instance;
+  // Use explicit bucket — FirebaseStorage.instance defaults to legacy
+  // appspot.com bucket which doesn't exist for this project.
+  FirebaseStorage   get _storage => FirebaseStorage.instanceFor(
+    bucket: 'gs://mysportsbuddies-4d077.firebasestorage.app',
+  );
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -162,7 +166,8 @@ class FeedService extends ChangeNotifier {
   }) async {
     final svc        = UserService();
     final userId     = svc.userId ?? 'anonymous';
-    final userName   = svc.profile?.name.isNotEmpty == true ? svc.profile!.name : 'Sports Buddy';
+    final rawName    = svc.profile?.name ?? '';
+    final userName   = rawName.isNotEmpty ? rawName : 'Sports Buddy';
     final userImgUrl = svc.profile?.imageUrl;
 
     final id  = DateTime.now().millisecondsSinceEpoch.toString();
@@ -301,9 +306,10 @@ class FeedService extends ChangeNotifier {
   /// Add a comment to a post. Updates [commentCount] atomically.
   Future<void> addComment(String postId, String text) async {
     final svc      = UserService();
-    final userId   = svc.userId ?? 'anonymous';
-    final userName = svc.profile?.name.isNotEmpty == true ? svc.profile!.name : 'Sports Buddy';
-    final imgUrl   = svc.profile?.imageUrl;
+    final userId     = svc.userId ?? 'anonymous';
+    final rawName2   = svc.profile?.name ?? '';
+    final userName   = rawName2.isNotEmpty ? rawName2 : 'Sports Buddy';
+    final imgUrl     = svc.profile?.imageUrl;
 
     // Demo posts: optimistic local commentCount only
     final idx = _posts.indexWhere((p) => p.id == postId);
@@ -382,9 +388,10 @@ class FeedService extends ChangeNotifier {
 
   Future<void> createStory({File? imageFile, String? text}) async {
     final svc      = UserService();
-    final userId   = svc.userId ?? 'anonymous';
-    final userName = svc.profile?.name.isNotEmpty == true ? svc.profile!.name : 'Sports Buddy';
-    final imgUrl   = svc.profile?.imageUrl;
+    final userId     = svc.userId ?? 'anonymous';
+    final rawName3   = svc.profile?.name ?? '';
+    final userName   = rawName3.isNotEmpty ? rawName3 : 'Sports Buddy';
+    final imgUrl     = svc.profile?.imageUrl;
 
     if ((text == null || text.trim().isEmpty) && imageFile == null) return;
 

@@ -7,6 +7,7 @@ import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
+import 'auth_router.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -87,10 +88,11 @@ class _OtpScreenState extends State<OtpScreen> {
       // Existing user → go straight to home
       final profile = UserService().profile;
       final isNewUser = profile == null || profile.name.trim().isEmpty;
-      Navigator.pushReplacementNamed(
-        context,
-        isNewUser ? '/complete-profile' : '/home',
-      );
+      if (isNewUser) {
+        Navigator.pushReplacementNamed(context, '/complete-profile');
+      } else {
+        await navigateAfterLogin(context);
+      }
     } else {
       setState(() {
         _loading = false;

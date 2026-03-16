@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../core/models/user_profile.dart';
+import '../../services/user_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,11 +22,16 @@ class _SplashScreenState extends State<SplashScreen> {
   void _navigate() {
     if (!mounted) return;
     final user = FirebaseAuth.instance.currentUser;
-    // If a real (non-anonymous) user is already signed in, skip onboarding/login
     if (user != null && !user.isAnonymous) {
-      Navigator.pushReplacementNamed(context, '/home');
+      // Route to the correct home based on saved role
+      final role = UserService().profile?.role ?? UserRole.player;
+      if (role == UserRole.merchant) {
+        Navigator.pushReplacementNamed(context, '/merchant-home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     } else {
-      Navigator.pushReplacementNamed(context, '/onboarding');
+      Navigator.pushReplacementNamed(context, '/welcome');
     }
   }
 

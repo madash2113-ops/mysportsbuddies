@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../design/colors.dart';
 
 class PremiumScreen extends StatefulWidget {
@@ -714,10 +715,22 @@ class _TextLink extends StatelessWidget {
   final bool isDark;
   const _TextLink(this.label, this.isDark);
 
+  void _onTap() {
+    final urls = {
+      'Terms': 'https://mysportsbuddies.com/terms',
+      'Privacy': 'https://mysportsbuddies.com/privacy',
+      'Restore Purchases': '',
+    };
+    final url = urls[label];
+    if (url != null && url.isNotEmpty) {
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {},
+      onTap: _onTap,
       child: Text(
         label,
         style: TextStyle(

@@ -4,6 +4,7 @@ import '../../core/models/user_profile.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/user_service.dart';
+import 'auth_router.dart';
 
 /// Shown to first-time phone-OTP users who don't yet have a name.
 /// Collects name (required) + email (optional) and saves to Firestore,
@@ -58,7 +59,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       await UserService().saveProfile(updated);
 
       if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+      await navigateAfterLogin(context);
     } catch (e) {
       setState(() {
         _saving = false;

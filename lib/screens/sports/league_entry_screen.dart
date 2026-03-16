@@ -53,8 +53,9 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   bool get _isEditMode => widget.existingTournament != null;
 
   static const _sports  = [
-    'Cricket', 'Football', 'Basketball', 'Badminton',
-    'Tennis', 'Volleyball', 'Chess', 'Other',
+    'Cricket', 'Football', 'Throwball', 'Handball',
+    'Basketball', 'Badminton', 'Tennis', 'Volleyball',
+    'Kabaddi', 'Hockey', 'Boxing', 'Chess', 'Other',
   ];
   static const _formats = ['Knockout', 'Round Robin', 'League'];
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/auth_service.dart';
+import 'auth_router.dart';
 
 class PhoneLoginScreen extends StatefulWidget {
   const PhoneLoginScreen({super.key});
@@ -46,10 +47,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         setState(() { _loading = false; _error = msg; });
       },
       onAutoVerified: () {
-        // Android auto-verified — OTP entered automatically, go home
         if (!mounted) return;
         setState(() => _loading = false);
-        Navigator.pushReplacementNamed(context, '/home');
+        navigateAfterLogin(context);
       },
     );
   }
