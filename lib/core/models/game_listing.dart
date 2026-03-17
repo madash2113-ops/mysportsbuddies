@@ -19,6 +19,7 @@ class GameListing {
   final double totalCost;
   final GameListingStatus status;
   final String? note;
+  final String? photoUrl;
   final DateTime createdAt;
 
   const GameListing({
@@ -38,6 +39,7 @@ class GameListing {
     this.totalCost = 0,
     this.status = GameListingStatus.open,
     this.note,
+    this.photoUrl,
     required this.createdAt,
   });
 
@@ -65,6 +67,7 @@ class GameListing {
         'totalCost':         totalCost,
         'status':            status.name,
         'note':              note,
+        'photoUrl':          photoUrl,
         'createdAt':         Timestamp.fromDate(createdAt),
       };
 
@@ -90,6 +93,7 @@ class GameListing {
           orElse: () => GameListingStatus.open,
         ),
         note:      m['note']      as String?,
+        photoUrl:  m['photoUrl']  as String?,
         createdAt: m['createdAt'] != null
             ? (m['createdAt'] as Timestamp).toDate()
             : DateTime.now(),
