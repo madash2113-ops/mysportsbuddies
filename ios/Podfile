@@ -45,6 +45,15 @@ post_install do |installer|
       # the .dSYM bundle, failing App Store archive validation with UUID error.
       config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
       config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+
+      # Exclude *_Test.{h,m} files from geolocator_apple compilation.
+      # The umbrella header includes GeolocationHandler_Test.h and
+      # GeolocatorPlugin_Test.h which both import <Test/Test.h> (XCTest).
+      # XCTest is unavailable in Release/Archive builds, causing a linker error.
+      if target.name == 'geolocator_apple'
+        config.build_settings['EXCLUDED_SOURCE_FILE_NAMES'] = '*_Test.h *_Test.m'
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+      end
     end
   end
 
