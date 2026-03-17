@@ -77,6 +77,7 @@ class UserService extends ChangeNotifier {
     _userId = await _signInAndGetId();
     await _loadProfile();
     await _ensureNumericId();
+    _backfillSearchFields(); // fire-and-forget: indexes name for search
     _initialized = true;
     notifyListeners();
   }
@@ -96,6 +97,28 @@ class UserService extends ChangeNotifier {
       _profile = base.copyWith(numericId: newId);
     } catch (e) {
       debugPrint('UserService._ensureNumericId error: $e');
+    }
+  }
+
+  /// One-time backfill: writes nameLower / nameReversed / nameWords to the
+  /// current user's Firestore doc so they appear in name searches.
+  /// Runs on every app start but skips the write if already indexed.
+  Future<void> _backfillSearchFields() async {
+    if (_userId == null || _profile == null) return;
+    if (_profile!.name.isEmpty) return;
+    try {
+      final doc  = await _db.collection(_col).doc(_userId).get();
+      final data = doc.data() ?? {};
+      if (data.containsKey('nameLower')) return; // already indexed
+      final p = _profile!;
+      await _db.collection(_col).doc(_userId).update({
+        'nameLower':    p.nameLower,
+        'nameReversed': p.nameReversed,
+        'nameWords':    p.nameWords,
+      });
+      debugPrint('✅ Search fields backfilled for ${p.name}');
+    } catch (e) {
+      debugPrint('UserService._backfillSearchFields error: $e');
     }
   }
 
@@ -346,36 +369,48 @@ class UserService extends ChangeNotifier {
     }
   }
 
-  /// Search registered players by name prefix (case-insensitive best-effort).
-  /// Runs parallel prefix queries for original, title-cased, lowercase and
-  /// uppercase variants so partial matches work regardless of how the name
-  /// was stored.
-  Future<List<UserProfile>> searchByName(String query, {int limit = 8}) async {
+  /// Search registered players by name.
+  ///
+  /// Uses three parallel Firestore queries so any part of the name matches:
+  ///  1. Prefix on `nameLower`    — case-insensitive, e.g. "jesh" → "Jeshwanth Kumar"
+  ///  2. Prefix on `nameReversed` — last-name-first,   e.g. "kumar" → "Jeshwanth Kumar"
+  ///  3. `nameWords array-contains` — exact individual word, e.g. "kumar"
+  ///  4. Fallback prefix on `name` (title-case) — covers unindexed legacy docs
+  Future<List<UserProfile>> searchByName(String query, {int limit = 10}) async {
     final q = query.trim();
     if (q.isEmpty) return [];
 
-    final titleQ = q[0].toUpperCase() + (q.length > 1 ? q.substring(1) : '');
-    final lowerQ  = q.toLowerCase();
-    final upperQ  = q.toUpperCase();
-    // Deduplicate variants (e.g. if user typed "John" → title == original)
-    final variants = {q, titleQ, lowerQ, upperQ}.toList();
+    final qLow   = q.toLowerCase();
+    final qTitle = q[0].toUpperCase() +
+        (q.length > 1 ? q.substring(1).toLowerCase() : '');
+    final qUpper = q.toUpperCase();
 
-    // '\uf8ff' is the Unicode high-watermark — standard Firestore prefix trick
-    Future<List<UserProfile>> runQuery(String v) async {
-      final snap = await _db
-          .collection(_col)
-          .where('name', isGreaterThanOrEqualTo: v)
-          .where('name', isLessThan: '$v\uf8ff')
-          .limit(limit)
-          .get();
-      return snap.docs.map(UserProfile.fromFirestore).toList();
-    }
+    Future<QuerySnapshot> prefixOn(String field, String value) => _db
+        .collection(_col)
+        .where(field, isGreaterThanOrEqualTo: value)
+        .where(field, isLessThan: '$value\uf8ff')
+        .limit(limit)
+        .get();
 
     try {
-      final results = await Future.wait(variants.map(runQuery));
+      // Run ALL case variants in parallel — Firestore Unicode ordering means
+      // each stored case ('avinash', 'Avinash', 'AVINASH') needs its own query.
+      final snaps = await Future.wait([
+        prefixOn('nameLower',    qLow),    // indexed lowercase field
+        prefixOn('nameReversed', qLow),    // indexed reversed field
+        _db.collection(_col)
+            .where('nameWords', arrayContains: qLow)
+            .limit(limit)
+            .get(),
+        prefixOn('name', qLow),    // stored as lowercase: "avinash kumar"
+        prefixOn('name', qTitle),  // stored as title-case: "Avinash Kumar"
+        prefixOn('name', qUpper),  // stored as ALLCAPS:   "AVINASH KUMAR"
+      ]);
+
       final seen = <String>{};
-      return results
-          .expand<UserProfile>((r) => r)
+      return snaps
+          .expand((s) => s.docs)
+          .map(UserProfile.fromFirestore)
           .where((p) => seen.add(p.id))
           .toList();
     } catch (e) {
@@ -402,18 +437,28 @@ class UserService extends ChangeNotifier {
     }
   }
 
-  /// Search by phone number — exact match (strips non-digit characters first).
+  /// Search by phone number — tries all common storage formats in parallel
+  /// (+91XXXXXXXXXX, 91XXXXXXXXXX, 0XXXXXXXXXX, XXXXXXXXXX).
   Future<UserProfile?> searchByPhone(String phone) async {
     final digits = phone.trim().replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return null;
+
+    // Build the set of format variants to query
+    final variants = <String>{phone.trim(), digits};
+    if (digits.length == 10) {
+      variants.addAll(['+91$digits', '91$digits', '0$digits']);
+    } else if (digits.length == 12 && digits.startsWith('91')) {
+      variants.add(digits.substring(2)); // strip country code
+      variants.add('+$digits');
+    } else if (digits.length == 11 && digits.startsWith('0')) {
+      variants.add(digits.substring(1)); // strip leading 0
+    }
+
     try {
-      // Try both the raw input and digits-only form
-      final queries = <Future<QuerySnapshot>>[
-        _db.collection(_col).where('phone', isEqualTo: phone.trim()).limit(1).get(),
-        if (digits != phone.trim())
-          _db.collection(_col).where('phone', isEqualTo: digits).limit(1).get(),
-      ];
-      final snaps = await Future.wait(queries);
+      final snaps = await Future.wait(
+        variants.map((v) =>
+            _db.collection(_col).where('phone', isEqualTo: v).limit(1).get()),
+      );
       for (final snap in snaps) {
         if (snap.docs.isNotEmpty) {
           return UserProfile.fromFirestore(snap.docs.first);

@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/models/game_listing.dart';
@@ -36,6 +39,13 @@ class GameListingService extends ChangeNotifier {
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
+  Future<String?> uploadGamePhoto(File photo, String listingId) async {
+    final ref = FirebaseStorage.instance
+        .ref('game_photos/$listingId.jpg');
+    await ref.putFile(photo);
+    return ref.getDownloadURL();
+  }
+
   Future<GameListing> createListing({
     required String sport,
     required DateTime scheduledAt,
@@ -46,6 +56,7 @@ class GameListingService extends ChangeNotifier {
     String venueName = '',
     String address = '',
     String? note,
+    String? photoUrl,
   }) async {
     final svc    = UserService();
     final myId   = svc.userId ?? '';
@@ -70,6 +81,7 @@ class GameListingService extends ChangeNotifier {
       totalCost:         totalCost,
       status:            GameListingStatus.open,
       note:              note,
+      photoUrl:          photoUrl,
       createdAt:         DateTime.now(),
     );
     await docRef.set(listing.toMap());

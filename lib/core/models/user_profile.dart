@@ -22,6 +22,9 @@ class UserProfile {
   final int matchesPlayed;
   final int matchesWon;
 
+  // ── Sport preferences ─────────────────────────────────────────────────────
+  final List<String>? favoriteSports;
+
   const UserProfile({
     required this.id,
     this.numericId,
@@ -38,12 +41,36 @@ class UserProfile {
     this.tournamentsPlayed = 0,
     this.matchesPlayed = 0,
     this.matchesWon = 0,
+    this.favoriteSports,
   });
+
+  // ── Search index helpers ──────────────────────────────────────────────────
+
+  /// Lowercase full name — used for case-insensitive prefix search.
+  String get nameLower => name.toLowerCase();
+
+  /// Words in reverse order (lowercase) — lets users search by last name.
+  /// "Jeshwanth Kumar" → "kumar jeshwanth"
+  String get nameReversed =>
+      name.trim().split(RegExp(r'\s+')).reversed.join(' ').toLowerCase();
+
+  /// Individual lowercase words — supports array-contains word lookup.
+  List<String> get nameWords => name
+      .toLowerCase()
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
 
   Map<String, dynamic> toMap() => {
         'id': id,
         if (numericId != null) 'numericId': numericId,
         'name': name,
+        // ── Search index fields (written on every save) ──────────────────
+        'nameLower':    nameLower,
+        'nameReversed': nameReversed,
+        'nameWords':    nameWords,
+        // ────────────────────────────────────────────────────────────────
         'email': email,
         'phone': phone,
         'location': location,
@@ -56,6 +83,7 @@ class UserProfile {
         'tournamentsPlayed': tournamentsPlayed,
         'matchesPlayed':     matchesPlayed,
         'matchesWon':        matchesWon,
+        'favoriteSports':    favoriteSports,
       };
 
   factory UserProfile.fromMap(Map<String, dynamic> map) => UserProfile(
@@ -79,6 +107,12 @@ class UserProfile {
         tournamentsPlayed:  (map['tournamentsPlayed'] as num?)?.toInt() ?? 0,
         matchesPlayed:      (map['matchesPlayed']     as num?)?.toInt() ?? 0,
         matchesWon:         (map['matchesWon']        as num?)?.toInt() ?? 0,
+        favoriteSports: (() {
+          final raw = map['favoriteSports'];
+          if (raw == null) return null;
+          if (raw is List) return raw.whereType<String>().toList();
+          return null;
+        })(),
       );
 
   factory UserProfile.fromFirestore(DocumentSnapshot doc) =>
@@ -98,6 +132,7 @@ class UserProfile {
     int? tournamentsPlayed,
     int? matchesPlayed,
     int? matchesWon,
+    List<String>? favoriteSports,
   }) =>
       UserProfile(
         id: id,
@@ -115,5 +150,6 @@ class UserProfile {
         tournamentsPlayed: tournamentsPlayed ?? this.tournamentsPlayed,
         matchesPlayed:     matchesPlayed     ?? this.matchesPlayed,
         matchesWon:        matchesWon        ?? this.matchesWon,
+        favoriteSports: favoriteSports ?? this.favoriteSports,
       );
 }

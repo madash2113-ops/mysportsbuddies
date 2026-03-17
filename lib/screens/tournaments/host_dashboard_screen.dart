@@ -155,11 +155,99 @@ class HostDashboardScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              // ── Danger zone (host only) ────────────────────────────
+              if (isHost) ...[
+                const SizedBox(height: 32),
+                const _SectionLabel('Danger Zone'),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => _confirmReset(context, t.name),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.delete_sweep_outlined, color: Colors.redAccent, size: 22),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Reset Teams & Matches',
+                                  style: TextStyle(
+                                      color: Colors.redAccent,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700)),
+                              SizedBox(height: 2),
+                              Text('Deletes all registered teams, matches and points. Cannot be undone.',
+                                  style: TextStyle(
+                                      color: Colors.white38, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: Colors.redAccent, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 80),
             ]),
           ),
         );
       },
+    );
+  }
+
+  void _confirmReset(BuildContext context, String tournamentName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Text('Reset Teams & Matches',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        content: Text(
+          'This will permanently delete ALL registered teams, matches, and points for "$tournamentName".\n\nThis cannot be undone.',
+          style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await TournamentService().clearTeamsAndMatches(tournamentId);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('All teams and matches cleared.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'),
+                        backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text('Reset', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
   }
 

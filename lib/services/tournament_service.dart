@@ -619,6 +619,49 @@ class TournamentService extends ChangeNotifier {
     await loadTournaments();
   }
 
+  // ── Clear all teams + matches (reset for fresh registration) ────────────
+
+  Future<void> clearTeamsAndMatches(String tournamentId) async {
+    final ref = _db.collection(_col).doc(tournamentId);
+
+    // Delete all team docs (batched in groups of 500)
+    Future<void> deleteCollection(String sub) async {
+      QuerySnapshot snap;
+      do {
+        snap = await ref.collection(sub).limit(200).get();
+        if (snap.docs.isEmpty) break;
+        final batch = _db.batch();
+        for (final d in snap.docs) { batch.delete(d.reference); }
+        await batch.commit();
+      } while (snap.docs.length == 200);
+    }
+
+    await deleteCollection('teams');
+    await deleteCollection('matches');
+
+    // Also clear flat enrollments that point to this tournament
+    final enrSnap = await _db
+        .collection('enrollments')
+        .where('tournamentId', isEqualTo: tournamentId)
+        .get();
+    if (enrSnap.docs.isNotEmpty) {
+      final batch = _db.batch();
+      for (final d in enrSnap.docs) { batch.delete(d.reference); }
+      await batch.commit();
+    }
+
+    // Reset team counter on tournament doc
+    await ref.update({'registeredTeams': 0});
+
+    // Clear local caches
+    _teams.remove(tournamentId);
+    _matches.remove(tournamentId);
+    _myTeamMap.remove(tournamentId);
+    _myEnrolledIds.remove(tournamentId);
+
+    await loadDetail(tournamentId);
+  }
+
   // ── Remove team ──────────────────────────────────────────────────────────
 
   Future<void> removeTeam(String tournamentId, String teamId) async {

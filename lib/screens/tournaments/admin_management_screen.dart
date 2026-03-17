@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/models/player_entry.dart';
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
-import '../../core/models/user_profile.dart';
 import '../../widgets/player_search_field.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -220,7 +220,7 @@ class _AddAdminSheet extends StatefulWidget {
 class _AddAdminSheetState extends State<_AddAdminSheet> {
   final _searchCtrl = TextEditingController();
   bool _saving = false;
-  UserProfile? _selectedProfile;
+  PlayerEntry? _selectedProfile;
 
   final Set<AdminPermission> _selectedPerms = {
     AdminPermission.updateScores,
@@ -239,8 +239,8 @@ class _AddAdminSheetState extends State<_AddAdminSheet> {
     try {
       await TournamentService().addAdmin(
         tournamentId: widget.tournamentId,
-        userId:       _selectedProfile!.id,
-        userName:     _selectedProfile!.name,
+        userId:       _selectedProfile!.userId ?? '',
+        userName:     _selectedProfile!.displayName,
         numericId:    _selectedProfile!.numericId?.toString() ?? '',
         permissions:  _selectedPerms.toList(),
       );
@@ -283,7 +283,7 @@ class _AddAdminSheetState extends State<_AddAdminSheet> {
         PlayerSearchField(
           controller: _searchCtrl,
           hint: 'Search by name or player ID',
-          onProfileSelected: (p) => setState(() => _selectedProfile = p),
+          onSelected: (entry) => setState(() => _selectedProfile = entry),
         ),
 
         const SizedBox(height: 16),

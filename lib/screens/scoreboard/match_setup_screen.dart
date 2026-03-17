@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/match_score.dart';
+import '../../core/models/player_entry.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/scoreboard_service.dart';
 import '../../widgets/address_autocomplete_field.dart';
+import '../../widgets/player_search_field.dart';
 import 'live_scoreboard_screen.dart';
 
 /// Step-by-step scoreboard setup wizard.
@@ -37,6 +39,10 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
       List.generate(11, (_) => TextEditingController());
   List<TextEditingController> _teamBCtrlrs =
       List.generate(11, (_) => TextEditingController());
+
+  // Parallel PlayerEntry lists — populated when user selects from search
+  List<PlayerEntry?> _teamAEntries = List.filled(11, null, growable: true);
+  List<PlayerEntry?> _teamBEntries = List.filled(11, null, growable: true);
 
   // Opening batsmen / bowler selections (dropdown)
   String? _selectedBat1;
@@ -484,6 +490,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
                       List.generate(n, (_) => TextEditingController());
                   _teamBCtrlrs =
                       List.generate(n, (_) => TextEditingController());
+                  _teamAEntries = List.filled(n, null, growable: true);
+                  _teamBEntries = List.filled(n, null, growable: true);
                   _selectedBat1 = null;
                   _selectedBat2 = null;
                   _selectedBowler1 = null;
@@ -501,12 +509,12 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
             // Enter Team A player names
             final aName = _teamACtrl.text.trim();
             return _playerNamesContent(
-                aName.isEmpty ? 'Team A' : aName, _teamACtrlrs);
+                aName.isEmpty ? 'Team A' : aName, _teamACtrlrs, _teamAEntries);
           case 3:
             // Enter Team B player names
             final bName = _teamBCtrl.text.trim();
             return _playerNamesContent(
-                bName.isEmpty ? 'Team B' : bName, _teamBCtrlrs);
+                bName.isEmpty ? 'Team B' : bName, _teamBCtrlrs, _teamBEntries);
           case 4:
             return _whoBatsFirstContent();
           case 5:
@@ -756,20 +764,22 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
     );
   }
 
-  /// Enter all player names for one team (scrollable list of N text fields).
+  /// Enter all player names for one team — each slot is a live player search.
   Widget _playerNamesContent(
-      String teamLabel, List<TextEditingController> controllers) {
+      String teamLabel,
+      List<TextEditingController> controllers,
+      List<PlayerEntry?> entries) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: controllers.asMap().entries.map((e) {
+        final i = e.key;
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: _inputField(
-            'Player ${e.key + 1}',
-            e.value,
-            hint: 'e.g. ${_samplePlayerName(e.key)}',
-            autofocus: e.key == 0,
+          child: PlayerSearchField(
+            controller: e.value,
+            hint: 'Player ${i + 1} — e.g. ${_samplePlayerName(i)}',
+            onSelected: (entry) => setState(() => entries[i] = entry),
           ),
         );
       }).toList(),
@@ -1170,10 +1180,10 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
           format: format,
           createdAt: now,
           cricket: score,
-          teamAPlayers:
-              _teamACtrlrs.map((c) => c.text.trim()).toList(),
-          teamBPlayers:
-              _teamBCtrlrs.map((c) => c.text.trim()).toList(),
+          teamAPlayers: List.generate(_teamACtrlrs.length, (i) =>
+              _teamAEntries[i]?.displayName ?? _teamACtrlrs[i].text.trim()),
+          teamBPlayers: List.generate(_teamBCtrlrs.length, (i) =>
+              _teamBEntries[i]?.displayName ?? _teamBCtrlrs[i].text.trim()),
         );
 
       case SportEngine.football:

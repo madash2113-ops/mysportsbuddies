@@ -43,6 +43,9 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.2
 
+  # Google Fonts — Work Sans brand typeface
+  google_fonts: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

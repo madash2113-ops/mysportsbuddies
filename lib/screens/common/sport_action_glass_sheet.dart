@@ -7,9 +7,16 @@ import '../nearby/host_a_game_screen.dart';
 import '../scoreboard/match_setup_screen.dart';
 import '../scoreboard/live_matches_screen.dart';
 
-class SportActionGlassScreen extends StatelessWidget {
+class SportActionGlassScreen extends StatefulWidget {
   final String sport;
   const SportActionGlassScreen({super.key, required this.sport});
+
+  @override
+  State<SportActionGlassScreen> createState() => _SportActionGlassScreenState();
+}
+
+class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
+  bool _showSports = true;
 
   static String _emoji(String sport) {
     final s = sport.toLowerCase();
@@ -47,10 +54,11 @@ class SportActionGlassScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
-    final cardBg  = isDark ? const Color(0xFF0E0E0E) : Colors.white;
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final primary  = isDark ? AppColors.primary : AppColorsLight.primary;
+    final cardBg   = isDark ? const Color(0xFF0E0E0E) : Colors.white;
     final titleCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final toggleBg = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF0F0F0);
 
     return Material(
       color: Colors.transparent,
@@ -69,7 +77,7 @@ class SportActionGlassScreen extends StatelessWidget {
             ),
           ),
 
-          // ── Card (no border, no stroke) ───────────────────────────────────
+          // ── Card ─────────────────────────────────────────────────────────
           Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -89,130 +97,100 @@ class SportActionGlassScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ── Header ───────────────────────────────────────────
-                      Row(children: [
-                        Container(
-                          width: 44, height: 44,
-                          decoration: BoxDecoration(
-                            color: primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(_emoji(sport),
-                                style: const TextStyle(fontSize: 22)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            sport,
-                            style: TextStyle(
-                              color: titleCol,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ── Header ──────────────────────────────────────
+                          Row(children: [
+                            Container(
+                              width: 44, height: 44,
+                              decoration: BoxDecoration(
+                                color: primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: Text(_emoji(widget.sport),
+                                    style: const TextStyle(fontSize: 22)),
+                              ),
                             ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: Container(
-                            width: 30, height: 30,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                widget.sport,
+                                style: TextStyle(
+                                  color: titleCol,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: Container(
+                                width: 30, height: 30,
+                                decoration: BoxDecoration(
+                                  color: primary.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(Icons.close, color: primary, size: 16),
+                              ),
+                            ),
+                          ]),
+
+                          const SizedBox(height: 16),
+
+                          // ── Toggle ──────────────────────────────────────
+                          Container(
+                            height: 46,
                             decoration: BoxDecoration(
-                              color: primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(8),
+                              color: toggleBg,
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Icon(Icons.close, color: primary, size: 16),
+                            child: Row(
+                              children: [
+                                _Tab(
+                                  label: 'Sports',
+                                  icon: Icons.sports_outlined,
+                                  active: _showSports,
+                                  primary: primary,
+                                  isDark: isDark,
+                                  onTap: () => setState(() => _showSports = true),
+                                ),
+                                _Tab(
+                                  label: 'Scoreboard',
+                                  icon: Icons.scoreboard_outlined,
+                                  active: !_showSports,
+                                  primary: primary,
+                                  isDark: isDark,
+                                  onTap: () => setState(() => _showSports = false),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ]),
 
-                      const SizedBox(height: 18),
-
-                      // ── GAMES section ─────────────────────────────────────
-                      _SectionLabel(
-                        icon: Icons.sports_outlined,
-                        label: 'GAMES',
-                        color: isDark ? Colors.white38 : Colors.black38,
+                          const SizedBox(height: 14),
+                        ],
                       ),
-                      const SizedBox(height: 8),
+                    ),
 
-                      _ActionRow(
-                        icon: Icons.location_searching_rounded,
-                        title: 'Nearby Games',
-                        primary: primary,
-                        isDark: isDark,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => NearbyGamesScreen(sport: sport),
-                          ),
-                        ),
-                      ),
-
-                      _ActionRow(
-                        icon: Icons.sports_handball_outlined,
-                        title: 'Host a Game',
-                        primary: primary,
-                        isDark: isDark,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => HostAGameScreen(sport: sport),
-                          ),
-                        ),
-                      ),
-
-                      _ActionRow(
-                        icon: Icons.calendar_today_outlined,
-                        title: 'My Schedule',
-                        primary: primary,
-                        isDark: isDark,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ScheduledMatchesScreen(sport: sport),
-                          ),
+                    // ── Content ─────────────────────────────────────────────
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: _showSports
+                              ? _buildSportsActions(primary, isDark)
+                              : _buildScoreboardActions(primary, isDark),
                         ),
                       ),
-
-                      const SizedBox(height: 14),
-
-                      // ── SCOREBOARD section ────────────────────────────────
-                      _SectionLabel(
-                        icon: Icons.scoreboard_outlined,
-                        label: 'SCOREBOARD',
-                        color: isDark ? Colors.white38 : Colors.black38,
-                      ),
-                      const SizedBox(height: 8),
-
-                      _ActionRow(
-                        icon: Icons.add_chart_rounded,
-                        title: 'Start Scoreboard',
-                        primary: primary,
-                        isDark: isDark,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => MatchSetupScreen(sportName: sport),
-                          ),
-                        ),
-                      ),
-
-                      _ActionRow(
-                        icon: Icons.bar_chart_rounded,
-                        title: 'View Scoreboards',
-                        primary: primary,
-                        isDark: isDark,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => LiveMatchesScreen(sportName: sport),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -221,36 +199,144 @@ class SportActionGlassScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-// ── Section label ─────────────────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  const _SectionLabel(
-      {required this.icon, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      Icon(icon, color: color, size: 12),
-      const SizedBox(width: 5),
-      Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.4,
+  Widget _buildSportsActions(Color primary, bool isDark) {
+    return Column(
+      key: const ValueKey('sports'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ActionRow(
+          icon: Icons.location_searching_rounded,
+          title: 'Nearby Games',
+          primary: primary,
+          isDark: isDark,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => NearbyGamesScreen(sport: widget.sport),
+            ),
+          ),
         ),
-      ),
-    ]);
+        _ActionRow(
+          icon: Icons.sports_handball_outlined,
+          title: 'Host a Game',
+          primary: primary,
+          isDark: isDark,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => HostAGameScreen(sport: widget.sport),
+            ),
+          ),
+        ),
+        _ActionRow(
+          icon: Icons.calendar_today_outlined,
+          title: 'My Schedule',
+          primary: primary,
+          isDark: isDark,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ScheduledMatchesScreen(sport: widget.sport),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScoreboardActions(Color primary, bool isDark) {
+    return Column(
+      key: const ValueKey('scoreboard'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ActionRow(
+          icon: Icons.add_chart_rounded,
+          title: 'Start Scoreboard',
+          primary: primary,
+          isDark: isDark,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MatchSetupScreen(sportName: widget.sport),
+            ),
+          ),
+        ),
+        _ActionRow(
+          icon: Icons.bar_chart_rounded,
+          title: 'View Scoreboards',
+          primary: primary,
+          isDark: isDark,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => LiveMatchesScreen(sportName: widget.sport),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
-// ── Action row — red text, black bg, no border ────────────────────────────────
+// ── Toggle tab ─────────────────────────────────────────────────────────────────
+
+class _Tab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final Color primary;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _Tab({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.primary,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: active ? primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: active
+                ? [BoxShadow(
+                    color: primary.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2))]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 16,
+                  color: active
+                      ? Colors.white
+                      : (isDark ? Colors.white38 : Colors.black38)),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                    color: active
+                        ? Colors.white
+                        : (isDark ? Colors.white54 : Colors.black45),
+                    fontSize: 13,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Action row ────────────────────────────────────────────────────────────────
 
 class _ActionRow extends StatelessWidget {
   final IconData icon;
@@ -269,7 +355,6 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Dark bg for all buttons in both themes
     final bg = isDark ? const Color(0xFF1A1A1A) : const Color(0xFF111111);
 
     return GestureDetector(
@@ -280,7 +365,6 @@ class _ActionRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
-          // No border/stroke
         ),
         child: Row(children: [
           Icon(icon, color: primary, size: 20),

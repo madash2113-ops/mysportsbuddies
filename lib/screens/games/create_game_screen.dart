@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/venue_model.dart';
 import '../../design/colors.dart';
@@ -32,16 +35,17 @@ class CreateGameScreen extends StatefulWidget {
 }
 
 class _CreateGameScreenState extends State<CreateGameScreen> {
-  String?  _sport;
-  DateTime? _date;
+  String?    _sport;
+  DateTime?  _date;
   TimeOfDay? _time;
-  int      _maxPlayers = 10;
-  bool     _splitCost  = false;
-  bool     _noSplit    = false;
-  final    _costCtrl   = TextEditingController();
-  final    _noteCtrl   = TextEditingController();
-  bool     _saving     = false;
-  String?  _error;
+  int        _maxPlayers = 10;
+  bool       _splitCost  = false;
+  bool       _noSplit    = false;
+  final      _costCtrl   = TextEditingController();
+  final      _noteCtrl   = TextEditingController();
+  bool       _saving     = false;
+  String?    _error;
+  File?      _photo;
 
   @override
   void initState() {
@@ -111,6 +115,58 @@ class _CreateGameScreenState extends State<CreateGameScreen> {
     if (date != null) setState(() => _date = date);
   }
 
+  Future<void> _pickPhoto(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1200,
+    );
+    if (picked != null) setState(() => _photo = File(picked.path));
+  }
+
+  void _showPhotoOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: Colors.white70),
+              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+              onTap: () { Navigator.pop(context); _pickPhoto(ImageSource.camera); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: Colors.white70),
+              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+              onTap: () { Navigator.pop(context); _pickPhoto(ImageSource.gallery); },
+            ),
+            if (_photo != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                title: const Text('Remove Photo', style: TextStyle(color: Colors.redAccent)),
+                onTap: () { Navigator.pop(context); setState(() => _photo = null); },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickTime() async {
     final t = await showTimePicker(
       context: context,
@@ -148,7 +204,15 @@ class _CreateGameScreenState extends State<CreateGameScreen> {
       );
       final totalCost = double.tryParse(_costCtrl.text.trim()) ?? 0;
 
-      await GameListingService().createListing(
+      // Upload photo first (we need the listing id, so create a temp id)
+      final svc = GameListingService();
+      String? photoUrl;
+      if (_photo != null) {
+        final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+        photoUrl = await svc.uploadGamePhoto(_photo!, tempId);
+      }
+
+      await svc.createListing(
         sport:        _sport!,
         scheduledAt:  scheduled,
         maxPlayers:   _maxPlayers,
@@ -158,6 +222,7 @@ class _CreateGameScreenState extends State<CreateGameScreen> {
         venueName:    widget.venue?.name ?? '',
         address:      widget.venue?.address ?? '',
         note:         _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        photoUrl:     photoUrl,
       );
 
       if (!mounted) return;
@@ -399,6 +464,64 @@ class _CreateGameScreenState extends State<CreateGameScreen> {
                 ),
               ],
             ],
+
+            const SizedBox(height: AppSpacing.lg),
+
+            // ── Photo ─────────────────────────────────────────────────
+            _Label('Game Photo (optional)'),
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: _showPhotoOptions,
+              child: _photo != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Stack(
+                        children: [
+                          Image.file(_photo!,
+                              width: double.infinity,
+                              height: 160,
+                              fit: BoxFit.cover),
+                          Positioned(
+                            top: 8, right: 8,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _photo = null),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close,
+                                    color: Colors.white, size: 16),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Container(
+                      width: double.infinity,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: Colors.white24,
+                            style: BorderStyle.solid),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.add_a_photo_outlined,
+                              color: Colors.white38, size: 32),
+                          SizedBox(height: 8),
+                          Text('Tap to add a photo',
+                              style: TextStyle(
+                                  color: Colors.white38, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+            ),
 
             const SizedBox(height: AppSpacing.lg),
 

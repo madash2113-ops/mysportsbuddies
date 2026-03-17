@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../../controllers/profile_controller.dart';
@@ -8,6 +10,7 @@ import '../../core/models/match_score.dart';
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 
+import '../../services/location_service.dart';
 import '../../services/scoreboard_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
@@ -446,8 +449,15 @@ class _InfoChip extends StatelessWidget {
 // HOME TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   const _HomeTab();
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  bool _showSports = true;
 
   String get _greeting {
     final h = DateTime.now().hour;
@@ -456,12 +466,31 @@ class _HomeTab extends StatelessWidget {
     return 'Good Evening 🌙';
   }
 
+  Future<void> _openLocationPicker(BuildContext context) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _LocationPickerSheet(),
+    );
+    if (result != null && result.isNotEmpty) {
+      final profile = UserService().profile;
+      if (profile != null) {
+        await UserService().saveProfile(profile.copyWith(location: result));
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark  = Theme.of(context).brightness == Brightness.dark;
     final primary = isDark ? AppColors.primary : AppColorsLight.primary;
     final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final cardBg  = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF0F0F0);
     final name    = (UserService().profile?.name ?? '').split(' ').first;
+
+    final location = UserService().profile?.location ?? '';
 
     return SafeArea(
       bottom: false,
@@ -469,75 +498,106 @@ class _HomeTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // ── Greeting row ────────────────────────────────────────────────
+          // ── Banner slider (at top) ───────────────────────────────────────
+          const BannerSlider(),
+
+          // ── Greeting + name + location ──────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(_greeting,
                     style: TextStyle(
                         color: isDark ? Colors.white54 : Colors.black45,
-                        fontSize: 12)),
-                const SizedBox(height: 1),
+                        fontSize: 13)),
+                const SizedBox(height: 2),
                 Text(name.isNotEmpty ? name : 'Athlete',
                     style: TextStyle(
                         color: textCol,
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5)),
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: () => _openLocationPicker(context),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.location_on_outlined,
+                          size: 14,
+                          color: isDark ? Colors.white38 : Colors.black38),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          location.isNotEmpty
+                              ? location.split(',').take(2).join(',').trim()
+                              : 'Set your location',
+                          style: TextStyle(
+                              color: isDark ? Colors.white38 : Colors.black45,
+                              fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 14,
+                          color: isDark ? Colors.white24 : Colors.black26),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
 
-          // ── Image banner slider ──────────────────────────────────────────
-          const BannerSlider(),
+          // ── Sports | Venues toggle ───────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+            child: Container(
+              height: 58,
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Row(
+                children: [
+                  _ToggleTab(
+                    label: 'Sports',
+                    icon: Icons.sports_outlined,
+                    active: _showSports,
+                    primary: primary,
+                    isDark: isDark,
+                    onTap: () => setState(() => _showSports = true),
+                  ),
+                  _ToggleTab(
+                    label: 'Venues',
+                    icon: Icons.stadium_outlined,
+                    active: !_showSports,
+                    primary: primary,
+                    isDark: isDark,
+                    onTap: () => setState(() => _showSports = false),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
           // ── Context banners (live / tournament / next game) ─────────────
-          const _ContextBanners(),
+          if (_showSports) const _ContextBanners(),
 
-          const SizedBox(height: 14),
-
-          // ── Popular Sports ───────────────────────────────────────────────
-          _SectionRow(
-            title: 'Popular Sports',
-            actionLabel: 'See All',
-            primary: primary,
-            textCol: textCol,
-            onAction: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const AllSportsScreen())),
-          ),
           const SizedBox(height: 8),
-          const _SportsPillRow(),
 
-          const SizedBox(height: 18),
-
-          // ── Nearby Venues ────────────────────────────────────────────────
-          _SectionRow(
-            title: 'Nearby Venues',
-            actionLabel: 'See All',
-            primary: Colors.teal,
-            textCol: textCol,
-            onAction: () => Navigator.pushNamed(context, '/venues'),
+          // ── Content: Sports section OR Venues section ────────────────────
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: _showSports
+                  ? const _SportsGrid(key: ValueKey('sports'))
+                  : const _VenuesGrid(key: ValueKey('venues')),
+            ),
           ),
-          const SizedBox(height: 8),
-          const _VenuesPillRow(),
 
-          const SizedBox(height: 18),
-
-          // ── Games Near You ───────────────────────────────────────────────
-          _SectionRow(
-            title: 'Games Near You',
-            actionLabel: '+ List',
-            primary: primary,
-            textCol: textCol,
-            onAction: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const CreateGameScreen())),
-          ),
-          const SizedBox(height: 8),
-          const _GamesPillRow(),
-
-          const Spacer(),
           SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
         ],
       ),
@@ -545,54 +605,73 @@ class _HomeTab extends StatelessWidget {
   }
 }
 
-// ── Open games row ────────────────────────────────────────────────────────────
+// ── Toggle tab (one half of the Sports | Venues bar) ──────────────────────────
 
-class _SectionRow extends StatelessWidget {
-  final String     title;
-  final String     actionLabel;
-  final Color      primary;
-  final Color      textCol;
-  final VoidCallback onAction;
+class _ToggleTab extends StatelessWidget {
+  final String    label;
+  final IconData  icon;
+  final bool      active;
+  final Color     primary;
+  final bool      isDark;
+  final VoidCallback onTap;
 
-  const _SectionRow({
-    required this.title,
-    required this.actionLabel,
+  const _ToggleTab({
+    required this.label,
+    required this.icon,
+    required this.active,
     required this.primary,
-    required this.textCol,
-    required this.onAction,
+    required this.isDark,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(title,
-                style: TextStyle(
-                    color: textCol,
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+          decoration: BoxDecoration(
+            color: active ? primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: active
+                ? [BoxShadow(
+                    color: primary.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2))]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 20,
+                  color: active
+                      ? Colors.white
+                      : (isDark ? Colors.white38 : Colors.black38)),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: TextStyle(
+                    color: active
+                        ? Colors.white
+                        : (isDark ? Colors.white54 : Colors.black45),
                     fontSize: 16,
-                    fontWeight: FontWeight.w700)),
+                    fontWeight:
+                        active ? FontWeight.w700 : FontWeight.w500,
+                  )),
+            ],
           ),
-          GestureDetector(
-            onTap: onAction,
-            child: Text(actionLabel,
-                style: TextStyle(
-                    color: primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600)),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ── Sports pill row (single horizontal scroll) ────────────────────────────────
+// ── Sports section (horizontal pill scroll) ────────────────────────────────────
 
-class _SportsPillRow extends StatelessWidget {
-  const _SportsPillRow();
+class _SportsGrid extends StatelessWidget {
+  const _SportsGrid({super.key});
 
   static const _sports = [
     ('Cricket',    '🏏'),
@@ -605,152 +684,153 @@ class _SportsPillRow extends StatelessWidget {
     ('Volleyball', '🏐'),
     ('Kabaddi',    '🤼'),
     ('Boxing',     '🥊'),
+    ('Hockey',     '🏑'),
     ('More',       '➕'),
   ];
+
+  // Build ordered list: favorites first, then the rest, always end with More
+  List<(String, String)> _orderedSports() {
+    final favs = UserService().profile?.favoriteSports ?? const <String>[];
+    final favoriteItems = _sports
+        .where((s) => s.$1 != 'More' && favs.contains(s.$1))
+        .toList();
+    final otherItems = _sports
+        .where((s) => s.$1 != 'More' && !favs.contains(s.$1))
+        .toList();
+    return [...favoriteItems, ...otherItems, ('More', '➕')];
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark  = Theme.of(context).brightness == Brightness.dark;
     final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final ordered = _orderedSports();
 
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        itemCount: _sports.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final (label, emoji) = _sports[i];
-          final isMore = label == 'More';
-          return GestureDetector(
-            onTap: () {
-              if (isMore) {
-                Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (_) => const AllSportsScreen()));
-              } else {
-                Navigator.of(context).push(PageRouteBuilder(
-                  opaque: false,
-                  pageBuilder: (_, _, _) =>
-                      SportActionGlassScreen(sport: label),
-                  transitionsBuilder: (_, anim, _, child) =>
-                      FadeTransition(opacity: anim, child: child),
-                ));
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? primary.withValues(alpha: 0.10)
-                    : primary.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: primary.withValues(alpha: 0.28)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(emoji,
-                      style: const TextStyle(fontSize: 16)),
-                  const SizedBox(width: 6),
-                  Text(label,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── "Sports" label + See All ───────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('Sports',
                       style: TextStyle(
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF1A1A1A),
+                          color: textCol,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800)),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(
+                          builder: (_) => const AllSportsScreen())),
+                  child: Text('See All',
+                      style: TextStyle(
+                          color: primary,
                           fontSize: 13,
                           fontWeight: FontWeight.w600)),
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        },
+          ),
+          // Pills
+          SizedBox(
+            height: 58,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              scrollDirection: Axis.horizontal,
+              itemCount: ordered.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, i) {
+                final (label, emoji) = ordered[i];
+                final isMore = label == 'More';
+                return GestureDetector(
+                  onTap: () {
+                    if (isMore) {
+                      Navigator.push(context,
+                          MaterialPageRoute(
+                              builder: (_) => const AllSportsScreen()));
+                    } else {
+                      Navigator.of(context).push(PageRouteBuilder(
+                        opaque: false,
+                        pageBuilder: (_, _, _) =>
+                            SportActionGlassScreen(sport: label),
+                        transitionsBuilder: (_, anim, _, child) =>
+                            FadeTransition(opacity: anim, child: child),
+                      ));
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? primary.withValues(alpha: 0.12)
+                          : primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: primary.withValues(alpha: 0.30)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(emoji,
+                            style: const TextStyle(fontSize: 22)),
+                        const SizedBox(width: 8),
+                        Text(label,
+                            style: TextStyle(
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF1A1A1A),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Sports Near You header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('Sports Near You',
+                      style: TextStyle(
+                          color: textCol,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800)),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(
+                          builder: (_) => const CreateGameScreen())),
+                  child: Text('+ List',
+                      style: TextStyle(
+                          color: primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ),
+          const _GamesGrid(),
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }
 }
 
-// ── Venues pill row ───────────────────────────────────────────────────────────
+// ── Games grid (2-column card grid) ───────────────────────────────────────────
 
-class _VenuesPillRow extends StatelessWidget {
-  const _VenuesPillRow();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = Colors.teal;
-
-    return ListenableBuilder(
-      listenable: VenueService(),
-      builder: (context, _) {
-        final venues = VenueService().venues;
-
-        if (venues.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text('No venues nearby yet',
-                style: TextStyle(
-                    color: isDark ? Colors.white38 : Colors.black38,
-                    fontSize: 13)),
-          );
-        }
-
-        return SizedBox(
-          height: 40,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            scrollDirection: Axis.horizontal,
-            itemCount: venues.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final v = venues[i];
-              return GestureDetector(
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (_) => VenueDetailScreen(venue: v))),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? primary.withValues(alpha: 0.10)
-                        : primary.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: primary.withValues(alpha: 0.30)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.stadium_outlined,
-                          color: primary, size: 15),
-                      const SizedBox(width: 6),
-                      Text(v.name,
-                          style: TextStyle(
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1A1A1A),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ── Games pill row ────────────────────────────────────────────────────────────
-
-class _GamesPillRow extends StatelessWidget {
-  const _GamesPillRow();
+class _GamesGrid extends StatelessWidget {
+  const _GamesGrid();
 
   static const _emojis = {
     'cricket': '🏏', 'football': '⚽', 'basketball': '🏀',
@@ -759,10 +839,15 @@ class _GamesPillRow extends StatelessWidget {
     'throwball': '🎯', 'handball': '🤾',
   };
 
+  static const _months = ['Jan','Feb','Mar','Apr','May','Jun',
+                           'Jul','Aug','Sep','Oct','Nov','Dec'];
+
   @override
   Widget build(BuildContext context) {
     final isDark  = Theme.of(context).brightness == Brightness.dark;
     final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+    final cardBg  = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7);
+    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
 
     return ListenableBuilder(
       listenable: GameListingService(),
@@ -772,67 +857,583 @@ class _GamesPillRow extends StatelessWidget {
 
         if (games.isEmpty) {
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text('No games nearby — be the first to list one!',
-                style: TextStyle(
-                    color: isDark ? Colors.white38 : Colors.black38,
-                    fontSize: 13)),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  const Text('🏅', style: TextStyle(fontSize: 32)),
+                  const SizedBox(height: 8),
+                  Text('No games nearby yet',
+                      style: TextStyle(
+                          color: textCol,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text('Be the first to list one!',
+                      style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black38,
+                          fontSize: 12)),
+                ],
+              ),
+            ),
           );
         }
 
-        return SizedBox(
-          height: 40,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            scrollDirection: Axis.horizontal,
-            itemCount: games.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final g = games[i];
-              final emoji = _emojis[g.sport.toLowerCase()] ?? '🏅';
-              final dt    = g.scheduledAt;
-              final h     = dt.hour;
-              final am    = h < 12 ? 'AM' : 'PM';
-              final hr    = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-              final months = ['Jan','Feb','Mar','Apr','May','Jun',
-                              'Jul','Aug','Sep','Oct','Nov','Dec'];
-              final label = '${g.sport} · ${dt.day} ${months[dt.month-1]} $hr$am';
-
-              return GestureDetector(
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (_) => GameDetailScreen(listing: g))),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? primary.withValues(alpha: 0.10)
-                        : primary.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: primary.withValues(alpha: 0.28)),
-                  ),
+        // 2-column grid rendered inside SingleChildScrollView parent
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              for (int i = 0; i < games.length; i += 2)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(emoji,
-                          style: const TextStyle(fontSize: 15)),
-                      const SizedBox(width: 6),
-                      Text(label,
-                          style: TextStyle(
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1A1A1A),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
+                      Expanded(child: _GameCard(
+                        game: games[i],
+                        cardBg: cardBg,
+                        textCol: textCol,
+                        primary: primary,
+                        emoji: _emojis[games[i].sport.toLowerCase()] ?? '🏅',
+                        months: _months,
+                      )),
+                      if (i + 1 < games.length) ...[
+                        const SizedBox(width: 10),
+                        Expanded(child: _GameCard(
+                          game: games[i + 1],
+                          cardBg: cardBg,
+                          textCol: textCol,
+                          primary: primary,
+                          emoji: _emojis[games[i + 1].sport.toLowerCase()] ?? '🏅',
+                          months: _months,
+                        )),
+                      ] else
+                        const Expanded(child: SizedBox()),
                     ],
                   ),
                 ),
-              );
-            },
+            ],
           ),
         );
       },
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final dynamic game;
+  final Color cardBg;
+  final Color textCol;
+  final Color primary;
+  final String emoji;
+  final List<String> months;
+
+  const _GameCard({
+    required this.game,
+    required this.cardBg,
+    required this.textCol,
+    required this.primary,
+    required this.emoji,
+    required this.months,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dt = game.scheduledAt as DateTime;
+    final h  = dt.hour;
+    final am = h < 12 ? 'AM' : 'PM';
+    final hr = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final timeStr = '${dt.day} ${months[dt.month - 1]} · $hr$am';
+    final spots = game.spotsLeft as int;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => GameDetailScreen(listing: game))),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: isDark ? Colors.white10 : Colors.black12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Emoji + sport
+            Row(
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(game.sport as String,
+                      style: TextStyle(
+                          color: textCol,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Date/time
+            Row(
+              children: [
+                Icon(Icons.schedule_outlined,
+                    size: 12,
+                    color: isDark ? Colors.white38 : Colors.black38),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(timeStr,
+                      style: TextStyle(
+                          color: isDark ? Colors.white54 : Colors.black54,
+                          fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+            // Venue (if any)
+            if ((game.venueName as String).isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.location_on_outlined,
+                      size: 12,
+                      color: isDark ? Colors.white38 : Colors.black38),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(game.venueName as String,
+                        style: TextStyle(
+                            color: isDark ? Colors.white54 : Colors.black54,
+                            fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 10),
+            // Spots left badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: spots > 0
+                    ? primary.withValues(alpha: 0.15)
+                    : Colors.red.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                spots > 0 ? '$spots spot${spots == 1 ? '' : 's'} left' : 'Full',
+                style: TextStyle(
+                    color: spots > 0 ? primary : Colors.redAccent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Venues section (horizontal pill scroll) ────────────────────────────────────
+
+class _VenuesGrid extends StatelessWidget {
+  const _VenuesGrid({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+
+    return ListenableBuilder(
+      listenable: VenueService(),
+      builder: (context, _) {
+        final venues = VenueService().venues;
+
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Pills
+              if (venues.isEmpty)
+                SizedBox(
+                  height: 300,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.stadium_outlined,
+                            size: 48,
+                            color: isDark ? Colors.white24 : Colors.black26),
+                        const SizedBox(height: 12),
+                        Text('No venues nearby yet',
+                            style: TextStyle(
+                                color: isDark ? Colors.white54 : Colors.black45,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text('Check back soon!',
+                            style: TextStyle(
+                                color: isDark ? Colors.white38 : Colors.black38,
+                                fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 58,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: venues.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
+                    itemBuilder: (context, i) {
+                      final v = venues[i];
+                      return GestureDetector(
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    VenueDetailScreen(venue: v))),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? primary.withValues(alpha: 0.12)
+                                : primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: primary.withValues(alpha: 0.30)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.stadium_outlined,
+                                  color: primary, size: 22),
+                              const SizedBox(width: 8),
+                              Text(v.name,
+                                  style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF1A1A1A),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOCATION PICKER SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LocationPickerSheet extends StatefulWidget {
+  const _LocationPickerSheet();
+
+  @override
+  State<_LocationPickerSheet> createState() => _LocationPickerSheetState();
+}
+
+class _LocationPickerSheetState extends State<_LocationPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  Timer? _debounce;
+  List<String> _suggestions = [];
+  bool _searching = false;
+  bool _locating  = false;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── GPS → reverse geocode ────────────────────────────────────────────────
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locating = true);
+    try {
+      final pos = await LocationService().getCurrentPosition();
+      if (pos == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not get location. Check permissions.')),
+          );
+        }
+        return;
+      }
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse'
+        '?format=json&lat=${pos.latitude}&lon=${pos.longitude}&zoom=14&addressdetails=1',
+      );
+      final res = await http.get(uri, headers: {'User-Agent': 'MySportsBuddies/1.0'})
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final data    = jsonDecode(res.body) as Map<String, dynamic>;
+        final addr    = data['address'] as Map<String, dynamic>? ?? {};
+        final parts   = <String>[];
+        final suburb  = addr['suburb']       ?? addr['neighbourhood'] ?? addr['hamlet'] ?? '';
+        final city    = addr['city']         ?? addr['town']          ?? addr['village'] ?? '';
+        final state   = addr['state']        ?? '';
+        final country = addr['country']      ?? '';
+        if (suburb.isNotEmpty) parts.add(suburb as String);
+        if (city.isNotEmpty && city != suburb) parts.add(city as String);
+        if (state.isNotEmpty) parts.add(state as String);
+        if (country.isNotEmpty) parts.add(country as String);
+        final label = parts.isNotEmpty ? parts.join(', ') : (data['display_name'] as String? ?? '');
+        if (label.isNotEmpty && mounted) Navigator.pop(context, label);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  // ── Search autocomplete ──────────────────────────────────────────────────
+
+  void _onSearchChanged(String q) {
+    _debounce?.cancel();
+    if (q.trim().length < 2) {
+      setState(() { _suggestions = []; _searching = false; });
+      return;
+    }
+    setState(() => _searching = true);
+    _debounce = Timer(const Duration(milliseconds: 350), () => _fetchSuggestions(q.trim()));
+  }
+
+  Future<void> _fetchSuggestions(String q) async {
+    try {
+      final uri = Uri.parse(
+        'https://photon.komoot.io/api/?q=${Uri.encodeComponent(q)}&limit=8&lang=en',
+      );
+      final res = await http.get(uri).timeout(const Duration(seconds: 6));
+      if (!mounted) return;
+      if (res.statusCode == 200) {
+        final data     = jsonDecode(res.body) as Map<String, dynamic>;
+        final features = data['features'] as List<dynamic>? ?? [];
+        final results  = <String>[];
+        for (final f in features) {
+          final props   = f['properties'] as Map<String, dynamic>? ?? {};
+          final name    = props['name']    as String? ?? '';
+          final city    = props['city']    as String? ?? '';
+          final state   = props['state']   as String? ?? '';
+          final country = props['country'] as String? ?? '';
+          final parts   = <String>[];
+          if (name.isNotEmpty)                                            parts.add(name);
+          if (city.isNotEmpty    && city    != name)                      parts.add(city);
+          if (state.isNotEmpty   && state   != city && state   != name)   parts.add(state);
+          if (country.isNotEmpty)                                         parts.add(country);
+          final label = parts.join(', ');
+          if (label.isNotEmpty && !results.contains(label)) results.add(label);
+        }
+        setState(() { _suggestions = results; _searching = false; });
+      } else {
+        setState(() => _searching = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg     = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF242424) : const Color(0xFFF5F5F5);
+    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      minChildSize: 0.4,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 4),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Row(
+                children: [
+                  Text('Set Location',
+                      style: TextStyle(
+                          color: textCol,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800)),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.close, color: isDark ? Colors.white38 : Colors.black38),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            // Use current location button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _locating ? null : _useCurrentLocation,
+                  icon: _locating
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.my_location, size: 18),
+                  label: Text(_locating ? 'Getting location…' : 'Use Current Location'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Divider
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(children: [
+                Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('or search',
+                      style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black38,
+                          fontSize: 12)),
+                ),
+                Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            // Search field
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: false,
+                onChanged: _onSearchChanged,
+                style: TextStyle(color: textCol, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search city, area or address…',
+                  hintStyle: TextStyle(
+                      color: isDark ? Colors.white38 : Colors.black38,
+                      fontSize: 14),
+                  prefixIcon: Icon(Icons.search,
+                      color: isDark ? Colors.white38 : Colors.black38),
+                  suffixIcon: _searching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2)))
+                      : (_searchCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear,
+                                  color: isDark ? Colors.white38 : Colors.black38,
+                                  size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _suggestions = []);
+                              })
+                          : null),
+                  filled: true,
+                  fillColor: cardBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Results
+            Expanded(
+              child: _suggestions.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchCtrl.text.isEmpty
+                            ? 'Start typing to search'
+                            : 'No results found',
+                        style: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontSize: 13),
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 4),
+                      itemCount: _suggestions.length,
+                      separatorBuilder: (_, _) => Divider(
+                          height: 1,
+                          color: isDark ? Colors.white10 : Colors.black12),
+                      itemBuilder: (context, i) => ListTile(
+                        leading: Icon(Icons.location_on_outlined,
+                            color: AppColors.primary, size: 20),
+                        title: Text(_suggestions[i],
+                            style: TextStyle(
+                                color: textCol,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500)),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 4),
+                        onTap: () =>
+                            Navigator.pop(context, _suggestions[i]),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -874,7 +1475,7 @@ class _BannerSliderState extends State<BannerSlider> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 155,
+      height: 195,
       child: PageView(
         controller: _pageController,
         children: const [

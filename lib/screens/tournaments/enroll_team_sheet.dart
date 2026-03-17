@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/models/player_entry.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
 import '../../widgets/player_search_field.dart';
@@ -51,7 +52,8 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
   final _phoneCtrl      = TextEditingController();
 
   late final List<TextEditingController> _playerCtrls;
-  late final List<String?> _playerUserIds; // parallel — userId if registered
+  late final List<PlayerEntry?> _playerEntries; // parallel — full PlayerEntry per slot
+  PlayerEntry? _captainEntry; // registered player selected for captain slot
   bool _loading = false;
   String? _error;
 
@@ -63,7 +65,7 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
     super.initState();
     final slots = widget.playersPerTeam > 0 ? widget.playersPerTeam : 1;
     _playerCtrls   = List.generate(slots, (_) => TextEditingController());
-    _playerUserIds = List.filled(slots, null, growable: true);
+    _playerEntries = List.filled(slots, null, growable: true);
   }
 
   @override
@@ -79,7 +81,7 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
     if (_playerCtrls.length >= 20) return;
     setState(() {
       _playerCtrls.add(TextEditingController());
-      _playerUserIds.add(null);
+      _playerEntries.add(null);
     });
   }
 
@@ -88,24 +90,23 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
     setState(() {
       _playerCtrls[index].dispose();
       _playerCtrls.removeAt(index);
-      _playerUserIds.removeAt(index);
+      _playerEntries.removeAt(index);
     });
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final players = _playerCtrls
-        .map((c) => c.text.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-
-    // Collect registered userIds aligned to non-empty player names
+    // Build player names and userIds from entries (registered) or typed text (manual)
+    final players       = <String>[];
     final playerUserIds = <String>[];
     for (int i = 0; i < _playerCtrls.length; i++) {
-      if (_playerCtrls[i].text.trim().isNotEmpty) {
-        playerUserIds.add(_playerUserIds[i] ?? '');
-      }
+      final entry = _playerEntries[i];
+      final typed = _playerCtrls[i].text.trim();
+      final name  = entry?.displayName ?? typed;
+      if (name.isEmpty) continue;
+      players.add(name);
+      playerUserIds.add(entry?.userId ?? '');
     }
 
     setState(() { _loading = true; _error = null; });
@@ -117,8 +118,8 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
       await TournamentService().enrollTeam(
         tournamentId:   widget.tournamentId,
         teamName:       _teamNameCtrl.text.trim(),
-        captainName:    _captainCtrl.text.trim(),
-        captainPhone:   _phoneCtrl.text.trim(),
+        captainName:    _captainEntry?.displayName ?? _captainCtrl.text.trim(),
+        captainPhone:   _captainEntry?.phone ?? _phoneCtrl.text.trim(),
         players:        players,
         playerUserIds:  playerUserIds,
       );
@@ -202,10 +203,12 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
 
                     // Captain Name
                     _label('Captain Name'),
-                    _field(_captainCtrl, 'Full name',
-                        Icons.person_outlined,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Enter captain name' : null),
+                    PlayerSearchField(
+                      controller: _captainCtrl,
+                      hint: 'Search captain by name, ID or phone',
+                      onSelected: (entry) =>
+                          setState(() => _captainEntry = entry),
+                    ),
                     const SizedBox(height: 14),
 
                     // Phone
@@ -282,8 +285,8 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
                             child: PlayerSearchField(
                               controller: _playerCtrls[i],
                               hint: 'Player ${i + 1} name or ID',
-                              onProfileSelected: (p) =>
-                                  setState(() => _playerUserIds[i] = p.id),
+                              onSelected: (entry) =>
+                                  setState(() => _playerEntries[i] = entry),
                             ),
                           ),
                           if (!_countLocked && _playerCtrls.length > 1)
