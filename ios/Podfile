@@ -47,14 +47,29 @@ post_install do |installer|
       config.build_settings['COPY_PHASE_STRIP'] = 'NO'
 
       # Exclude *_Test.{h,m} files from geolocator_apple compilation.
-      # The umbrella header includes GeolocationHandler_Test.h and
-      # GeolocatorPlugin_Test.h which both import <Test/Test.h> (XCTest).
+      # The umbrella header and module map both reference GeolocationHandler_Test.h
+      # and GeolocatorPlugin_Test.h which import <Test/Test.h> (XCTest).
       # XCTest is unavailable in Release/Archive builds, causing a linker error.
       if target.name == 'geolocator_apple'
         config.build_settings['EXCLUDED_SOURCE_FILE_NAMES'] = '*_Test.h *_Test.m'
-        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
       end
     end
+  end
+
+  # Patch geolocator_apple modulemap — remove the explicit Test module block.
+  # CocoaPods generates Target Support Files/geolocator_apple/geolocator_apple.modulemap
+  # with an "explicit module Test { ... }" that references GeolocationHandler_Test.h and
+  # GeolocatorPlugin_Test.h. Both files import <Test/Test.h> (XCTest) which is not
+  # available in Release/Archive builds, failing the linker with a missing framework error.
+  geolocator_modulemap = File.join(
+    installer.sandbox.root,
+    'Target Support Files', 'geolocator_apple', 'geolocator_apple.modulemap'
+  )
+  if File.exist?(geolocator_modulemap)
+    content = File.read(geolocator_modulemap)
+    # Remove the entire "explicit module Test { ... }" block
+    patched = content.gsub(/\n?\s*explicit module Test \{[^}]*\}\n?/, "\n")
+    File.write(geolocator_modulemap, patched) if patched != content
   end
 
   # Add a build phase to every aggregate target that generates missing dSYMs.
