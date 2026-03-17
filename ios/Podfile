@@ -72,22 +72,40 @@ post_install do |installer|
     File.write(geolocator_modulemap, patched) if patched != content
   end
 
-  # Add a build phase to every aggregate target that generates missing dSYMs.
-  # This catches any framework whose pod-level setting was overridden by Xcode.
-  installer.pods_project.targets.each do |target|
-    next unless target.name == 'Pods-Runner'
-    phase = target.shell_script_build_phases.find { |p| p.name == 'Generate Missing dSYMs' }
-    next if phase
-    phase = target.new_shell_script_build_phase('Generate Missing dSYMs')
-    phase.shell_script = <<~'BASH'
-      find "$BUILT_PRODUCTS_DIR" -name "*.framework" -type d | while read fw; do
-        bin="$fw/$(basename "$fw" .framework)"
-        [ -f "$bin" ] || continue
-        dsym_path="$DWARF_DSYM_FOLDER_PATH/$(basename "$fw").dSYM"
-        [ -d "$dsym_path" ] && continue
-        echo "Generating dSYM for $(basename "$fw")"
-        dsymutil "$bin" -o "$dsym_path" 2>/dev/null || true
-      done
-    BASH
+  # Inject a Run Script Build Phase into Runner.xcodeproj (not the Pods project).
+  # objective_c.framework is built by Flutter's Dart toolchain — NOT by CocoaPods —
+  # so post_install pod settings never reach it.  The only way to generate its dSYM
+  # at archive time is via a script that runs inside the Runner target's build pipeline.
+  #
+  # The script walks every embedded .framework in the app bundle and calls dsymutil
+  # on any whose .dSYM is absent from DWARF_DSYM_FOLDER_PATH, which is exactly the
+  # folder Xcode's archive validator inspects for UUID matching.
+  runner_project_path = File.join(File.dirname(__FILE__), 'Runner.xcodeproj')
+  runner_project = Xcodeproj::Project.open(runner_project_path)
+  runner_target  = runner_project.targets.find { |t| t.name == 'Runner' }
+
+  if runner_target
+    phase_name = 'Generate Missing dSYMs'
+    existing   = runner_target.shell_script_build_phases.find { |p| p.name == phase_name }
+
+    unless existing
+      phase = runner_target.new_shell_script_build_phase(phase_name)
+      phase.shell_script = <<~'BASH'
+        # Generate dSYM files for Flutter-embedded frameworks that lack them.
+        # Fixes objective_c.framework UUID validation failure on App Store Connect.
+        FRAMEWORKS_DIR="${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}"
+        [ -d "$FRAMEWORKS_DIR" ] || exit 0
+        find "$FRAMEWORKS_DIR" -maxdepth 1 -name "*.framework" -type d | while read fw; do
+          name=$(basename "$fw" .framework)
+          binary="$fw/$name"
+          [ -f "$binary" ] || continue
+          dsym_out="${DWARF_DSYM_FOLDER_PATH}/${name}.framework.dSYM"
+          [ -d "$dsym_out" ] && continue
+          echo "dsymutil: generating ${name}.framework.dSYM"
+          dsymutil "$binary" -o "$dsym_out"
+        done
+      BASH
+      runner_project.save
+    end
   end
 end

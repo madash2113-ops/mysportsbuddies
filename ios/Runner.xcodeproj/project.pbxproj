@@ -235,6 +235,7 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				D06F1B08EEDA30C9A9A04191 /* [CP] Embed Pods Frameworks */,
 				753138487202468809257780 /* [CP] Copy Pods Resources */,
+				4F94F2CBBF00542C01550343 /* Generate Missing dSYMs */,
 			);
 			buildRules = (
 			);
@@ -349,6 +350,24 @@
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
+		};
+		4F94F2CBBF00542C01550343 /* Generate Missing dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Missing dSYMs";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Generate dSYM files for Flutter-embedded frameworks that lack them.\n# Fixes objective_c.framework UUID validation failure on App Store Connect.\nFRAMEWORKS_DIR=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\n[ -d \"$FRAMEWORKS_DIR\" ] || exit 0\nfind \"$FRAMEWORKS_DIR\" -maxdepth 1 -name \"*.framework\" -type d | while read fw; do\n  name=$(basename \"$fw\" .framework)\n  binary=\"$fw/$name\"\n  [ -f \"$binary\" ] || continue\n  dsym_out=\"${DWARF_DSYM_FOLDER_PATH}/${name}.framework.dSYM\"\n  [ -d \"$dsym_out\" ] && continue\n  echo \"dsymutil: generating ${name}.framework.dSYM\"\n  dsymutil \"$binary\" -o \"$dsym_out\"\ndone\n";
 		};
 		5D7DCDD6146381AF10A23B07 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
