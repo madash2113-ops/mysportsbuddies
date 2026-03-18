@@ -17,12 +17,13 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  // ── 6 boxes ─────────────────────────────────────────────────────────────
-  final List<TextEditingController> _controllers =
-      List.generate(6, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes =
-      List.generate(6, (_) => FocusNode());
+  // Single controller + focus — one hidden field drives all 6 display boxes.
+  // This pattern is required for iOS SMS autofill (UITextContentTypeOneTimeCode)
+  // and for proper paste handling.
+  final _ctrl  = TextEditingController();
+  final _focus = FocusNode();
 
+  String  _otp      = '';
   bool    _loading  = false;
   String? _error;
 
@@ -34,9 +35,8 @@ class _OtpScreenState extends State<OtpScreen> {
   void initState() {
     super.initState();
     _startCountdown();
-    // Auto-focus the first box
-    WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _focusNodes[0].requestFocus());
+    _focus.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
   }
 
   void _startCountdown() {
@@ -50,43 +50,40 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   void dispose() {
-    for (final c in _controllers) { c.dispose(); }
-    for (final f in _focusNodes) { f.dispose(); }
+    _ctrl.dispose();
+    _focus.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
-  // ── Collect OTP ──────────────────────────────────────────────────────────
-  String get _otp =>
-      _controllers.map((c) => c.text).join();
-
-  // ── Box key handler — backspace moves focus back ─────────────────────────
-  KeyEventResult _onKey(int index, KeyEvent event) {
-    if (event is KeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.backspace &&
-        _controllers[index].text.isEmpty &&
-        index > 0) {
-      _focusNodes[index - 1].requestFocus();
-      _controllers[index - 1].clear();
-      return KeyEventResult.handled;
+  void _onChanged(String val) {
+    // Strip non-digits (safety) and cap at 6
+    final digits = val.replaceAll(RegExp(r'\D'), '');
+    final capped  = digits.length > 6 ? digits.substring(0, 6) : digits;
+    if (capped != val) {
+      _ctrl.value = TextEditingValue(
+        text: capped,
+        selection: TextSelection.collapsed(offset: capped.length),
+      );
     }
-    return KeyEventResult.ignored;
+    setState(() { _otp = capped; _error = null; });
+    if (capped.length == 6) {
+      _focus.unfocus();
+      _verify();
+    }
   }
 
   // ── Verify ───────────────────────────────────────────────────────────────
   Future<void> _verify() async {
-    final code = _otp;
-    if (code.length < 6) {
+    if (_otp.length < 6) {
       setState(() => _error = 'Please enter the complete 6-digit code.');
       return;
     }
     setState(() { _loading = true; _error = null; });
-    final ok = await AuthService().verifyOtp(code);
+    final ok = await AuthService().verifyOtp(_otp);
     if (!mounted) return;
     if (ok) {
-      // New user (no name yet) → collect profile details first
-      // Existing user → go straight to home
-      final profile = UserService().profile;
+      final profile  = UserService().profile;
       final isNewUser = profile == null || profile.name.trim().isEmpty;
       if (isNewUser) {
         Navigator.pushReplacementNamed(context, '/complete-profile');
@@ -97,10 +94,10 @@ class _OtpScreenState extends State<OtpScreen> {
       setState(() {
         _loading = false;
         _error   = AuthService().error ?? 'Verification failed. Try again.';
+        _otp     = '';
       });
-      // Clear boxes so user can re-enter
-      for (final c in _controllers) { c.clear(); }
-      _focusNodes[0].requestFocus();
+      _ctrl.clear();
+      _focus.requestFocus();
     }
   }
 
@@ -126,6 +123,40 @@ class _OtpScreenState extends State<OtpScreen> {
     );
   }
 
+  // ── Single display box ───────────────────────────────────────────────────
+  Widget _box(int i) {
+    final filled   = i < _otp.length;
+    final isActive = _focus.hasFocus && i == _otp.length && i < 6;
+    final char     = filled ? _otp[i] : '';
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      width: 46,
+      height: 56,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isActive
+              ? AppColors.primary
+              : filled
+                  ? AppColors.primary.withValues(alpha: 0.45)
+                  : Colors.white12,
+          width: isActive ? 2 : 1.5,
+        ),
+      ),
+      child: Text(
+        char,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final phone = AuthService().pendingPhone ?? 'your number';
@@ -139,177 +170,133 @@ class _OtpScreenState extends State<OtpScreen> {
         title: const Text('Verify OTP',
             style: TextStyle(color: Colors.white)),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: AppSpacing.xl),
+      body: GestureDetector(
+        onTap: () => _focus.requestFocus(),
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: AppSpacing.xl),
 
-            // ── Header ────────────────────────────────────────────────────
-            const Icon(Icons.lock_open_rounded,
-                color: AppColors.primary, size: 48),
-            const SizedBox(height: AppSpacing.md),
+              // ── Header ──────────────────────────────────────────────────
+              const Icon(Icons.lock_open_rounded,
+                  color: AppColors.primary, size: 48),
+              const SizedBox(height: AppSpacing.md),
 
-            const Text(
-              'Enter OTP',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-
-            Text(
-              'We sent a 6-digit code to $phone',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white54, fontSize: 14),
-            ),
-
-            const SizedBox(height: 36),
-
-            // ── 6 OTP boxes ───────────────────────────────────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(6, (i) => _OtpBox(
-                controller: _controllers[i],
-                focusNode:  _focusNodes[i],
-                onKey:      (event) => _onKey(i, event),
-                onChanged: (val) {
-                  if (val.isNotEmpty) {
-                    // Auto-advance to next box
-                    if (i < 5) {
-                      _focusNodes[i + 1].requestFocus();
-                    } else {
-                      // Last box filled — attempt verify automatically
-                      _focusNodes[i].unfocus();
-                      _verify();
-                    }
-                  }
-                },
-              )),
-            ),
-
-            // ── Error ─────────────────────────────────────────────────────
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: Colors.red.shade400, fontSize: 13),
-                textAlign: TextAlign.center,
+              const Text(
+                'Enter OTP',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700),
               ),
-            ],
+              const SizedBox(height: 8),
 
-            const SizedBox(height: AppSpacing.lg),
+              Text(
+                'We sent a 6-digit code to $phone',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54, fontSize: 14),
+              ),
 
-            // ── Resend ────────────────────────────────────────────────────
-            _countdown > 0
-                ? Text(
-                    'Resend OTP in ${_countdown}s',
-                    style: const TextStyle(color: Colors.white38, fontSize: 14),
-                  )
-                : TextButton(
-                    onPressed: _loading ? null : _resend,
-                    child: const Text(
-                      'Resend OTP',
-                      style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600),
-                    ),
+              const SizedBox(height: 36),
+
+              // ── 6 display boxes + hidden input ───────────────────────────
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Visual boxes
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: List.generate(6, _box),
                   ),
 
-            const Spacer(),
+                  // Hidden TextField — captures all input including SMS autofill.
+                  // Opacity 0 keeps it invisible but still interactive.
+                  Opacity(
+                    opacity: 0,
+                    child: AutofillGroup(
+                      child: TextField(
+                        controller:      _ctrl,
+                        focusNode:       _focus,
+                        autofillHints:   const [AutofillHints.oneTimeCode],
+                        keyboardType:    TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        maxLength:       6,
+                        onChanged:       _onChanged,
+                        decoration: const InputDecoration(
+                          counterText: '',
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
 
-            // ── Verify button ─────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
+              // ── Error ────────────────────────────────────────────────────
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Colors.red.shade400, fontSize: 13),
+                  textAlign: TextAlign.center,
                 ),
-                onPressed: _loading ? null : _verify,
-                child: _loading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text(
-                        'Verify & Continue',
+              ],
+
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Resend ───────────────────────────────────────────────────
+              _countdown > 0
+                  ? Text(
+                      'Resend OTP in ${_countdown}s',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 14),
+                    )
+                  : TextButton(
+                      onPressed: _loading ? null : _resend,
+                      child: const Text(
+                        'Resend OTP',
                         style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
+                            color: AppColors.primary,
                             fontWeight: FontWeight.w600),
                       ),
+                    ),
+
+              const Spacer(),
+
+              // ── Verify button ─────────────────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                  ),
+                  onPressed: _loading ? null : _verify,
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Verify & Continue',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600),
+                        ),
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Single OTP digit box ──────────────────────────────────────────────────────
-
-class _OtpBox extends StatelessWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final ValueChanged<String> onChanged;
-  final KeyEventResult Function(KeyEvent) onKey;
-
-  const _OtpBox({
-    required this.controller,
-    required this.focusNode,
-    required this.onChanged,
-    required this.onKey,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return KeyboardListener(
-      focusNode: FocusNode(),
-      onKeyEvent: onKey,
-      child: Container(
-        width: 46,
-        height: 56,
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: focusNode.hasFocus
-                ? AppColors.primary
-                : Colors.white12,
-            width: 1.5,
+              const SizedBox(height: AppSpacing.lg),
+            ],
           ),
-        ),
-        child: TextField(
-          controller:   controller,
-          focusNode:    focusNode,
-          keyboardType: TextInputType.number,
-          textAlign:    TextAlign.center,
-          maxLength:    1,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          style: const TextStyle(
-              color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
-          decoration: const InputDecoration(
-            counterText: '',
-            border: InputBorder.none,
-          ),
-          onChanged: (val) {
-            // Keep only the last character typed (handles paste/autocomplete)
-            if (val.length > 1) {
-              controller.text = val[val.length - 1];
-              controller.selection = const TextSelection.collapsed(offset: 1);
-            }
-            onChanged(controller.text);
-          },
         ),
       ),
     );

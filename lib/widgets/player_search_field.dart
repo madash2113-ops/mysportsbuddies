@@ -351,11 +351,12 @@ class _ResultTile extends StatelessWidget {
 
             const SizedBox(width: 10),
 
-            // ── Name + subtitle ────────────────────────────────────────
+            // ── Name + ID badge + subtitle ────────────────────────────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Name row — with player-ID badge for registered players
                   isManual
                       ? RichText(
                           text: TextSpan(
@@ -384,11 +385,38 @@ class _ResultTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         )
-                      : _HighlightText(
-                          text:  entry.displayName,
-                          query: query,
+                      : Row(
+                          children: [
+                            Flexible(
+                              child: _HighlightText(
+                                text:  entry.displayName,
+                                query: query,
+                              ),
+                            ),
+                            if (entry.numericId != null) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '#${entry.numericId}',
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
 
+                  // Subtitle — full phone / email
                   if (!isManual && entry.subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(

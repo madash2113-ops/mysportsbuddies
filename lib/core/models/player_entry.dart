@@ -87,14 +87,11 @@ class PlayerEntry {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /// One-line subtitle for distinguishing players with the same name.
-  /// Shows numericId and last-4 of phone where available.
+  /// One-line subtitle — shows phone and/or email (full values).
+  /// Player ID is shown separately as a badge in the search tile.
   String get subtitle {
     final parts = <String>[];
-    if (numericId != null)              parts.add('#$numericId');
-    if (phone != null && phone!.length >= 4) {
-      parts.add('···${phone!.substring(phone!.length - 4)}');
-    }
+    if (phone != null && phone!.isNotEmpty) parts.add(phone!);
     if (email != null && email!.isNotEmpty) parts.add(email!);
     return parts.join('  ·  ');
   }
