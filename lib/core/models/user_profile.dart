@@ -49,18 +49,34 @@ class UserProfile {
   /// Lowercase full name — used for case-insensitive prefix search.
   String get nameLower => name.toLowerCase();
 
-  /// Words in reverse order (lowercase) — lets users search by last name.
-  /// "Jeshwanth Kumar" → "kumar jeshwanth"
+  /// Words in reverse order (lowercase) — lets users search by last name prefix.
+  /// "Jeshwanth Vemuri" → "vemuri jeshwanth"
   String get nameReversed =>
       name.trim().split(RegExp(r'\s+')).reversed.join(' ').toLowerCase();
 
-  /// Individual lowercase words — supports array-contains word lookup.
+  /// Individual lowercase words — supports exact word array-contains lookup.
   List<String> get nameWords => name
       .toLowerCase()
       .trim()
       .split(RegExp(r'\s+'))
       .where((w) => w.isNotEmpty)
       .toList();
+
+  /// All word-prefix substrings (min 2 chars) for partial / substring search.
+  ///
+  /// "Jeshwanth Vemuri" → ["je","jes","jesh",…,"jeshwanth",
+  ///                        "ve","vem","vemu","vemur","vemuri"]
+  ///
+  /// Queried with Firestore arrayContains so "vem" → finds "Jeshwanth Vemuri".
+  List<String> get searchTokens {
+    final tokens = <String>{};
+    for (final word in nameWords) {
+      for (int i = 2; i <= word.length; i++) {
+        tokens.add(word.substring(0, i));
+      }
+    }
+    return tokens.toList();
+  }
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -70,6 +86,7 @@ class UserProfile {
         'nameLower':    nameLower,
         'nameReversed': nameReversed,
         'nameWords':    nameWords,
+        'searchTokens': searchTokens,
         // ────────────────────────────────────────────────────────────────
         'email': email,
         'phone': phone,

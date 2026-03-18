@@ -100,21 +100,28 @@ class UserService extends ChangeNotifier {
     }
   }
 
-  /// One-time backfill: writes nameLower / nameReversed / nameWords to the
-  /// current user's Firestore doc so they appear in name searches.
-  /// Runs on every app start but skips the write if already indexed.
+  /// Backfills all search index fields for the current user's Firestore doc.
+  /// Runs on every app start. Writes only if any field is missing so it is
+  /// cheap after the first run, but correctly adds new fields (e.g. searchTokens)
+  /// for users who were indexed by an older version of the app.
   Future<void> _backfillSearchFields() async {
     if (_userId == null || _profile == null) return;
     if (_profile!.name.isEmpty) return;
     try {
       final doc  = await _db.collection(_col).doc(_userId).get();
       final data = doc.data() ?? {};
-      if (data.containsKey('nameLower')) return; // already indexed
+      // Re-index if ANY field is missing (handles incremental schema additions)
+      final needsUpdate = !data.containsKey('nameLower')
+          || !data.containsKey('nameReversed')
+          || !data.containsKey('nameWords')
+          || !data.containsKey('searchTokens');
+      if (!needsUpdate) return;
       final p = _profile!;
       await _db.collection(_col).doc(_userId).update({
         'nameLower':    p.nameLower,
         'nameReversed': p.nameReversed,
         'nameWords':    p.nameWords,
+        'searchTokens': p.searchTokens,
       });
       debugPrint('✅ Search fields backfilled for ${p.name}');
     } catch (e) {

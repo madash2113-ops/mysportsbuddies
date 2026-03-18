@@ -204,34 +204,44 @@ class PlayerSearchService {
     }
 
     final qUpper = q.toUpperCase();
+    final isNameQuery = _isNameQuery(q);
 
     final futures = <Future<void>>[
-      // ── Indexed fields (users who have logged in after backfill) ──────────
-      prefixQuery('nameLower',    qLow),    // case-insensitive prefix
-      prefixQuery('nameReversed', qLow),    // last-name-first prefix
-      arrayQuery ('nameWords',    qLow),    // exact word in name
+      // ── searchTokens: word-prefix substrings — THE primary partial search ──
+      // "vem" → arrayContains:"vem" → matches token "vem" in "vemuri jeshwanth"
+      // Works for first name, last name, middle name, any partial word (≥2 chars).
+      if (isNameQuery && qLow.length >= 2)
+        arrayQuery('searchTokens', qLow),
 
-      // ── Legacy `name` field — ALL case variants in parallel ───────────────
-      // Firestore string order is Unicode code-point order, so:
-      //   'A'(65) < 'a'(97)  →  "Avinas\uf8ff" < "avinash"
-      // We must query each stored-case variant separately.
-      prefixQuery('name', qLow),    // stored lowercase: "avinash kumar maddini"
-      prefixQuery('name', qTitle),  // stored title-case: "Avinash Kumar Maddini"
-      prefixQuery('name', qUpper),  // stored ALL-CAPS:   "AVINASH KUMAR MADDINI"
+      // ── nameWords: exact individual word match ─────────────────────────────
+      // "vemuri" → matches exactly stored word "vemuri" in nameWords array.
+      if (isNameQuery)
+        arrayQuery('nameWords', qLow),
+
+      // ── nameLower: full-name prefix (first-name prefix search) ────────────
+      prefixQuery('nameLower',    qLow),
+
+      // ── nameReversed: reversed-word prefix (last-name prefix search) ───────
+      // "vemuri" → prefix on "vemuri jeshwanth" → hit!
+      prefixQuery('nameReversed', qLow),
+
+      // ── Legacy `name` field — all case variants ───────────────────────────
+      prefixQuery('name', qLow),
+      prefixQuery('name', qTitle),
+      prefixQuery('name', qUpper),
       if (q != qLow && q != qTitle && q != qUpper)
-        prefixQuery('name', q),     // original typed case if none of the above
+        prefixQuery('name', q),
     ];
 
     // ── Numeric ID — exactly 6 digits ────────────────────────────────────────
     if (digits == q && q.length == 6) {
       final asNum = int.tryParse(q);
-      if (asNum != null) {
-        futures.add(exactQuery('numericId', asNum));
-      }
+      if (asNum != null) futures.add(exactQuery('numericId', asNum));
     }
 
-    // ── Phone — 10+ consecutive digits ───────────────────────────────────────
-    if (digits.length >= 10) {
+    // ── Phone — 4–15 digits (partial or full) ────────────────────────────────
+    if (digits.length >= 4 && !isNameQuery) {
+      // Exact-match variants cover full numbers in all common formats
       final variants = <String>{q, digits};
       if (digits.length == 10) {
         variants.addAll(['+91$digits', '91$digits', '0$digits']);
@@ -243,11 +253,17 @@ class PlayerSearchService {
       for (final v in variants) {
         futures.add(exactQuery('phone', v));
       }
+      // Prefix search on phone for partial numbers (e.g. "94029" → "9402994801")
+      futures.add(prefixQuery('phone', digits));
     }
 
     // ── Email ─────────────────────────────────────────────────────────────────
     if (q.contains('@')) {
       futures.add(exactQuery('email', qLow));
+      futures.add(prefixQuery('email', qLow));
+    } else if (isNameQuery && qLow.contains('.')) {
+      // Could be a partial email like "john.sm"
+      futures.add(prefixQuery('email', qLow));
     }
 
     await Future.wait(futures);
@@ -259,17 +275,19 @@ class PlayerSearchService {
     final qLow = q.toLowerCase();
 
     int score(UserProfile p) {
-      final name = p.nameLower;
+      final name  = p.nameLower;
       final idStr = p.numericId?.toString() ?? '';
 
-      if (name == qLow || idStr == q)               return 0; // exact
-      if (name.startsWith(qLow) || idStr.startsWith(q)) return 1; // prefix
-      if (name.contains(qLow))                      return 2; // substring
-      if (p.nameWords.any((w) => w.startsWith(qLow))) return 2; // word prefix
-      if ((p.phone.contains(q)) || (p.email.toLowerCase().contains(qLow))) {
+      if (name == qLow || idStr == q)                    return 0; // exact name / ID
+      if (name.startsWith(qLow) || idStr.startsWith(q)) return 1; // full-name prefix
+      if (p.nameWords.any((w) => w == qLow))             return 1; // exact last/first word
+      if (name.contains(qLow))                           return 2; // substring in full name
+      if (p.nameWords.any((w) => w.startsWith(qLow)))   return 2; // word prefix (any word)
+      if (p.phone.contains(q) ||
+          p.email.toLowerCase().contains(qLow)) {
         return 3; // contact match
       }
-      return 4;
+      return 4; // token match (partial word via searchTokens)
     }
 
     final results = profiles
