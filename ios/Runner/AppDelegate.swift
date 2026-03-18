@@ -10,15 +10,14 @@ import UserNotifications
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
+    let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
 
-    // Register for remote notifications so Firebase Auth can use APNs silent
-    // push to verify the device — this bypasses the reCAPTCHA web-view entirely.
-    // Firebase Auth intercepts the silent push internally; no visible notification
-    // is shown to the user.
-    UNUserNotificationCenter.current().delegate = self
+    // Must call AFTER super so Flutter engine is fully initialized.
+    // Registers for APNs so Firebase Auth can use silent push to verify
+    // the device — bypasses the reCAPTCHA web-view entirely.
     application.registerForRemoteNotifications()
 
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    return result
   }
 
   // Pass the APNs device token to Firebase Auth.
@@ -27,11 +26,29 @@ import UserNotifications
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
-    Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+    #if DEBUG
+    Auth.auth().setAPNSToken(deviceToken, type: .sandbox)
+    #else
+    Auth.auth().setAPNSToken(deviceToken, type: .prod)
+    #endif
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  // Called when APNs registration fails — log the reason so it is visible
+  // in the Xcode console. Most common cause: Push Notifications capability
+  // not enabled for this App ID in Apple Developer Portal.
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    print("⚠️ APNs registration failed — Firebase phone auth will use reCAPTCHA fallback.")
+    print("   Error: \(error.localizedDescription)")
+    print("   Fix: enable Push Notifications for App ID com.mysportsbuddies.app in")
+    print("   developer.apple.com → Identifiers → com.mysportsbuddies.app → Push Notifications")
+    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }
 
   // Firebase Auth sends a silent push to this device to prove it is real.
-  // Return true when Firebase handled it so no other code processes it.
   override func application(
     _ application: UIApplication,
     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
@@ -41,7 +58,8 @@ import UserNotifications
       completionHandler(.noData)
       return
     }
-    completionHandler(.noData)
+    super.application(application, didReceiveRemoteNotification: userInfo,
+                      fetchCompletionHandler: completionHandler)
   }
 
   // Handle reCAPTCHA redirect URL (fallback when APNs is unavailable).
