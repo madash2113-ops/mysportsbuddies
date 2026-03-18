@@ -47,6 +47,10 @@
 	<string>MySportsBuddies needs permission to save photos to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>MySportsBuddies needs access to your photo library to pick images for your profile and posts.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
