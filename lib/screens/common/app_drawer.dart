@@ -6,12 +6,19 @@ import '../../services/user_service.dart';
 import '../home/scheduled_matches_screen.dart';
 import '../home/my_matches_screen.dart';
 import '../home/help_screen.dart';
-import '../scoreboard/scoreboard_menu_screen.dart';
+import '../scoreboard/live_matches_screen.dart';
 import '../premium/premium_screen.dart';
 import '../settings/settings_screen.dart';
 
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
+
+  @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  bool _idCopied = false;
 
   @override
   Widget build(BuildContext context) {
@@ -95,18 +102,15 @@ class AppDrawer extends StatelessWidget {
                             const SizedBox(height: 5),
                             // App ID pill with copy button
                             GestureDetector(
-                              onTap: () {
-                                if (profile?.numericId != null) {
-                                  Clipboard.setData(ClipboardData(
-                                      text: '${profile!.numericId}'));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Player ID copied!'),
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                }
+                              onTap: () async {
+                                if (profile?.numericId == null) return;
+                                await Clipboard.setData(ClipboardData(
+                                    text: '${profile!.numericId}'));
+                                if (!mounted) return;
+                                setState(() => _idCopied = true);
+                                Future.delayed(const Duration(seconds: 2), () {
+                                  if (mounted) setState(() => _idCopied = false);
+                                });
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -120,7 +124,7 @@ class AppDrawer extends StatelessWidget {
                                   children: [
                                     Text(
                                       profile?.numericId != null
-                                          ? 'ID: #${profile!.numericId}'
+                                          ? 'ID: ${profile!.numericId}'
                                           : 'ID: ------',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -130,8 +134,17 @@ class AppDrawer extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    const Icon(Icons.copy_rounded,
-                                        color: Colors.white70, size: 11),
+                                    _idCopied
+                                        ? const Text(
+                                            'Copied!',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          )
+                                        : const Icon(Icons.copy_rounded,
+                                            color: Colors.white70, size: 11),
                                   ],
                                 ),
                               ),
@@ -191,15 +204,9 @@ class AppDrawer extends StatelessWidget {
                     }),
                     _item(context, Icons.bar_chart_outlined, 'My Scorecards', () {
                       Navigator.pop(context);
-                      Navigator.of(context).push(
-                        PageRouteBuilder(
-                          opaque: false,
-                          pageBuilder: (_, _, _) =>
-                              const ScoreboardMenuScreen(),
-                          transitionsBuilder: (_, animation, _, child) =>
-                              FadeTransition(opacity: animation, child: child),
-                        ),
-                      );
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const LiveMatchesScreen(),
+                      ));
                     }),
                     _item(context, Icons.group_outlined, 'Teams', () {
                       Navigator.pop(context);

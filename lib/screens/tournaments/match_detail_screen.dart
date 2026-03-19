@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
+import '../scoreboard/match_setup_screen.dart';
 // ══════════════════════════════════════════════════════════════════════════════
 // MatchDetailScreen — Info | Scorecard | Squads | Watch Live
 // ══════════════════════════════════════════════════════════════════════════════
@@ -650,6 +651,40 @@ class _WatchLiveTabState extends State<_WatchLiveTab> {
               ]),
             ),
           ),
+        ],
+        if (widget.canManage && !widget.match.isPlayed) ...[
+          const Text('Live Scoreboard',
+              style: TextStyle(color: Colors.white54,
+                  fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A2A1A),
+                side: const BorderSide(color: Colors.green),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              onPressed: () {
+                final tourn = TournamentService().tournaments
+                    .where((t) => t.id == widget.tournamentId)
+                    .firstOrNull;
+                final sport = tourn?.sport ?? 'Cricket';
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => MatchSetupScreen(
+                    sportName: sport,
+                    isTournamentMatch: true,
+                  ),
+                ));
+              },
+              icon: const Icon(Icons.scoreboard_outlined, color: Colors.green, size: 18),
+              label: const Text('Start Live Scoreboard',
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 20),
         ],
         if (widget.canManage) ...[
           const Text('Set Stream URL',

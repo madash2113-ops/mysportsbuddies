@@ -272,7 +272,7 @@ class _SquadPlayerCard extends StatelessWidget {
             ],
           ]),
           if (player.role.isNotEmpty || player.playerId.isNotEmpty)
-            Text('${player.role.isNotEmpty ? player.role : "Player"}${player.playerId.isNotEmpty ? "  #${player.playerId}" : ""}',
+            Text('${player.role.isNotEmpty ? player.role : "Player"}${player.playerId.isNotEmpty ? "  ${player.playerId}" : ""}',
                 style: const TextStyle(color: Colors.white38, fontSize: 11)),
         ])),
         PopupMenuButton<String>(

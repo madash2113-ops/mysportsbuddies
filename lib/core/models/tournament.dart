@@ -185,6 +185,7 @@ class TournamentTeam {
   final String       teamName;
   final String       captainName;
   final String       captainPhone;
+  final String       captainUserId; // Firestore userId; '' if not registered
   final List<String> players;
   final List<String> playerUserIds; // parallel to players; '' if unregistered
   final String       enrolledBy;
@@ -204,6 +205,7 @@ class TournamentTeam {
     required this.teamName,
     required this.captainName,
     required this.captainPhone,
+    this.captainUserId = '',
     required this.players,
     this.playerUserIds = const [],
     required this.enrolledBy,
@@ -222,6 +224,7 @@ class TournamentTeam {
     'teamName':         teamName,
     'captainName':      captainName,
     'captainPhone':     captainPhone,
+    'captainUserId':    captainUserId,
     'players':          players,
     'playerUserIds':    playerUserIds,
     'enrolledBy':       enrolledBy,
@@ -245,6 +248,7 @@ class TournamentTeam {
       teamName:         m['teamName']         as String,
       captainName:      m['captainName']      as String,
       captainPhone:     m['captainPhone']     as String,
+      captainUserId:    m['captainUserId']    as String? ?? '',
       players:          List<String>.from(m['players']       as List? ?? []),
       playerUserIds:    List<String>.from(m['playerUserIds'] as List? ?? []),
       enrolledBy:       m['enrolledBy'] as String? ?? '',

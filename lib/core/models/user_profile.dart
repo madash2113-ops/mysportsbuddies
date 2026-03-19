@@ -62,6 +62,13 @@ class UserProfile {
       .where((w) => w.isNotEmpty)
       .toList();
 
+  /// Lowercase email — case-insensitive email search.
+  String get emailLower => email.toLowerCase();
+
+  /// Numeric ID as a string — enables prefix search on player IDs.
+  /// Null when the user has no numericId yet.
+  String? get numericIdStr => numericId?.toString();
+
   /// All word-prefix substrings (min 2 chars) for partial / substring search.
   ///
   /// "Jeshwanth Vemuri" → ["je","jes","jesh",…,"jeshwanth",
@@ -87,6 +94,8 @@ class UserProfile {
         'nameReversed': nameReversed,
         'nameWords':    nameWords,
         'searchTokens': searchTokens,
+        'emailLower':   emailLower,    // lowercase email, case-insensitive
+        if (numericIdStr != null) 'numericIdStr': numericIdStr,
         // ────────────────────────────────────────────────────────────────
         'email': email,
         'phone': phone,

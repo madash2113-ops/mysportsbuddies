@@ -223,6 +223,7 @@ class TournamentService extends ChangeNotifier {
     required String       teamName,
     required String       captainName,
     required String       captainPhone,
+    String                captainUserId = '',
     required List<String> players,
     List<String>          playerUserIds = const [],
   }) async {
@@ -268,6 +269,7 @@ class TournamentService extends ChangeNotifier {
       teamName:         teamName,
       captainName:      captainName,
       captainPhone:     captainPhone,
+      captainUserId:    captainUserId,
       players:          players,
       playerUserIds:    playerUserIds,
       enrolledBy:       userId,

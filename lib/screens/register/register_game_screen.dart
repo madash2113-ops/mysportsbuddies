@@ -6,9 +6,11 @@ import 'package:provider/provider.dart';
 import '../../core/models/game.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
+import '../../core/models/player_entry.dart';
 import '../../services/game_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/address_autocomplete_field.dart';
+import '../../widgets/player_search_field.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  RegisterGameScreen
@@ -37,6 +39,9 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
   final _customFormatCtrl  = TextEditingController();
   final _contactNameCtrl   = TextEditingController();
   final _contactPhoneCtrl  = TextEditingController();
+
+  PlayerEntry? _contactEntry;
+  String _countryCode = '+91';
 
   DateTime?  _date;
   TimeOfDay? _time;
@@ -304,17 +309,83 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
             const _SectionHeader('ORGANIZER CONTACT'),
             const SizedBox(height: AppSpacing.md),
 
-            _InputField(
-              label: 'Your Name',
+            const Text('Your Name',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 6),
+            PlayerSearchField(
               controller: _contactNameCtrl,
-              hint: 'Organizer name',
+              hint: 'Search by name, email or ID',
+              onSelected: (entry) => setState(() => _contactEntry = entry),
             ),
+            const SizedBox(height: AppSpacing.md),
 
-            _InputField(
-              label: 'Phone Number',
-              controller: _contactPhoneCtrl,
-              hint: 'e.g. 9876543210',
-              keyboardType: TextInputType.phone,
+            const Text('Phone Number',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Country code picker
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showModalBottomSheet<String>(
+                      context: context,
+                      backgroundColor: const Color(0xFF1A1A1A),
+                      shape: const RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(16))),
+                      builder: (_) => _CountryCodePicker(selected: _countryCode),
+                    );
+                    if (picked != null) setState(() => _countryCode = picked);
+                  },
+                  child: Container(
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(_countryCode,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_drop_down,
+                          color: Colors.white38, size: 18),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Phone number
+                Expanded(
+                  child: TextFormField(
+                    controller: _contactPhoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Phone number',
+                      hintStyle:
+                          const TextStyle(color: Colors.white38, fontSize: 13),
+                      filled: true,
+                      fillColor: const Color(0xFF1A1A1A),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: AppColors.primary, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: AppSpacing.sm),
@@ -504,12 +575,15 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     registeredBy: isEditing
                         ? widget.existingGame!.registeredBy
                         : UserService().userId,
-                    organizerName: _contactNameCtrl.text.trim().isEmpty
+                    organizerName: (_contactEntry?.displayName ??
+                            _contactNameCtrl.text.trim())
+                        .isEmpty
                         ? null
-                        : _contactNameCtrl.text.trim(),
+                        : (_contactEntry?.displayName ??
+                            _contactNameCtrl.text.trim()),
                     organizerPhone: _contactPhoneCtrl.text.trim().isEmpty
                         ? null
-                        : _contactPhoneCtrl.text.trim(),
+                        : '$_countryCode${_contactPhoneCtrl.text.trim()}',
                     hideContact: _hideContact,
                     photoUrls: isEditing
                         ? widget.existingGame!.photoUrls
@@ -1421,6 +1495,126 @@ class _InputField extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Country Code Picker ───────────────────────────────────────────────────────
+
+class _CountryCodePicker extends StatefulWidget {
+  final String selected;
+  const _CountryCodePicker({required this.selected});
+
+  @override
+  State<_CountryCodePicker> createState() => _CountryCodePickerState();
+}
+
+class _CountryCodePickerState extends State<_CountryCodePicker> {
+  static const _countries = [
+    ('+91',  '🇮🇳', 'India'),
+    ('+1',   '🇺🇸', 'USA / Canada'),
+    ('+44',  '🇬🇧', 'United Kingdom'),
+    ('+61',  '🇦🇺', 'Australia'),
+    ('+64',  '🇳🇿', 'New Zealand'),
+    ('+27',  '🇿🇦', 'South Africa'),
+    ('+92',  '🇵🇰', 'Pakistan'),
+    ('+94',  '🇱🇰', 'Sri Lanka'),
+    ('+880', '🇧🇩', 'Bangladesh'),
+    ('+93',  '🇦🇫', 'Afghanistan'),
+    ('+263', '🇿🇼', 'Zimbabwe'),
+    ('+353', '🇮🇪', 'Ireland'),
+    ('+60',  '🇲🇾', 'Malaysia'),
+    ('+65',  '🇸🇬', 'Singapore'),
+    ('+971', '🇦🇪', 'UAE'),
+    ('+968', '🇴🇲', 'Oman'),
+    ('+974', '🇶🇦', 'Qatar'),
+    ('+973', '🇧🇭', 'Bahrain'),
+    ('+966', '🇸🇦', 'Saudi Arabia'),
+    ('+49',  '🇩🇪', 'Germany'),
+    ('+33',  '🇫🇷', 'France'),
+    ('+39',  '🇮🇹', 'Italy'),
+    ('+34',  '🇪🇸', 'Spain'),
+    ('+31',  '🇳🇱', 'Netherlands'),
+    ('+81',  '🇯🇵', 'Japan'),
+    ('+86',  '🇨🇳', 'China'),
+    ('+82',  '🇰🇷', 'South Korea'),
+    ('+55',  '🇧🇷', 'Brazil'),
+    ('+52',  '🇲🇽', 'Mexico'),
+  ];
+
+  String _search = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _countries
+        .where((c) =>
+            c.$1.contains(_search) ||
+            c.$3.toLowerCase().contains(_search.toLowerCase()))
+        .toList();
+
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          width: 40, height: 4,
+          decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2)),
+        ),
+        const SizedBox(height: 14),
+        const Text('Select Country Code',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TextField(
+            autofocus: true,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            onChanged: (v) => setState(() => _search = v),
+            decoration: InputDecoration(
+              hintText: 'Search country...',
+              hintStyle: const TextStyle(color: Colors.white38),
+              prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 18),
+              filled: true,
+              fillColor: const Color(0xFF222222),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ListView.builder(
+            itemCount: filtered.length,
+            itemBuilder: (_, i) {
+              final c = filtered[i];
+              final isSel = c.$1 == widget.selected;
+              return ListTile(
+                leading: Text(c.$2,
+                    style: const TextStyle(fontSize: 22)),
+                title: Text(c.$3,
+                    style: TextStyle(
+                        color: isSel ? AppColors.primary : Colors.white,
+                        fontSize: 14,
+                        fontWeight: isSel
+                            ? FontWeight.w700
+                            : FontWeight.normal)),
+                trailing: Text(c.$1,
+                    style: TextStyle(
+                        color: isSel ? AppColors.primary : Colors.white54,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+                onTap: () => Navigator.pop(context, c.$1),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

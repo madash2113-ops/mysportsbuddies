@@ -28,8 +28,57 @@ import '../settings/settings_screen.dart';
 import '../venues/venue_detail_screen.dart';
 
 import '../../services/game_listing_service.dart';
+import '../../services/stats_service.dart';
 import '../../services/venue_service.dart';
 import 'notifications_screen.dart';
+
+/// All sports with emojis. Keys must match stats_service storage keys.
+const Map<String, String> _kSportEmoji = {
+  'Cricket':      '🏏',
+  'Football':     '⚽',
+  'Basketball':   '🏀',
+  'Badminton':    '🏸',
+  'Tennis':       '🎾',
+  'Table Tennis': '🏓',
+  'Volleyball':   '🏐',
+  'Beach Volleyball': '🏖️',
+  'Hockey':       '🏑',
+  'Ice Hockey':   '🏒',
+  'Baseball':     '⚾',
+  'Softball':     '🥎',
+  'Rugby':        '🏉',
+  'American Football': '🏈',
+  'Handball':     '🤾',
+  'Netball':      '🥅',
+  'Boxing':       '🥊',
+  'MMA':          '🥋',
+  'Wrestling':    '🤼',
+  'Fencing':      '🤺',
+  'Swimming':     '🏊',
+  'Water Polo':   '🤽',
+  'Rowing':       '🚣',
+  'Athletics':    '🏃',
+  'Cycling':      '🚴',
+  'Triathlon':    '🏊',
+  'Formula One':  '🏎️',
+  'Golf':         '⛳',
+  'Lacrosse':     '🥍',
+  'Polo':         '🐴',
+  'Curling':      '🥌',
+  'Archery':      '🏹',
+  'Shooting':     '🎯',
+  'Darts':        '🎯',
+  'Snooker':      '🎱',
+  'Gymnastics':   '🤸',
+  'Weightlifting':'🏋️',
+  'Squash':       '🎾',
+  'Padel':        '🎾',
+  'Kabaddi':      '🤼',
+  'Kho Kho':      '🏃',
+  'Esports':      '🎮',
+};
+
+List<String> get _kAllSports => _kSportEmoji.keys.toList();
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -203,14 +252,118 @@ class _HomeScreenState extends State<HomeScreen> {
 // PROFILE TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ProfileTab extends StatelessWidget {
+class _ProfileTab extends StatefulWidget {
   const _ProfileTab();
+
+  @override
+  State<_ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<_ProfileTab> {
+  bool    _idCopied      = false;
+  String? _selectedSport;          // currently viewed sport in stats section
+  bool    _statsLoaded   = false;
+  // 'regular' or 'career' — only relevant when Cricket is selected
+  String  _cricketMode   = 'regular';
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    await StatsService().load();
+    if (!mounted) return;
+    final svc = StatsService();
+    setState(() {
+      _statsLoaded   = true;
+      _selectedSport = svc.defaultSport ?? svc.activeSports.firstOrNull;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: UserService(),
+      listenable: Listenable.merge([UserService(), StatsService()]),
       builder: (context, _) => _buildBody(context),
+    );
+  }
+
+  Widget _buildModeTab(String mode, String label, Color primary) {
+    final selected = _cricketMode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _cricketMode = mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? primary.withValues(alpha: 0.18)
+                : Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? primary.withValues(alpha: 0.6)
+                  : Colors.white12,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: selected ? primary : Colors.white54,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsSection(
+      String sport, StatsService statsSvc, Color primary, bool isDark) {
+    final rawStats = statsSvc.statsForSport(sport);
+    final Map<String, dynamic>? stats = sport == 'Cricket'
+        ? (rawStats?[_cricketMode] as Map?)?.cast<String, dynamic>()
+        : rawStats;
+
+    if (stats != null && stats.isNotEmpty) {
+      return _SportStatsCard(
+          sport: sport, stats: stats, primary: primary, isDark: isDark);
+    }
+
+    final label = sport == 'Cricket'
+        ? 'No ${_cricketMode == 'career' ? 'Career' : 'Regular'} Cricket stats yet'
+        : 'No $sport stats yet';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.sports_outlined, size: 36, color: Colors.white24),
+          const SizedBox(height: 10),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(
+            sport == 'Cricket' && _cricketMode == 'career'
+                ? 'Play tournament matches to build\nyour career stats.'
+                : 'Play a scoreboard match in this sport\nand stats will appear here automatically.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white24, fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 
@@ -224,127 +377,251 @@ class _ProfileTab extends StatelessWidget {
     final location          = profile?.location ?? '';
     final bio               = profile?.bio      ?? '';
     final numId             = profile?.numericId;
-    final tournamentsPlayed = profile?.tournamentsPlayed ?? 0;
-    final matchesPlayed     = profile?.matchesPlayed     ?? 0;
-    final matchesWon        = profile?.matchesWon        ?? 0;
+    final statsSvc     = StatsService();
+    final activeSports = statsSvc.activeSports;
+
+    // Sync selected sport if it was never set but stats loaded
+    if (_statsLoaded && _selectedSport == null && activeSports.isNotEmpty) {
+      _selectedSport = statsSvc.defaultSport ?? activeSports.first;
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 32, 20, 40),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Builder(builder: (context) {
-            final img = context.watch<ProfileController>().avatarImage;
-            return CircleAvatar(
-              radius: 52,
-              backgroundColor: primary.withValues(alpha: 0.15),
-              backgroundImage: img,
-              child: img == null
-                  ? Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.w700,
-                          color: primary),
-                    )
-                  : null,
-            );
-          }),
-          const SizedBox(height: 14),
-
-          // Name
-          Text(
-            name,
-            style: TextStyle(
-              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-
-          // Numeric ID
-          if (numId != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
+          // ── Avatar + name centred ──────────────────────────────────────
+          Center(
+            child: Column(
               children: [
+                Builder(builder: (context) {
+                  final img = context.watch<ProfileController>().avatarImage;
+                  return CircleAvatar(
+                    radius: 52,
+                    backgroundColor: primary.withValues(alpha: 0.15),
+                    backgroundImage: img,
+                    child: img == null
+                        ? Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            style: TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.w700,
+                                color: primary),
+                          )
+                        : null,
+                  );
+                }),
+                const SizedBox(height: 14),
                 Text(
-                  '#$numId',
+                  name,
                   style: TextStyle(
-                      color: primary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600),
+                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: '$numId'));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('ID copied'),
-                        behavior: SnackBarBehavior.floating,
-                        duration: Duration(seconds: 2),
+                // Player ID
+                if (numId != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'ID: $numId',
+                        style: TextStyle(
+                            color: primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
                       ),
-                    );
-                  },
-                  child: Icon(Icons.copy_rounded, size: 14, color: primary),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () async {
+                          await Clipboard.setData(
+                              ClipboardData(text: '$numId'));
+                          if (!mounted) return;
+                          setState(() => _idCopied = true);
+                          Future.delayed(const Duration(seconds: 2), () {
+                            if (mounted) setState(() => _idCopied = false);
+                          });
+                        },
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: _idCopied
+                              ? Text('Copied!',
+                                  key: const ValueKey('copied'),
+                                  style: TextStyle(
+                                      color: primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600))
+                              : Icon(Icons.copy_rounded,
+                                  key: const ValueKey('icon'),
+                                  size: 14,
+                                  color: primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                // Bio
+                if (bio.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    bio,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: isDark ? Colors.white60 : Colors.black54,
+                        fontSize: 13),
+                  ),
+                ],
+                // Email / location chips
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    if (email.isNotEmpty)
+                      _InfoChip(
+                          icon: Icons.email_outlined,
+                          label: email,
+                          primary: primary),
+                    if (location.isNotEmpty)
+                      _InfoChip(
+                          icon: Icons.location_on_outlined,
+                          label: location,
+                          primary: primary),
+                  ],
                 ),
               ],
             ),
-          ],
-
-          // Bio
-          if (bio.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              bio,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: isDark ? Colors.white60 : Colors.black54,
-                  fontSize: 13),
-            ),
-          ],
-
-          // Info chips
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: [
-              if (email.isNotEmpty)
-                _InfoChip(
-                    icon: Icons.email_outlined,
-                    label: email,
-                    primary: primary),
-              if (location.isNotEmpty)
-                _InfoChip(
-                    icon: Icons.location_on_outlined,
-                    label: location,
-                    primary: primary),
-            ],
           ),
 
           const SizedBox(height: 24),
 
-          // Stats row
+          const SizedBox(height: 28),
+
+          // ── Sport Stats section ───────────────────────────────────────
           Row(
             children: [
-              _StatBox(
-                  label: 'Tournaments',
-                  value: tournamentsPlayed,
-                  primary: primary),
-              const SizedBox(width: 10),
-              _StatBox(
-                  label: 'Matches', value: matchesPlayed, primary: primary),
-              const SizedBox(width: 10),
-              _StatBox(label: 'Won', value: matchesWon, primary: primary),
+              Text(
+                'Sport Stats',
+                style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800),
+              ),
+              if (_selectedSport != null) ...[
+                const Spacer(),
+                GestureDetector(
+                  onTap: () async {
+                    if (_selectedSport == null) return;
+                    final messenger = ScaffoldMessenger.of(context);
+                    await StatsService().setDefaultSport(_selectedSport!);
+                    if (mounted) {
+                      messenger.showSnackBar(SnackBar(
+                        content: Text(
+                            '$_selectedSport set as default sport'),
+                        behavior: SnackBarBehavior.floating,
+                        backgroundColor: primary,
+                        duration: const Duration(seconds: 2),
+                      ));
+                    }
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        statsSvc.defaultSport == _selectedSport
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        size: 16,
+                        color: statsSvc.defaultSport == _selectedSport
+                            ? Colors.amber
+                            : Colors.white38,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Set Default',
+                        style: TextStyle(
+                            color: Colors.white38, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
+          const SizedBox(height: 12),
 
-          const SizedBox(height: 20),
+          // Sport picker button — opens searchable sheet
+          GestureDetector(
+            onTap: () async {
+              final picked = await showModalBottomSheet<String>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => _SportPickerSheet(
+                  selected: _selectedSport,
+                  statsSvc: statsSvc,
+                ),
+              );
+              if (picked != null && mounted) {
+                setState(() => _selectedSport = picked);
+              }
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: primary.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  if (_selectedSport != null) ...[
+                    Text(
+                      _kSportEmoji[_selectedSport] ?? '🏅',
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _selectedSport!,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ] else
+                    const Text('Select a sport',
+                        style: TextStyle(
+                            color: Colors.white38, fontSize: 14)),
+                  const Spacer(),
+                  Icon(Icons.keyboard_arrow_down_rounded,
+                      color: primary, size: 22),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
 
-          // Edit Profile button
+          // Regular / Career toggle — only for Cricket
+          if (_selectedSport == 'Cricket') ...[
+            Row(children: [
+              _buildModeTab('regular', '🏏 Regular', primary),
+              const SizedBox(width: 8),
+              _buildModeTab('career', '🏆 Career', primary),
+            ]),
+            const SizedBox(height: 12),
+          ],
+
+          // Stats card — or empty state
+          if (_selectedSport != null)
+            _buildStatsSection(_selectedSport!, statsSvc, primary, isDark),
+
+          const SizedBox(height: 24),
+
+          // ── Edit Profile button ───────────────────────────────────────
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -371,75 +648,480 @@ class _ProfileTab extends StatelessWidget {
   }
 }
 
-class _StatBox extends StatelessWidget {
-  final String label;
-  final int value;
-  final Color primary;
-  const _StatBox({required this.label, required this.value, required this.primary});
+// ─────────────────────────────────────────────────────────────────────────────
+// SPORT STATS CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SportStatsCard extends StatefulWidget {
+  final String                sport;
+  final Map<String, dynamic>  stats;
+  final Color                 primary;
+  final bool                  isDark;
+
+  const _SportStatsCard({
+    required this.sport,
+    required this.stats,
+    required this.primary,
+    required this.isDark,
+  });
+
+  @override
+  State<_SportStatsCard> createState() => _SportStatsCardState();
+}
+
+class _SportStatsCardState extends State<_SportStatsCard> {
+  String? _selectedFormat;
+
+  // ── Cricket helper getters ────────────────────────────────────────────────
+
+  Map<String, dynamic> get _bat =>
+      (widget.stats['batting'] as Map?)
+          ?.cast<String, dynamic>() ?? {};
+
+  Map<String, dynamic> get _bowl =>
+      (widget.stats['bowling'] as Map?)
+          ?.cast<String, dynamic>() ?? {};
+
+  Map<String, dynamic> get _formats =>
+      (widget.stats['formats'] as Map?)
+          ?.cast<String, dynamic>() ?? {};
+
+  int _i(Map<String, dynamic> m, String k) =>
+      (m[k] as num?)?.toInt() ?? 0;
+
+  String _avg(int runs, int innings, int notOuts) {
+    final outs = innings - notOuts;
+    if (outs == 0) return '-';
+    return (runs / outs).toStringAsFixed(1);
+  }
+
+  String _sr(int runs, int balls) {
+    if (balls == 0) return '-';
+    return (runs / balls * 100).toStringAsFixed(1);
+  }
+
+  String _eco(int runs, int overs, int balls) {
+    final total = overs * 6 + balls;
+    if (total == 0) return '-';
+    return (runs / total * 6).toStringAsFixed(2);
+  }
+
+  // Bowling average = runs conceded / wickets taken
+  String _bowlAvg(int runs, int wickets) {
+    if (wickets == 0) return '-';
+    return (runs / wickets).toStringAsFixed(1);
+  }
+
+  // Bowling strike rate = balls bowled / wickets taken
+  String _bowlSR(int overs, int balls, int wickets) {
+    if (wickets == 0) return '-';
+    final totalBalls = overs * 6 + balls;
+    return (totalBalls / wickets).toStringAsFixed(1);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: primary.withValues(alpha: 0.2)),
+    if (widget.sport == 'Cricket') return _cricketCard();
+    // Generic fallback for other sports
+    return _genericCard();
+  }
+
+  // ── Cricket card ─────────────────────────────────────────────────────────
+
+  Widget _cricketCard() {
+    final formatKeys = _formats.keys.toList()..sort();
+    _selectedFormat ??= formatKeys.firstOrNull;
+
+    final runs      = _i(_bat, 'runs');
+    final balls     = _i(_bat, 'balls');
+    final fours     = _i(_bat, 'fours');
+    final sixes     = _i(_bat, 'sixes');
+    final fifties   = _i(_bat, 'fifties');
+    final hundreds  = _i(_bat, 'hundreds');
+    final hs        = _i(_bat, 'highestScore');
+    final innings   = _i(_bat, 'innings');
+    final notOuts   = _i(_bat, 'notOuts');
+    final ducks     = _i(_bat, 'ducks');
+
+    final wickets     = _i(_bowl, 'wickets');
+    final wRuns       = _i(_bowl, 'runs');
+    final wOvers      = _i(_bowl, 'completedOvers');
+    final wBalls      = _i(_bowl, 'extraBalls');
+    final maidens     = _i(_bowl, 'maidens');
+    final bestW       = _i(_bowl, 'bestWickets');
+    final bestR       = _i(_bowl, 'bestRuns');
+    final fiveWickets = _i(_bowl, 'fiveWickets');
+
+    final cardBg = widget.isDark
+        ? const Color(0xFF1C1C1E)
+        : const Color(0xFFF5F5F5);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Batting summary ─────────────────────────────────────────────
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.sports_cricket,
+                    size: 14, color: widget.primary),
+                const SizedBox(width: 6),
+                Text('Batting',
+                    style: TextStyle(
+                        color: widget.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 12),
+              Row(children: [
+                _CricStat(label: 'Runs',  value: '$runs'),
+                _CricStat(label: 'HS',    value: '$hs'),
+                _CricStat(label: '50s',   value: '$fifties'),
+                _CricStat(label: '100s',  value: '$hundreds'),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                _CricStat(label: 'Innings', value: '$innings'),
+                _CricStat(label: 'Avg',     value: _avg(runs, innings, notOuts)),
+                _CricStat(label: 'SR',      value: _sr(runs, balls)),
+                _CricStat(label: 'Ducks',   value: '$ducks'),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                _CricStat(label: '4s',      value: '$fours'),
+                _CricStat(label: '6s',      value: '$sixes'),
+                _CricStat(label: 'NO',      value: '$notOuts'),
+                const Expanded(child: SizedBox()),
+              ]),
+            ],
+          ),
         ),
-        child: Column(
-          children: [
-            Text(
-              '$value',
+        const SizedBox(height: 10),
+
+        // ── Bowling summary ─────────────────────────────────────────────
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.sports_baseball_outlined,
+                    size: 14, color: widget.primary),
+                const SizedBox(width: 6),
+                Text('Bowling',
+                    style: TextStyle(
+                        color: widget.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 12),
+              Row(children: [
+                _CricStat(label: 'Wickets', value: '$wickets'),
+                _CricStat(label: 'Best',    value: wickets == 0 ? '-' : '$bestW/$bestR'),
+                _CricStat(label: 'Avg',     value: _bowlAvg(wRuns, wickets)),
+                _CricStat(label: 'Economy', value: _eco(wRuns, wOvers, wBalls)),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                _CricStat(label: 'SR',      value: _bowlSR(wOvers, wBalls, wickets)),
+                _CricStat(label: 'Maidens', value: '$maidens'),
+                _CricStat(label: '5W',      value: fiveWickets == 0 ? '-' : '$fiveWickets'),
+                const Expanded(child: SizedBox()),
+              ]),
+            ],
+          ),
+        ),
+
+        // ── Per-format breakdown ─────────────────────────────────────────
+        if (formatKeys.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('By Format',
               style: TextStyle(
-                  color: primary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800),
+                  color: widget.isDark
+                      ? Colors.white70
+                      : const Color(0xFF1A1A1A),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+
+          // Format tabs
+          SizedBox(
+            height: 32,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: formatKeys.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final fmt = formatKeys[i];
+                final isSel = fmt == _selectedFormat;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedFormat = fmt),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSel
+                          ? widget.primary.withValues(alpha: 0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: isSel
+                              ? widget.primary
+                              : Colors.white24),
+                    ),
+                    child: Text(fmt,
+                        style: TextStyle(
+                          color: isSel
+                              ? widget.primary
+                              : Colors.white54,
+                          fontSize: 12,
+                          fontWeight: isSel
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                        )),
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                  color: isDark ? Colors.white54 : Colors.black45,
-                  fontSize: 11),
+          ),
+          const SizedBox(height: 10),
+
+          // Format stats
+          if (_selectedFormat != null)
+            _FormatStatsRow(
+              fmtData: (_formats[_selectedFormat!] as Map?)
+                      ?.cast<String, dynamic>() ??
+                  {},
+              primary: widget.primary,
+              isDark:  widget.isDark,
             ),
+        ],
+      ],
+    );
+  }
+
+  Widget _genericCard() {
+    final matches = (widget.stats['matches'] as num?)?.toInt() ?? 0;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: widget.isDark
+            ? const Color(0xFF1C1C1E)
+            : const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: _CricStat(label: 'Matches Played', value: '$matches'),
+    );
+  }
+}
+
+// ── Per-format row ────────────────────────────────────────────────────────────
+
+class _FormatStatsRow extends StatelessWidget {
+  final Map<String, dynamic> fmtData;
+  final Color primary;
+  final bool  isDark;
+
+  const _FormatStatsRow({
+    required this.fmtData,
+    required this.primary,
+    required this.isDark,
+  });
+
+  int _i(Map<String, dynamic> m, String k) =>
+      (m[k] as num?)?.toInt() ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final bat = (fmtData['batting'] as Map?)?.cast<String, dynamic>() ?? {};
+    final bowl= (fmtData['bowling'] as Map?)?.cast<String, dynamic>() ?? {};
+    final matches = _i(fmtData, 'matches');
+    final hs      = _i(fmtData, 'highestScore');
+
+    final runs        = _i(bat, 'runs');
+    final balls       = _i(bat, 'balls');
+    final fifties     = _i(bat, 'fifties');
+    final hundreds    = _i(bat, 'hundreds');
+    final innings     = _i(bat, 'innings');
+    final notOuts     = _i(bat, 'notOuts');
+    final fours       = _i(bat, 'fours');
+    final sixes       = _i(bat, 'sixes');
+    final ducks       = _i(bat, 'ducks');
+
+    final wickets     = _i(bowl, 'wickets');
+    final wRuns       = _i(bowl, 'runs');
+    final wOvers      = _i(bowl, 'completedOvers');
+    final wBalls      = _i(bowl, 'extraBalls');
+    final maidens     = _i(bowl, 'maidens');
+    final fiveWickets = _i(bowl, 'fiveWickets');
+
+    String avg() {
+      final outs = innings - notOuts;
+      return outs == 0 ? '-' : (runs / outs).toStringAsFixed(1);
+    }
+
+    String sr() =>
+        balls == 0 ? '-' : (runs / balls * 100).toStringAsFixed(1);
+
+    String eco() {
+      final t = wOvers * 6 + wBalls;
+      return t == 0 ? '-' : (wRuns / t * 6).toStringAsFixed(2);
+    }
+
+    String bowlAvg() =>
+        wickets == 0 ? '-' : (wRuns / wickets).toStringAsFixed(1);
+
+    String bowlSR() {
+      final t = wOvers * 6 + wBalls;
+      return wickets == 0 ? '-' : (t / wickets).toStringAsFixed(1);
+    }
+
+    final cardBg = isDark
+        ? const Color(0xFF242424)
+        : const Color(0xFFEEEEEE);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: primary.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Row(children: [
+            _CricStat(label: 'Matches', value: '$matches'),
+            _CricStat(label: 'Innings', value: '$innings'),
+            _CricStat(label: 'Runs',    value: '$runs'),
+            _CricStat(label: 'HS',      value: '$hs'),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            _CricStat(label: '50s',   value: '$fifties'),
+            _CricStat(label: '100s',  value: '$hundreds'),
+            _CricStat(label: 'Avg',   value: avg()),
+            _CricStat(label: 'SR',    value: sr()),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            _CricStat(label: '4s',    value: '$fours'),
+            _CricStat(label: '6s',    value: '$sixes'),
+            _CricStat(label: 'Ducks', value: '$ducks'),
+            _CricStat(label: 'NO',    value: '$notOuts'),
+          ]),
+          if (wickets > 0 || wOvers > 0) ...[
+            Divider(
+                height: 16,
+                color: primary.withValues(alpha: 0.12)),
+            Row(children: [
+              _CricStat(label: 'Wkts', value: '$wickets'),
+              _CricStat(label: 'Avg',  value: bowlAvg()),
+              _CricStat(label: 'Eco',  value: eco()),
+              _CricStat(label: 'SR',   value: bowlSR()),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              _CricStat(label: 'Maidens', value: '$maidens'),
+              _CricStat(label: '5W',      value: fiveWickets == 0 ? '-' : '$fiveWickets'),
+              const Expanded(child: SizedBox()),
+              const Expanded(child: SizedBox()),
+            ]),
           ],
-        ),
+        ],
       ),
     );
   }
 }
 
+// ── Single stat cell ──────────────────────────────────────────────────────────
+
+class _CricStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _CricStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _InfoChip extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final Color primary;
+  final String   label;
+  final Color    primary;
   const _InfoChip(
       {required this.icon, required this.label, required this.primary});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: primary.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: primary, size: 14),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-                color: isDark ? Colors.white70 : const Color(0xFF1A1A1A),
-                fontSize: 12),
-          ),
-        ],
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width - 48),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: primary.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: primary, size: 14),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                    color:
+                        isDark ? Colors.white70 : const Color(0xFF1A1A1A),
+                    fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1705,6 +2387,190 @@ class _PulseDotState extends State<_PulseDot>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── Sport picker bottom sheet ─────────────────────────────────────────────────
+
+class _SportPickerSheet extends StatefulWidget {
+  final String?      selected;
+  final StatsService statsSvc;
+  const _SportPickerSheet({this.selected, required this.statsSvc});
+
+  @override
+  State<_SportPickerSheet> createState() => _SportPickerSheetState();
+}
+
+class _SportPickerSheetState extends State<_SportPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(
+        () => setState(() => _query = _searchCtrl.text.toLowerCase()));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _query.isEmpty
+        ? _kAllSports
+        : _kAllSports
+            .where((s) => s.toLowerCase().contains(_query))
+            .toList();
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Text('Select Sport',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search sport…',
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white38, size: 16),
+                          onPressed: () => _searchCtrl.clear(),
+                          padding: EdgeInsets.zero,
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.07),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Divider(color: Colors.white12, height: 1),
+            // Sports list
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text('No sport matching "$_query"',
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 13)),
+                    )
+                  : ListView.builder(
+                      controller: scrollCtrl,
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) {
+                        final sport    = filtered[i];
+                        final emoji    = _kSportEmoji[sport] ?? '🏅';
+                        final hasStats = widget.statsSvc.statsForSport(sport) != null;
+                        final isSelected = sport == widget.selected;
+
+                        return ListTile(
+                          onTap: () => Navigator.pop(context, sport),
+                          leading: Container(
+                            width: 40, height: 40,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primary.withValues(alpha: 0.2)
+                                  : Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(10),
+                              border: isSelected
+                                  ? Border.all(
+                                      color: AppColors.primary.withValues(alpha: 0.5))
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(emoji,
+                                  style: const TextStyle(fontSize: 20)),
+                            ),
+                          ),
+                          title: Text(
+                            sport,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : Colors.white,
+                              fontSize: 14,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: hasStats
+                              ? const Text('Stats available',
+                                  style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 11))
+                              : null,
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle,
+                                  color: AppColors.primary, size: 20)
+                              : null,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class BannerImage extends StatelessWidget {
   final String imagePath;

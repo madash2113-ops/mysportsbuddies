@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../core/models/player_entry.dart';
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
+import '../../widgets/player_search_field.dart';
 
 /// Full registration flow for joining a tournament league.
 /// 3 steps: Team Details → Players → Confirm & Submit
@@ -48,13 +50,15 @@ class _RegisterLeagueScreenState extends State<RegisterLeagueScreen> {
 
   // Step 2 — Squad (size determined after widget is available; init lazily)
   late final List<TextEditingController> _playerCtrls;
+  late final List<PlayerEntry?>          _playerEntries;
 
   bool _submitted = false;
 
   @override
   void initState() {
     super.initState();
-    _playerCtrls = List.generate(_minPlayers, (_) => TextEditingController());
+    _playerCtrls   = List.generate(_minPlayers, (_) => TextEditingController());
+    _playerEntries = List.filled(_minPlayers, null, growable: true);
   }
 
   @override
@@ -344,6 +348,7 @@ class _RegisterLeagueScreenState extends State<RegisterLeagueScreen> {
                       ),
                       _Step2Players(
                         ctrls: _playerCtrls,
+                        entries: _playerEntries,
                         minPlayers: _minPlayers,
                         sport: widget.sport,
                         isDark: isDark,
@@ -353,6 +358,8 @@ class _RegisterLeagueScreenState extends State<RegisterLeagueScreen> {
                         cardBg: cardBg,
                         divCol: divCol,
                         onChanged: () => setState(() {}),
+                        onEntrySelected: (i, entry) =>
+                            setState(() => _playerEntries[i] = entry),
                       ),
                       _Step3Confirm(
                         teamName: _teamNameCtrl.text,
@@ -653,13 +660,16 @@ class _Step1Team extends StatelessWidget {
 
 class _Step2Players extends StatelessWidget {
   final List<TextEditingController> ctrls;
+  final List<PlayerEntry?>          entries;
   final int minPlayers;
   final String sport;
   final bool isDark;
   final Color primary, textCol, subCol, cardBg, divCol;
   final VoidCallback onChanged;
+  final void Function(int index, PlayerEntry entry) onEntrySelected;
   const _Step2Players({
     required this.ctrls,
+    required this.entries,
     required this.minPlayers,
     required this.sport,
     required this.isDark,
@@ -669,6 +679,7 @@ class _Step2Players extends StatelessWidget {
     required this.cardBg,
     required this.divCol,
     required this.onChanged,
+    required this.onEntrySelected,
   });
 
   @override
@@ -728,34 +739,13 @@ class _Step2Players extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: TextField(
+                    child: PlayerSearchField(
                       controller: ctrls[i],
-                      onChanged: (_) => onChanged(),
-                      style: TextStyle(color: textCol, fontSize: 14),
-                      decoration: InputDecoration(
-                        hintText: i == 0
-                            ? 'Captain name'
-                            : 'Player ${i + 1}',
-                        hintStyle:
-                            TextStyle(color: subCol, fontSize: 13),
-                        filled: true,
-                        fillColor: cardBg,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 11),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: divCol),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: divCol),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide:
-                              BorderSide(color: primary),
-                        ),
-                      ),
+                      hint: 'Search by name, ID or email',
+                      onSelected: (entry) {
+                        onEntrySelected(i, entry);
+                        onChanged();
+                      },
                     ),
                   ),
                 ],

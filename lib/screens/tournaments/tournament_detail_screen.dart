@@ -1640,7 +1640,7 @@ class _SquadPlayerTile extends StatelessWidget {
           ],
         )),
         if (player.playerId.isNotEmpty)
-          Text('#${player.playerId}',
+          Text(player.playerId,
               style: const TextStyle(color: Colors.white24, fontSize: 11)),
       ]),
     );

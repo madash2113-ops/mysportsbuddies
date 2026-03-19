@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -53,21 +52,20 @@ class UserService extends ChangeNotifier {
 
   // ── Numeric ID generation ─────────────────────────────────────────────────
 
-  /// Generates a unique 6-digit integer player ID (100000–999999).
-  /// Retries on the extremely rare collision.
+  static const _counterDoc = 'config/numericIdCounter';
+
+  /// Atomically claims the next sequential 5-digit player ID (10000–99999).
+  /// ID 1 is reserved for the owner via [kReservedNumericIds].
   Future<int> _generateUniqueNumericId() async {
-    final rand = Random.secure();
-    while (true) {
-      final candidate = 100000 + rand.nextInt(900000); // 100000–999999
-      final snap = await _db
-          .collection(_col)
-          .where('numericId', isEqualTo: candidate)
-          .limit(1)
-          .get();
-      if (snap.docs.isEmpty) return candidate;
-      // Collision — retry (extremely rare)
-    }
+    final counterRef = _db.doc(_counterDoc);
+    return _db.runTransaction<int>((tx) async {
+      final snap = await tx.get(counterRef);
+      final next = (snap.data()?['next'] as int?) ?? 10000; // 5-digit start
+      tx.set(counterRef, {'next': next + 1}, SetOptions(merge: true));
+      return next;
+    });
   }
+
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -77,22 +75,37 @@ class UserService extends ChangeNotifier {
     _userId = await _signInAndGetId();
     await _loadProfile();
     await _ensureNumericId();
-    _backfillSearchFields(); // fire-and-forget: indexes name for search
+    _backfillSearchFields();       // fire-and-forget: indexes current user
+    _globalBackfillSearchFields(); // fire-and-forget: indexes all unindexed users
     _initialized = true;
     notifyListeners();
   }
 
   /// If the current user has no numericId yet, generate a unique one and
-  /// persist it to Firestore. This runs once on first app launch.
+  /// persist it to Firestore. If a reserved ID is configured in
+  /// [kReservedNumericIds] for this UID, that ID is used (and enforced even
+  /// if a different ID was previously assigned).
   Future<void> _ensureNumericId() async {
-    if (_profile?.numericId != null) return;
     if (_userId == null) return;
     try {
+      final reserved = kReservedNumericIds[_userId];
+      // If a reserved ID is configured and current ID doesn't match, force it
+      if (reserved != null && _profile?.numericId != reserved) {
+        await _db
+            .collection(_col)
+            .doc(_userId)
+            .set({'numericId': reserved, 'numericIdStr': reserved.toString()}, SetOptions(merge: true));
+        final base = _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
+        _profile = base.copyWith(numericId: reserved);
+        return;
+      }
+      // Otherwise generate a new ID only if one isn't already assigned
+      if (_profile?.numericId != null) return;
       final newId = await _generateUniqueNumericId();
       await _db
           .collection(_col)
           .doc(_userId)
-          .set({'numericId': newId}, SetOptions(merge: true));
+          .set({'numericId': newId, 'numericIdStr': newId.toString()}, SetOptions(merge: true));
       final base = _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
       _profile = base.copyWith(numericId: newId);
     } catch (e) {
@@ -114,7 +127,9 @@ class UserService extends ChangeNotifier {
       final needsUpdate = !data.containsKey('nameLower')
           || !data.containsKey('nameReversed')
           || !data.containsKey('nameWords')
-          || !data.containsKey('searchTokens');
+          || !data.containsKey('searchTokens')
+          || !data.containsKey('emailLower')
+          || !data.containsKey('numericIdStr');
       if (!needsUpdate) return;
       final p = _profile!;
       await _db.collection(_col).doc(_userId).update({
@@ -122,10 +137,69 @@ class UserService extends ChangeNotifier {
         'nameReversed': p.nameReversed,
         'nameWords':    p.nameWords,
         'searchTokens': p.searchTokens,
+        'emailLower':   p.emailLower,
+        if (p.numericIdStr != null) 'numericIdStr': p.numericIdStr,
       });
       debugPrint('✅ Search fields backfilled for ${p.name}');
     } catch (e) {
       debugPrint('UserService._backfillSearchFields error: $e');
+    }
+  }
+
+  /// Global backfill — writes search index fields for all users who are
+  /// missing them (nameLower, nameReversed, nameWords, searchTokens,
+  /// emailLower, numericIdStr). Does NOT assign numericIds — each user
+  /// receives their own ID when they first open the app.
+  Future<void> _globalBackfillSearchFields() async {
+    if (_userId == null) return;
+    try {
+      final results = await Future.wait([
+        _db.collection(_col).where('searchTokens', isNull: true).limit(100).get(),
+        _db.collection(_col).where('emailLower',   isNull: true).limit(100).get(),
+      ]);
+
+      final seen    = <String>{};
+      final allDocs = results.expand((s) => s.docs)
+          .where((d) => seen.add(d.id))
+          .toList();
+
+      if (allDocs.isEmpty) return;
+
+      final batch = _db.batch();
+      int   count = 0;
+
+      for (final doc in allDocs) {
+        final data = doc.data();
+        final name = data['name'] as String? ?? '';
+        if (name.isEmpty) continue;
+
+        final p      = UserProfile.fromFirestore(doc);
+        final update = <String, dynamic>{
+          'emailLower': p.emailLower,
+        };
+
+        // Write numericIdStr if they already have a numericId but are missing the string form
+        if (data.containsKey('numericId') && !data.containsKey('numericIdStr')) {
+          update['numericIdStr'] = p.numericId.toString();
+        }
+
+        if (!data.containsKey('searchTokens')) {
+          update['nameLower']    = p.nameLower;
+          update['nameReversed'] = p.nameReversed;
+          update['nameWords']    = p.nameWords;
+          update['searchTokens'] = p.searchTokens;
+        }
+
+        batch.update(doc.reference, update);
+        count++;
+      }
+
+      if (count > 0) {
+        await batch.commit();
+        debugPrint('✅ Global search backfill: indexed $count user(s)');
+      }
+    } catch (e) {
+      debugPrint('UserService._globalBackfillSearchFields error: $e');
     }
   }
 

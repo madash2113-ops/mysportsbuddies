@@ -144,6 +144,19 @@ class LiveMatch {
   List<String> teamAPlayers;
   List<String> teamBPlayers;
 
+  /// Parallel to teamAPlayers/teamBPlayers — Firestore userId for registered
+  /// players, empty string for manually-entered names.
+  List<String> teamAPlayerUserIds;
+  List<String> teamBPlayerUserIds;
+
+  /// The Firestore userId of the user who created this scoreboard.
+  /// Used to filter "My Scorecards" to matches the user owns or played in.
+  String createdByUserId;
+
+  /// True when this scoreboard was started for a tournament match.
+  /// Stats from tournament matches go to Career stats; others go to Regular.
+  bool isTournamentMatch;
+
   // Sport-specific score objects — exactly one is non-null
   CricketScore? cricket;
   FootballScore? football;
@@ -165,6 +178,10 @@ class LiveMatch {
     required this.createdAt,
     List<String>? teamAPlayers,
     List<String>? teamBPlayers,
+    List<String>? teamAPlayerUserIds,
+    List<String>? teamBPlayerUserIds,
+    this.createdByUserId = '',
+    this.isTournamentMatch = false,
     this.cricket,
     this.football,
     this.basketball,
@@ -174,7 +191,9 @@ class LiveMatch {
     this.esports,
     this.genericScore,
   })  : teamAPlayers = teamAPlayers ?? [],
-        teamBPlayers = teamBPlayers ?? [];
+        teamBPlayers = teamBPlayers ?? [],
+        teamAPlayerUserIds = teamAPlayerUserIds ?? [],
+        teamBPlayerUserIds = teamBPlayerUserIds ?? [];
 
   String get sportDisplayName => _sportNames[sport] ?? sport.name;
 
@@ -269,6 +288,10 @@ class LiveMatch {
         'createdAt': createdAt.millisecondsSinceEpoch,
         'teamAPlayers': teamAPlayers,
         'teamBPlayers': teamBPlayers,
+        'teamAPlayerUserIds': teamAPlayerUserIds,
+        'teamBPlayerUserIds': teamBPlayerUserIds,
+        'createdByUserId': createdByUserId,
+        'isTournamentMatch': isTournamentMatch,
         if (cricket != null) 'cricket': cricket!.toFirestore(),
         if (football != null) 'football': football!.toMap(),
         if (basketball != null) 'basketball': basketball!.toMap(),
@@ -289,16 +312,20 @@ class LiveMatch {
       orElse: () => MatchStatus.live,
     );
     return LiveMatch(
-      id: m['id'] as String,
+      id: m['id'] as String? ?? '',
       sport: sport,
-      teamA: m['teamA'] as String,
-      teamB: m['teamB'] as String,
+      teamA: m['teamA'] as String? ?? '',
+      teamB: m['teamB'] as String? ?? '',
       venue: m['venue'] as String? ?? '',
       format: m['format'] as String? ?? '',
       status: status,
       createdAt: DateTime.fromMillisecondsSinceEpoch(m['createdAt'] as int),
       teamAPlayers: List<String>.from(m['teamAPlayers'] as List? ?? []),
       teamBPlayers: List<String>.from(m['teamBPlayers'] as List? ?? []),
+      teamAPlayerUserIds: List<String>.from(m['teamAPlayerUserIds'] as List? ?? []),
+      teamBPlayerUserIds: List<String>.from(m['teamBPlayerUserIds'] as List? ?? []),
+      createdByUserId: m['createdByUserId'] as String? ?? '',
+      isTournamentMatch: m['isTournamentMatch'] as bool? ?? false,
       cricket: m['cricket'] != null
           ? CricketScore.fromFirestore(m['cricket'] as Map<String, dynamic>)
           : null,
@@ -383,6 +410,7 @@ SportEngine engineForSport(MatchSport sport) {
 
 class CricketBatsman {
   String name;
+  String? userId;  // Firestore userId — null for manually-entered players
   int runs = 0;
   int balls = 0;
   int fours = 0;
@@ -392,29 +420,37 @@ class CricketBatsman {
   String dismissal = '';
   int order;
 
-  CricketBatsman({required this.name, required this.order, this.isStriker = false});
+  CricketBatsman({required this.name, required this.order, this.isStriker = false, this.userId});
 
   double get strikeRate => balls == 0 ? 0 : runs / balls * 100;
   String get srStr => balls == 0 ? '-' : strikeRate.toStringAsFixed(1);
 
   Map<String, dynamic> snapshot() => {
-        'name': name, 'runs': runs, 'balls': balls, 'fours': fours,
+        'name': name,
+        if (userId != null && userId!.isNotEmpty) 'userId': userId,
+        'runs': runs, 'balls': balls, 'fours': fours,
         'sixes': sixes, 'isOut': isOut, 'isStriker': isStriker,
         'dismissal': dismissal, 'order': order,
       };
 
   static CricketBatsman fromSnapshot(Map<String, dynamic> s) =>
-      CricketBatsman(name: s['name'], order: s['order'], isStriker: s['isStriker'])
-        ..runs = s['runs']
-        ..balls = s['balls']
-        ..fours = s['fours']
-        ..sixes = s['sixes']
-        ..isOut = s['isOut']
-        ..dismissal = s['dismissal'];
+      CricketBatsman(
+        name: s['name'] as String? ?? '',
+        order: s['order'] as int? ?? 0,
+        isStriker: s['isStriker'] as bool? ?? false,
+        userId: s['userId'] as String?,
+      )
+        ..runs = s['runs'] as int? ?? 0
+        ..balls = s['balls'] as int? ?? 0
+        ..fours = s['fours'] as int? ?? 0
+        ..sixes = s['sixes'] as int? ?? 0
+        ..isOut = s['isOut'] as bool? ?? false
+        ..dismissal = s['dismissal'] as String? ?? '';
 }
 
 class CricketBowler {
   String name;
+  String? userId;  // Firestore userId — null for manually-entered players
   int completedOvers = 0;
   int balls = 0;
   int maidens = 0;
@@ -423,7 +459,7 @@ class CricketBowler {
   bool isCurrent;
   int _runsAtOverStart = 0;
 
-  CricketBowler({required this.name, this.isCurrent = false});
+  CricketBowler({required this.name, this.isCurrent = false, this.userId});
 
   double get economy {
     final total = completedOvers * 6 + balls;
@@ -443,19 +479,25 @@ class CricketBowler {
   }
 
   Map<String, dynamic> snapshot() => {
-        'name': name, 'completedOvers': completedOvers, 'balls': balls,
+        'name': name,
+        if (userId != null && userId!.isNotEmpty) 'userId': userId,
+        'completedOvers': completedOvers, 'balls': balls,
         'maidens': maidens, 'runs': runs, 'wickets': wickets,
         'isCurrent': isCurrent, 'runsAtOverStart': _runsAtOverStart,
       };
 
   static CricketBowler fromSnapshot(Map<String, dynamic> s) =>
-      CricketBowler(name: s['name'], isCurrent: s['isCurrent'])
-        ..completedOvers = s['completedOvers']
-        ..balls = s['balls']
-        ..maidens = s['maidens']
-        ..runs = s['runs']
-        ..wickets = s['wickets']
-        .._runsAtOverStart = s['runsAtOverStart'];
+      CricketBowler(
+        name: s['name'] as String? ?? '',
+        isCurrent: s['isCurrent'] as bool? ?? false,
+        userId: s['userId'] as String?,
+      )
+        ..completedOvers = s['completedOvers'] as int? ?? 0
+        ..balls = s['balls'] as int? ?? 0
+        ..maidens = s['maidens'] as int? ?? 0
+        ..runs = s['runs'] as int? ?? 0
+        ..wickets = s['wickets'] as int? ?? 0
+        .._runsAtOverStart = s['runsAtOverStart'] as int? ?? 0;
 }
 
 class FowEntry {
@@ -478,10 +520,10 @@ class FowEntry {
       };
 
   factory FowEntry.fromMap(Map<String, dynamic> m) => FowEntry(
-        wicketNum: m['wicketNum'] as int,
-        runs: m['runs'] as int,
-        oversStr: m['oversStr'] as String,
-        batsmanName: m['batsmanName'] as String,
+        wicketNum: m['wicketNum'] as int? ?? 0,
+        runs: m['runs'] as int? ?? 0,
+        oversStr: m['oversStr'] as String? ?? '',
+        batsmanName: m['batsmanName'] as String? ?? '',
       );
 }
 
@@ -567,11 +609,18 @@ class CricketInnings {
       };
 
   void restoreSnapshot(Map<String, dynamic> s) {
-    runs = s['runs']; wickets = s['wickets']; completedOvers = s['completedOvers'];
-    balls = s['balls']; extras = s['extras']; wides = s['wides'];
-    noBalls = s['noBalls']; byes = s['byes']; legByes = s['legByes'];
-    isComplete = s['isComplete']; needsNewBowler = s['needsNewBowler'];
-    target = s['target'];
+    runs = s['runs'] as int? ?? 0;
+    wickets = s['wickets'] as int? ?? 0;
+    completedOvers = s['completedOvers'] as int? ?? 0;
+    balls = s['balls'] as int? ?? 0;
+    extras = s['extras'] as int? ?? 0;
+    wides = s['wides'] as int? ?? 0;
+    noBalls = s['noBalls'] as int? ?? 0;
+    byes = s['byes'] as int? ?? 0;
+    legByes = s['legByes'] as int? ?? 0;
+    isComplete = s['isComplete'] as bool? ?? false;
+    needsNewBowler = s['needsNewBowler'] as bool? ?? false;
+    target = s['target'] as int?;
     batsmen = (s['batsmen'] as List)
         .map((b) => CricketBatsman.fromSnapshot(b as Map<String, dynamic>))
         .toList();
@@ -600,11 +649,11 @@ class CricketInnings {
 
   factory CricketInnings.fromFirestore(Map<String, dynamic> m) {
     final inn = CricketInnings(
-      inningsNum: m['inningsNum'] as int,
-      battingTeam: m['battingTeam'] as String,
-      bowlingTeam: m['bowlingTeam'] as String,
-      totalOvers: m['totalOvers'] as int,
-      playersPerSide: m['playersPerSide'] as int,
+      inningsNum: m['inningsNum'] as int? ?? 1,
+      battingTeam: m['battingTeam'] as String? ?? '',
+      bowlingTeam: m['bowlingTeam'] as String? ?? '',
+      totalOvers: m['totalOvers'] as int? ?? 20,
+      playersPerSide: m['playersPerSide'] as int? ?? 11,
     );
     inn.restoreSnapshot(m);
     return inn;
@@ -691,12 +740,12 @@ class CricketScore {
 
   factory CricketScore.fromFirestore(Map<String, dynamic> m) {
     final score = CricketScore._raw(
-      format: m['format'] as String,
-      totalOvers: m['totalOvers'] as int,
-      playersPerSide: m['playersPerSide'] as int,
-      teamA: m['teamA'] as String,
-      teamB: m['teamB'] as String,
-      teamABatFirst: m['teamABatFirst'] as bool,
+      format: m['format'] as String? ?? '',
+      totalOvers: m['totalOvers'] as int? ?? 20,
+      playersPerSide: m['playersPerSide'] as int? ?? 11,
+      teamA: m['teamA'] as String? ?? '',
+      teamB: m['teamB'] as String? ?? '',
+      teamABatFirst: m['teamABatFirst'] as bool? ?? true,
     );
     score._currentIdx = m['currentIdx'] as int? ?? 0;
     score.isMatchOver = m['isMatchOver'] as bool? ?? false;

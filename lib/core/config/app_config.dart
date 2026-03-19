@@ -17,3 +17,10 @@ const bool kDevMode = true;
 const List<String> kOwnerUserIds = [
   // 'paste-your-firebase-uid-here',
 ];
+
+/// Numeric player IDs reserved for specific Firebase UIDs.
+/// These override the auto-generated 6-digit ID at startup.
+/// Format: { 'firebase-uid': reservedNumericId }
+const Map<String, int> kReservedNumericIds = {
+  // 'paste-your-firebase-uid-here': 1,
+};

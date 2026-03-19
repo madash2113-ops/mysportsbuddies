@@ -5,6 +5,7 @@ import '../../core/models/player_entry.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/scoreboard_service.dart';
+import '../../services/user_service.dart';
 import '../../widgets/address_autocomplete_field.dart';
 import '../../widgets/player_search_field.dart';
 import 'live_scoreboard_screen.dart';
@@ -13,7 +14,12 @@ import 'live_scoreboard_screen.dart';
 /// Asks one question at a time with smooth slide animation.
 class MatchSetupScreen extends StatefulWidget {
   final String sportName;
-  const MatchSetupScreen({super.key, required this.sportName});
+  final bool   isTournamentMatch;
+  const MatchSetupScreen({
+    super.key,
+    required this.sportName,
+    this.isTournamentMatch = false,
+  });
 
   @override
   State<MatchSetupScreen> createState() => _MatchSetupScreenState();
@@ -795,6 +801,17 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
     return index < samples.length ? samples[index] : 'Player ${index + 1}';
   }
 
+  /// Returns the PlayerEntry for [name] by matching against the resolved display
+  /// name in [entries] (falls back to the controller text for manual entries).
+  PlayerEntry? _entryForName(
+      String name, List<PlayerEntry?> entries, List<TextEditingController> ctrls) {
+    for (int i = 0; i < ctrls.length; i++) {
+      final resolved = entries[i]?.displayName ?? ctrls[i].text.trim();
+      if (resolved == name) return entries[i];
+    }
+    return null;
+  }
+
   Widget _whoBatsFirstContent() {
     final teamA =
         _teamACtrl.text.trim().isEmpty ? 'Team A' : _teamACtrl.text.trim();
@@ -1148,7 +1165,8 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
 
   LiveMatch _buildMatch(String id, String teamA, String teamB, String venue) {
     final format = _buildFormat();
-    final now = DateTime.now();
+    final now    = DateTime.now();
+    final myUid  = UserService().userId ?? '';
 
     switch (engineForSport(_sport)) {
       case SportEngine.cricket:
@@ -1162,62 +1180,61 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
           teamB: teamB,
           teamABatFirst: _teamABatsFirst,
         );
+        final battingEntries = _teamABatsFirst ? _teamAEntries : _teamBEntries;
+        final battingCtrls   = _teamABatsFirst ? _teamACtrlrs : _teamBCtrlrs;
+        final bowlingEntries = _teamABatsFirst ? _teamBEntries : _teamAEntries;
+        final bowlingCtrls   = _teamABatsFirst ? _teamBCtrlrs : _teamACtrlrs;
+
         final inn = score.currentInnings;
         inn.batsmen.addAll([
           CricketBatsman(
-              name: _selectedBat1 ?? '', order: 1, isStriker: true),
+              name: _selectedBat1 ?? '', order: 1, isStriker: true,
+              userId: _entryForName(_selectedBat1 ?? '', battingEntries, battingCtrls)?.userId),
           CricketBatsman(
-              name: _selectedBat2 ?? '', order: 2, isStriker: false),
+              name: _selectedBat2 ?? '', order: 2, isStriker: false,
+              userId: _entryForName(_selectedBat2 ?? '', battingEntries, battingCtrls)?.userId),
         ]);
-        inn.bowlers
-            .add(CricketBowler(name: _selectedBowler1 ?? '', isCurrent: true));
+        inn.bowlers.add(CricketBowler(
+            name: _selectedBowler1 ?? '', isCurrent: true,
+            userId: _entryForName(_selectedBowler1 ?? '', bowlingEntries, bowlingCtrls)?.userId));
         return LiveMatch(
-          id: id,
-          sport: _sport,
-          teamA: teamA,
-          teamB: teamB,
-          venue: venue,
-          format: format,
-          createdAt: now,
+          id: id, sport: _sport, teamA: teamA, teamB: teamB,
+          venue: venue, format: format, createdAt: now,
+          createdByUserId: myUid,
+          isTournamentMatch: widget.isTournamentMatch,
           cricket: score,
           teamAPlayers: List.generate(_teamACtrlrs.length, (i) =>
               _teamAEntries[i]?.displayName ?? _teamACtrlrs[i].text.trim()),
           teamBPlayers: List.generate(_teamBCtrlrs.length, (i) =>
               _teamBEntries[i]?.displayName ?? _teamBCtrlrs[i].text.trim()),
+          teamAPlayerUserIds: List.generate(_teamACtrlrs.length, (i) =>
+              _teamAEntries[i]?.userId ?? ''),
+          teamBPlayerUserIds: List.generate(_teamBCtrlrs.length, (i) =>
+              _teamBEntries[i]?.userId ?? ''),
         );
 
       case SportEngine.football:
         return LiveMatch(
-            id: id,
-            sport: _sport,
-            teamA: teamA,
-            teamB: teamB,
-            venue: venue,
-            format: format,
-            createdAt: now,
+            id: id, sport: _sport, teamA: teamA, teamB: teamB,
+            venue: venue, format: format, createdAt: now,
+            createdByUserId: myUid,
+            isTournamentMatch: widget.isTournamentMatch,
             football: FootballScore(matchDurationMin: _footballDuration));
 
       case SportEngine.basketball:
         return LiveMatch(
-            id: id,
-            sport: _sport,
-            teamA: teamA,
-            teamB: teamB,
-            venue: venue,
-            format: format,
-            createdAt: now,
-            basketball:
-                BasketballScore(quarterMinutes: _basketballQuarterMins));
+            id: id, sport: _sport, teamA: teamA, teamB: teamB,
+            venue: venue, format: format, createdAt: now,
+            createdByUserId: myUid,
+            isTournamentMatch: widget.isTournamentMatch,
+            basketball: BasketballScore(quarterMinutes: _basketballQuarterMins));
 
       case SportEngine.rally:
         return LiveMatch(
-            id: id,
-            sport: _sport,
-            teamA: teamA,
-            teamB: teamB,
-            venue: venue,
-            format: format,
-            createdAt: now,
+            id: id, sport: _sport, teamA: teamA, teamB: teamB,
+            venue: venue, format: format, createdAt: now,
+            createdByUserId: myUid,
+            isTournamentMatch: widget.isTournamentMatch,
             rally: RallyScore(
               pointsToWin: _rallyPointsToWin,
               setsToWin: _rallySetsToWin,
@@ -1234,13 +1251,10 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
         final isIce =
             _hockeyFormat == 'Ice Hockey' || _sport == MatchSport.iceHockey;
         return LiveMatch(
-            id: id,
-            sport: _sport,
-            teamA: teamA,
-            teamB: teamB,
-            venue: venue,
-            format: format,
-            createdAt: now,
+            id: id, sport: _sport, teamA: teamA, teamB: teamB,
+            venue: venue, format: format, createdAt: now,
+            createdByUserId: myUid,
+            isTournamentMatch: widget.isTournamentMatch,
             hockey: HockeyScore(
               quarterMinutes: isIce ? 20 : 15,
               totalPeriods: isIce ? 3 : 4,
@@ -1248,13 +1262,10 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
 
       case SportEngine.combat:
         return LiveMatch(
-            id: id,
-            sport: _sport,
-            teamA: teamA,
-            teamB: teamB,
-            venue: venue,
-            format: format,
-            createdAt: now,
+            id: id, sport: _sport, teamA: teamA, teamB: teamB,
+            venue: venue, format: format, createdAt: now,
+            createdByUserId: myUid,
+            isTournamentMatch: widget.isTournamentMatch,
             combat: CombatScore(
               totalRounds: _boxingRounds,
               roundDurationMin: _boxingRoundMin,
@@ -1262,24 +1273,18 @@ class _MatchSetupScreenState extends State<MatchSetupScreen> {
 
       case SportEngine.esports:
         return LiveMatch(
-            id: id,
-            sport: _sport,
-            teamA: teamA,
-            teamB: teamB,
-            venue: venue,
-            format: format,
-            createdAt: now,
+            id: id, sport: _sport, teamA: teamA, teamB: teamB,
+            venue: venue, format: format, createdAt: now,
+            createdByUserId: myUid,
+            isTournamentMatch: widget.isTournamentMatch,
             esports: EsportsScore(roundsToWin: 13, maxRounds: 24));
 
       case SportEngine.generic:
         return LiveMatch(
-            id: id,
-            sport: _sport,
-            teamA: teamA,
-            teamB: teamB,
-            venue: venue,
-            format: format,
-            createdAt: now,
+            id: id, sport: _sport, teamA: teamA, teamB: teamB,
+            venue: venue, format: format, createdAt: now,
+            createdByUserId: myUid,
+            isTournamentMatch: widget.isTournamentMatch,
             genericScore: GenericScore());
     }
   }

@@ -18,6 +18,7 @@ import 'services/theme_service.dart';
 import 'services/tournament_service.dart';
 import 'services/user_service.dart';
 import 'services/game_listing_service.dart';
+import 'services/stats_service.dart';
 import 'services/venue_service.dart';
 
 // ======================================================
@@ -51,6 +52,9 @@ void main() async {
     await FollowService().init();
     debugPrint('✅ FollowService initialized');
 
+    await StatsService().load();
+    debugPrint('✅ StatsService loaded');
+
     // Start real-time listeners
     FeedService().listenToFeed();
     FeedService().listenToStories();
@@ -83,6 +87,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => TournamentService()),
         ChangeNotifierProvider(create: (_) => VenueService()),
         ChangeNotifierProvider(create: (_) => GameListingService()),
+        ChangeNotifierProvider(create: (_) => StatsService()),
       ],
       child: const MySportsApp(),
     ),

@@ -21,7 +21,7 @@ class PlayerSearchField extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onSelected,
-    this.hint             = 'Name, ID, phone or email',
+    this.hint             = 'Search by name, ID or email',
     this.showManualOption = true,
     this.maxResults       = 8,
   });
@@ -38,11 +38,12 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
   final _layerLink   = LayerLink();
   final _focusNode   = FocusNode();
 
-  List<PlayerSearchResult> _results   = [];
-  bool                     _loading   = false;
-  bool                     _confirmed = false;
+  List<PlayerSearchResult> _results          = [];
+  bool                     _loading          = false;
+  bool                     _confirmed        = false;
+  bool                     _ignoreNextChange = false;  // set before programmatic text write
   Timer?                   _debounce;
-  int                      _gen       = 0;
+  int                      _gen              = 0;
 
   @override
   void initState() {
@@ -79,6 +80,11 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
   }
 
   void _onChanged(String value) {
+    // Ignore the onChange that Flutter fires when _select sets controller.text
+    if (_ignoreNextChange) {
+      _ignoreNextChange = false;
+      return;
+    }
     _debounce?.cancel();
     setState(() { _confirmed = false; });
 
@@ -141,10 +147,16 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
   // ── Selection ──────────────────────────────────────────────────────────────
 
   void _select(PlayerSearchResult result) {
-    widget.controller.text = result.entry.displayName;
+    final entry = result.entry;
+    // Guard so Flutter's programmatic-text onChange callback doesn't re-trigger search
+    _ignoreNextChange = true;
+    // Show "Full Name (ID)" in the field when the player has an ID
+    widget.controller.text = entry.numericId != null
+        ? '${entry.displayName} (${entry.numericId})'
+        : entry.displayName;
     setState(() { _results = []; _confirmed = true; });
     _hideDropdown();
-    widget.onSelected(result.entry);
+    widget.onSelected(entry);
   }
 
   // ── Dropdown content (rendered inside OverlayPortal) ──────────────────────
@@ -236,8 +248,11 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
         overlayChildBuilder:  (_) => _buildDropdown(),
         child: TapRegion(
           onTapOutside: (_) {
+            // Only unfocus — _onFocusChange schedules _hideDropdown after 200 ms,
+            // giving the overlay result tile's onTap time to fire first.
+            // Calling _hideDropdown() here directly would dismiss the dropdown
+            // before _select() runs, swallowing the tap on the result.
             _focusNode.unfocus();
-            _hideDropdown();
           },
           child: TextField(
             controller:        widget.controller,
@@ -408,7 +423,7 @@ class _ResultTile extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  '#${entry.numericId}',
+                                  '${entry.numericId}',
                                   style: const TextStyle(
                                     color: AppColors.primary,
                                     fontSize: 11,
@@ -420,17 +435,6 @@ class _ResultTile extends StatelessWidget {
                           ],
                         ),
 
-                  // ── Row 2: phone / email ─────────────────────────────
-                  if (!isManual && entry.subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      entry.subtitle,
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
                 ],
               ),
             ),

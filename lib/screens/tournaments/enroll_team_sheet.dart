@@ -120,6 +120,7 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
         teamName:       _teamNameCtrl.text.trim(),
         captainName:    _captainEntry?.displayName ?? _captainCtrl.text.trim(),
         captainPhone:   _captainEntry?.phone ?? _phoneCtrl.text.trim(),
+        captainUserId:  _captainEntry?.userId ?? '',
         players:        players,
         playerUserIds:  playerUserIds,
       );
@@ -205,7 +206,7 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
                     _label('Captain Name'),
                     PlayerSearchField(
                       controller: _captainCtrl,
-                      hint: 'Search captain by name, ID or phone',
+                      hint: 'Search by name, ID or email',
                       onSelected: (entry) =>
                           setState(() => _captainEntry = entry),
                     ),
@@ -284,7 +285,7 @@ class _EnrollTeamSheetState extends State<EnrollTeamSheet> {
                           Expanded(
                             child: PlayerSearchField(
                               controller: _playerCtrls[i],
-                              hint: 'Player ${i + 1} name or ID',
+                              hint: 'Search by name, ID or email',
                               onSelected: (entry) =>
                                   setState(() => _playerEntries[i] = entry),
                             ),

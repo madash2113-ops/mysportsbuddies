@@ -4,6 +4,7 @@ import '../../core/models/match_score.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/scoreboard_service.dart';
+import '../../services/user_service.dart';
 import 'match_report_screen.dart';
 
 /// Live Scoreboard screen.
@@ -43,13 +44,24 @@ class _LiveScoreboardScreenState extends State<LiveScoreboardScreen> {
           );
         }
 
+        final uid = UserService().userId ?? '';
+        // Creator check: match the stored creator UID.
+        // Fallback for older matches where createdByUserId was not yet stored:
+        // allow editing if the user is listed as a player in either team.
+        final isCreator = uid.isNotEmpty && match.createdByUserId == uid;
+        final isPlayerInMatch = uid.isNotEmpty &&
+            (match.teamAPlayerUserIds.contains(uid) ||
+             match.teamBPlayerUserIds.contains(uid));
+        final isScorer = isCreator ||
+            (match.createdByUserId.isEmpty && isPlayerInMatch);
+
         return Scaffold(
           backgroundColor: AppColors.background,
-          appBar: _buildAppBar(match, svc),
+          appBar: _buildAppBar(match, svc, isScorer),
           body: Column(
             children: [
               Expanded(child: _buildScoreboard(match, svc)),
-              if (widget.isScorer && match.status == MatchStatus.live)
+              if (isScorer && match.status == MatchStatus.live)
                 _buildControls(match, svc),
             ],
           ),
@@ -60,7 +72,7 @@ class _LiveScoreboardScreenState extends State<LiveScoreboardScreen> {
 
   // ── App bar ───────────────────────────────────────────────────────────────
 
-  AppBar _buildAppBar(LiveMatch match, ScoreboardService svc) {
+  AppBar _buildAppBar(LiveMatch match, ScoreboardService svc, bool isScorer) {
     return AppBar(
       backgroundColor: AppColors.background,
       elevation: 0,
@@ -81,7 +93,7 @@ class _LiveScoreboardScreenState extends State<LiveScoreboardScreen> {
       ),
       actions: [
         _statusBadge(match.status),
-        if (widget.isScorer && match.status == MatchStatus.live) ...[
+        if (isScorer && match.status == MatchStatus.live) ...[
           TextButton(
             onPressed: () => _endMatch(match, svc),
             style: TextButton.styleFrom(

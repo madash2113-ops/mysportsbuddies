@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../core/models/match_score.dart';
+import 'stats_service.dart';
 
 /// Singleton ChangeNotifier — source of truth for all live scoreboards.
 ///
@@ -135,6 +136,7 @@ class ScoreboardService extends ChangeNotifier {
     m.genericScore?.isMatchOver = true;
     m.genericScore?.timer.pause();
     _persist(m);
+    StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch); // write player stats async
     notifyListeners();
   }
 
@@ -170,6 +172,10 @@ class ScoreboardService extends ChangeNotifier {
     if (inn.isComplete) return;
 
     _pushUndo(id, m.cricket!);
+
+    // Capture striker BEFORE any strike rotation so stats go to the right batsman
+    final bat = inn.striker;
+
     inn.runs += runs;
 
     final isWide = extraType == 'wide';
@@ -195,9 +201,7 @@ class ScoreboardService extends ChangeNotifier {
 
       // Mid-over strike rotation: odd runs → swap
       if (!overCompleted) {
-        // For bye/legbye, runs scored indicate how far batsmen ran
-        final batRunsForRotation = runs;
-        if (batRunsForRotation % 2 == 1) {
+        if (runs % 2 == 1) {
           _swapStrike(inn);
         }
       }
@@ -214,7 +218,6 @@ class ScoreboardService extends ChangeNotifier {
     }
 
     // Batsman stats — only for deliveries they faced
-    final bat = inn.striker;
     if (bat != null && extraType.isEmpty) {
       bat.runs += runs;
       bat.balls++;
@@ -264,6 +267,26 @@ class ScoreboardService extends ChangeNotifier {
     return false;
   }
 
+  /// Look up the Firestore userId for [name] from the match's roster lists.
+  /// Returns null if the player was manually entered (not a registered user).
+  String? _userIdForPlayer(LiveMatch match, String name) {
+    final n = name.trim();
+    if (n.isEmpty) return null;
+    for (int i = 0; i < match.teamAPlayers.length; i++) {
+      if (match.teamAPlayers[i] == n && i < match.teamAPlayerUserIds.length) {
+        final uid = match.teamAPlayerUserIds[i];
+        return uid.isNotEmpty ? uid : null;
+      }
+    }
+    for (int i = 0; i < match.teamBPlayers.length; i++) {
+      if (match.teamBPlayers[i] == n && i < match.teamBPlayerUserIds.length) {
+        final uid = match.teamBPlayerUserIds[i];
+        return uid.isNotEmpty ? uid : null;
+      }
+    }
+    return null;
+  }
+
   void _swapStrike(CricketInnings inn) {
     final s = inn.striker;
     final ns = inn.nonStriker;
@@ -298,6 +321,7 @@ class ScoreboardService extends ChangeNotifier {
       name: replacementName.trim(),
       order: inn.batsmen.length + 1,
       isStriker: wasStriker,
+      userId: _userIdForPlayer(m, replacementName),
     ));
     _persist(m);
     notifyListeners();
@@ -342,6 +366,7 @@ class ScoreboardService extends ChangeNotifier {
           name: newBatsman.trim(),
           order: inn.batsmen.length + 1,
           isStriker: wasStriker,
+          userId: _userIdForPlayer(m, newBatsman),
         ));
       }
     }
@@ -366,7 +391,11 @@ class ScoreboardService extends ChangeNotifier {
     if (existing != null) {
       existing.isCurrent = true;
     } else {
-      inn.bowlers.add(CricketBowler(name: bowlerName.trim(), isCurrent: true));
+      inn.bowlers.add(CricketBowler(
+        name: bowlerName.trim(),
+        isCurrent: true,
+        userId: _userIdForPlayer(m, bowlerName),
+      ));
     }
     _persist(m);
     notifyListeners();
@@ -379,10 +408,13 @@ class ScoreboardService extends ChangeNotifier {
     final inn = m.cricket!.currentInnings;
     if (inn.batsmen.isNotEmpty) return; // already set up
     inn.batsmen.addAll([
-      CricketBatsman(name: bat1.trim(), order: 1, isStriker: true),
-      CricketBatsman(name: bat2.trim(), order: 2, isStriker: false),
+      CricketBatsman(name: bat1.trim(), order: 1, isStriker: true,
+          userId: _userIdForPlayer(m, bat1)),
+      CricketBatsman(name: bat2.trim(), order: 2, isStriker: false,
+          userId: _userIdForPlayer(m, bat2)),
     ]);
-    inn.bowlers.add(CricketBowler(name: bowler.trim(), isCurrent: true));
+    inn.bowlers.add(CricketBowler(name: bowler.trim(), isCurrent: true,
+        userId: _userIdForPlayer(m, bowler)));
     _persist(m);
     notifyListeners();
   }
@@ -395,10 +427,13 @@ class ScoreboardService extends ChangeNotifier {
     m.cricket!.startSecondInnings();
     final inn = m.cricket!.currentInnings;
     inn.batsmen.addAll([
-      CricketBatsman(name: bat1.trim(), order: 1, isStriker: true),
-      CricketBatsman(name: bat2.trim(), order: 2, isStriker: false),
+      CricketBatsman(name: bat1.trim(), order: 1, isStriker: true,
+          userId: _userIdForPlayer(m, bat1)),
+      CricketBatsman(name: bat2.trim(), order: 2, isStriker: false,
+          userId: _userIdForPlayer(m, bat2)),
     ]);
-    inn.bowlers.add(CricketBowler(name: bowler.trim(), isCurrent: true));
+    inn.bowlers.add(CricketBowler(name: bowler.trim(), isCurrent: true,
+        userId: _userIdForPlayer(m, bowler)));
     _persist(m);
     notifyListeners();
   }
@@ -414,6 +449,7 @@ class ScoreboardService extends ChangeNotifier {
           score.matchResult =
               '${inn.battingTeam} won by ${inn.remainingWickets} wicket${inn.remainingWickets == 1 ? '' : 's'}';
           m.status = MatchStatus.completed;
+          StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch);
         } else if (inn.wickets >= inn.playersPerSide - 1 ||
             (score.totalOvers < 999 &&
                 inn.completedOvers >= score.totalOvers)) {
@@ -422,6 +458,7 @@ class ScoreboardService extends ChangeNotifier {
           score.matchResult =
               '${inn.bowlingTeam} won by $margin run${margin == 1 ? '' : 's'}';
           m.status = MatchStatus.completed;
+          StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch);
         }
       }
     }

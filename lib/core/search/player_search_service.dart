@@ -233,37 +233,25 @@ class PlayerSearchService {
         prefixQuery('name', q),
     ];
 
-    // ── Numeric ID — exactly 6 digits ────────────────────────────────────────
-    if (digits == q && q.length == 6) {
+    // ── Numeric ID — any all-digit query (1–9 digits) ────────────────────────
+    // Exact match on the integer field + prefix on the string field so that
+    // typing "5" finds IDs 5, 51, 500… and typing "1" finds ID 1 immediately.
+    if (digits == q && q.isNotEmpty) {
       final asNum = int.tryParse(q);
       if (asNum != null) futures.add(exactQuery('numericId', asNum));
-    }
-
-    // ── Phone — 4–15 digits (partial or full) ────────────────────────────────
-    if (digits.length >= 4 && !isNameQuery) {
-      // Exact-match variants cover full numbers in all common formats
-      final variants = <String>{q, digits};
-      if (digits.length == 10) {
-        variants.addAll(['+91$digits', '91$digits', '0$digits']);
-      } else if (digits.length == 12 && digits.startsWith('91')) {
-        variants.addAll([digits.substring(2), '+$digits']);
-      } else if (digits.length == 11 && digits.startsWith('0')) {
-        variants.add(digits.substring(1));
-      }
-      for (final v in variants) {
-        futures.add(exactQuery('phone', v));
-      }
-      // Prefix search on phone for partial numbers (e.g. "94029" → "9402994801")
-      futures.add(prefixQuery('phone', digits));
+      futures.add(prefixQuery('numericIdStr', q)); // prefix match (e.g. "5" → 51, 500…)
     }
 
     // ── Email ─────────────────────────────────────────────────────────────────
     if (q.contains('@')) {
-      futures.add(exactQuery('email', qLow));
-      futures.add(prefixQuery('email', qLow));
+      futures.add(exactQuery('email',      qLow));  // raw email (may be mixed case)
+      futures.add(exactQuery('emailLower', qLow));  // normalised lowercase field
+      futures.add(prefixQuery('email',      qLow));
+      futures.add(prefixQuery('emailLower', qLow));
     } else if (isNameQuery && qLow.contains('.')) {
       // Could be a partial email like "john.sm"
-      futures.add(prefixQuery('email', qLow));
+      futures.add(prefixQuery('email',      qLow));
+      futures.add(prefixQuery('emailLower', qLow));
     }
 
     await Future.wait(futures);
@@ -309,11 +297,11 @@ class PlayerSearchService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /// Returns true when the query looks like a plain name (not ID/phone/email).
+  /// Returns true when the query looks like a plain name (not ID or email).
   bool _isNameQuery(String q) {
     if (q.contains('@')) return false;
     final digits = q.replaceAll(RegExp(r'\D'), '');
-    if (digits == q && q.length >= 6) return false; // all-digit query
+    if (digits == q && q.isNotEmpty) return false; // any all-digit query = ID search
     return true;
   }
 

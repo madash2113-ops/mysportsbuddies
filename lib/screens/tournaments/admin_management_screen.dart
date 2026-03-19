@@ -175,7 +175,7 @@ class _AdminCard extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(admin.userName, style: const TextStyle(color: Colors.white,
                 fontSize: 14, fontWeight: FontWeight.w700)),
-            Text('#${admin.numericId}',
+            Text(admin.numericId.toString(),
                 style: const TextStyle(color: Colors.white38, fontSize: 11)),
           ])),
           IconButton(

@@ -68,9 +68,13 @@ class MatchReportScreen extends StatelessWidget {
                 _ReportHeader(match: match),
                 const SizedBox(height: AppSpacing.md),
 
-                // Cricket: full report
+                // Cricket: full scorecard
                 if (match.sport == MatchSport.cricket &&
                     match.cricket != null) ...[
+                  // Team squads
+                  _SquadsCard(match: match),
+                  const SizedBox(height: AppSpacing.md),
+
                   // Man of the Match
                   if (match.cricket!.manOfMatch != null) ...[
                     _MoMCard(
@@ -78,12 +82,16 @@ class MatchReportScreen extends StatelessWidget {
                         sport: match.sportDisplayName),
                     const SizedBox(height: AppSpacing.md),
                   ],
+
                   // Each innings
                   ...match.cricket!.innings.asMap().entries.map(
                         (e) => _InningsCard(
-                            innings: e.value,
-                            inningsNum: e.key + 1),
+                          innings: e.value,
+                          inningsNum: e.key + 1,
+                          match: match,
+                        ),
                       ),
+
                   // Result
                   if (match.cricket!.matchResult.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.sm),
@@ -199,6 +207,128 @@ class _ReportHeader extends StatelessWidget {
   }
 }
 
+// ── Team Squads Card ──────────────────────────────────────────────────────────
+
+class _SquadsCard extends StatelessWidget {
+  final LiveMatch match;
+  const _SquadsCard({required this.match});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAny = match.teamAPlayers.isNotEmpty || match.teamBPlayers.isNotEmpty;
+    if (!hasAny) return const SizedBox.shrink();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(14)),
+            ),
+            child: const Text(
+              'SQUADS',
+              style: TextStyle(
+                  color: Colors.white38,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Team A
+                Expanded(
+                  child: _SquadColumn(
+                    teamName: match.teamA,
+                    players: match.teamAPlayers,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: _squadHeight(match.teamAPlayers, match.teamBPlayers),
+                  color: Colors.white10,
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                // Team B
+                Expanded(
+                  child: _SquadColumn(
+                    teamName: match.teamB,
+                    players: match.teamBPlayers,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _squadHeight(List<String> a, List<String> b) {
+    final count = a.length > b.length ? a.length : b.length;
+    return (count * 22.0) + 24.0;
+  }
+}
+
+class _SquadColumn extends StatelessWidget {
+  final String teamName;
+  final List<String> players;
+  const _SquadColumn({required this.teamName, required this.players});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          teamName,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700),
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 6),
+        ...players.asMap().entries.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                children: [
+                  Text(
+                    '${e.key + 1}. ',
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 11),
+                  ),
+                  Expanded(
+                    child: Text(
+                      e.value,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 11),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+      ],
+    );
+  }
+}
+
 // ── Man of the Match Card ─────────────────────────────────────────────────────
 
 class _MoMCard extends StatelessWidget {
@@ -265,11 +395,30 @@ class _MoMCard extends StatelessWidget {
 
 class _InningsCard extends StatelessWidget {
   final CricketInnings innings;
-  final int inningsNum;
-  const _InningsCard({required this.innings, required this.inningsNum});
+  final int            inningsNum;
+  final LiveMatch      match;
+
+  const _InningsCard({
+    required this.innings,
+    required this.inningsNum,
+    required this.match,
+  });
+
+  /// Players from the batting team's squad who did not bat this innings.
+  List<String> get _didNotBat {
+    final squad = innings.battingTeam == match.teamA
+        ? match.teamAPlayers
+        : match.teamBPlayers;
+    final batted = innings.batsmen.map((b) => b.name).toSet();
+    return squad
+        .where((p) => p.isNotEmpty && !batted.contains(p))
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final dnb = _didNotBat;
+
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
@@ -321,15 +470,36 @@ class _InningsCard extends StatelessWidget {
                   _sectionLabel('BATTING'),
                   const SizedBox(height: 6),
                   _BattingTable(batsmen: innings.batsmen),
-                  const SizedBox(height: 12),
                 ],
+
+                // Did not bat
+                if (dnb.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel('DID NOT BAT'),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          dnb.join(', '),
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
                 // Bowling table
                 if (innings.bowlers.isNotEmpty) ...[
+                  const SizedBox(height: 12),
                   _sectionLabel('BOWLING'),
                   const SizedBox(height: 6),
                   _BowlingTable(bowlers: innings.bowlers),
                   const SizedBox(height: 12),
                 ],
+
                 // Extras
                 Row(children: [
                   _sectionLabel('EXTRAS'),
@@ -340,6 +510,7 @@ class _InningsCard extends StatelessWidget {
                         color: Colors.white60, fontSize: 12),
                   ),
                 ]),
+
                 // Fall of wickets
                 if (innings.fow.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -393,7 +564,7 @@ class _BattingTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Table(
       columnWidths: const {
-        0: FlexColumnWidth(3),
+        0: FlexColumnWidth(3.2),
         1: FlexColumnWidth(1),
         2: FlexColumnWidth(1),
         3: FlexColumnWidth(0.8),
@@ -404,8 +575,7 @@ class _BattingTable extends StatelessWidget {
         _headerRow(['Batsman', 'R', 'B', '4s', '6s', 'SR']),
         ...batsmen.map((b) => TableRow(
               children: [
-                _cell(b.name,
-                    bold: !b.isOut, italic: b.isStriker),
+                _nameCell(b),
                 _cell('${b.runs}', bold: true),
                 _cell('${b.balls}'),
                 _cell('${b.fours}'),
@@ -435,8 +605,43 @@ class _BattingTable extends StatelessWidget {
             .toList(),
       );
 
-  Widget _cell(String text, {bool bold = false, bool italic = false}) =>
-      Padding(
+  /// Name cell with dismissal/status as subtext.
+  Widget _nameCell(CricketBatsman b) {
+    final howOut = b.isOut
+        ? (b.dismissal.isNotEmpty ? b.dismissal : 'out')
+        : 'not out*';
+    final howOutColor = b.isOut ? Colors.white38 : Colors.green.shade300;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            b.name,
+            style: TextStyle(
+              color: b.isOut ? Colors.white70 : Colors.white,
+              fontSize: 12,
+              fontWeight: b.isOut ? FontWeight.normal : FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            howOut,
+            style: TextStyle(
+              color: howOutColor,
+              fontSize: 10,
+              fontStyle: FontStyle.italic,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cell(String text, {bool bold = false}) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Text(
           text,
@@ -444,7 +649,6 @@ class _BattingTable extends StatelessWidget {
             color: bold ? Colors.white : Colors.white70,
             fontSize: 12,
             fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
-            fontStyle: italic ? FontStyle.italic : FontStyle.normal,
           ),
           overflow: TextOverflow.ellipsis,
         ),

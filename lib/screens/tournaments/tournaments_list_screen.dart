@@ -1758,7 +1758,7 @@ class _TournamentCard extends StatelessWidget {
           children: [
             // ── Gradient banner ──────────────────────────────────────────
             SizedBox(
-              height: 90,
+              height: 170,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -1921,7 +1921,7 @@ class _TournamentCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Date + Location row
+                  // Date range row
                   Row(
                     children: [
                       const Icon(Icons.calendar_today_outlined,
@@ -1930,7 +1930,22 @@ class _TournamentCard extends StatelessWidget {
                       Text(_fmtDate(tournament.startDate),
                           style: const TextStyle(
                               color: Colors.white54, fontSize: 12)),
-                      const SizedBox(width: 12),
+                      if (tournament.endDate != null) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(Icons.arrow_forward,
+                              size: 11, color: Colors.white30),
+                        ),
+                        Text(_fmtDate(tournament.endDate!),
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 12)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Location row
+                  Row(
+                    children: [
                       const Icon(Icons.location_on_outlined,
                           size: 13, color: Colors.white38),
                       const SizedBox(width: 4),
