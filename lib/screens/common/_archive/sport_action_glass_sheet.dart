@@ -1,11 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../design/colors.dart';
-import '../home/scheduled_matches_screen.dart';
-import '../nearby/nearby_games_screen.dart';
-import '../nearby/host_a_game_screen.dart';
-import '../scoreboard/match_setup_screen.dart';
-import '../scoreboard/live_matches_screen.dart';
+import '../../../design/colors.dart';
+import '../../home/scheduled_matches_screen.dart';
+import '../../nearby/nearby_games_screen.dart';
+import '../../nearby/host_a_game_screen.dart';
+import '../../scoreboard/match_setup_screen.dart';
+import '../../scoreboard/live_matches_screen.dart';
 
 class SportActionGlassScreen extends StatefulWidget {
   final String sport;

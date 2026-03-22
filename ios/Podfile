@@ -46,6 +46,13 @@ post_install do |installer|
       config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
       config.build_settings['COPY_PHASE_STRIP'] = 'NO'
 
+      # Enable permission_handler macros for location + notification
+      if target.name == 'permission_handler_apple'
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_LOCATION=1'
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_NOTIFICATIONS=1'
+      end
+
       # Exclude *_Test.{h,m} files from geolocator_apple compilation.
       # The umbrella header and module map both reference GeolocationHandler_Test.h
       # and GeolocatorPlugin_Test.h which import <Test/Test.h> (XCTest).

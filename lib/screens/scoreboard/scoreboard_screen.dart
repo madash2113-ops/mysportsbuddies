@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
-import '../common/sport_action_glass_sheet.dart';
 import '../sports/all_sports_screen.dart';
+import 'match_setup_screen.dart';
 
 class ScoreboardScreen extends StatelessWidget {
   const ScoreboardScreen({super.key});
@@ -22,15 +22,13 @@ class ScoreboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppC.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
+        title: Text(
           'Scoreboards',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
+              color: AppC.text(context), fontWeight: FontWeight.w700, fontSize: 18),
         ),
         actions: [
           TextButton(
@@ -52,19 +50,19 @@ class ScoreboardScreen extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: AppSpacing.lg),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
                 border: Border.all(
                     color: AppColors.primary.withValues(alpha: 0.2)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.touch_app_outlined,
+                  const Icon(Icons.touch_app_outlined,
                       color: AppColors.primary, size: 20),
-                  SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'Tap a sport to create a scoreboard or view live matches',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                      style: TextStyle(color: AppC.muted(context), fontSize: 13),
                     ),
                   ),
                 ],
@@ -119,15 +117,10 @@ class _SportTile extends StatelessWidget {
           Navigator.push(context,
               MaterialPageRoute(builder: (_) => const AllSportsScreen()));
         } else {
-          Navigator.of(context).push(
-            PageRouteBuilder(
-              opaque: false,
-              pageBuilder: (_, _, _) =>
-                  SportActionGlassScreen(sport: label),
-              transitionsBuilder: (_, animation, _, child) =>
-                  FadeTransition(opacity: animation, child: child),
-            ),
-          );
+          Navigator.push(context,
+              MaterialPageRoute(
+                builder: (_) => MatchSetupScreen(sportName: label),
+              ));
         }
       },
       child: Column(
@@ -137,7 +130,7 @@ class _SportTile extends StatelessWidget {
             width: 78,
             height: 78,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
               gradient: isMore
                   ? null
                   : const LinearGradient(

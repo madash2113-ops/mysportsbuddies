@@ -12,10 +12,12 @@ import 'scoreboard_screen.dart';
 
 /// Shows live / completed matches. If [sportName] is null, shows all sports.
 /// All viewers subscribe to ScoreboardService so the list stays live.
+/// Set [showBackButton] to false when embedding as a bottom-nav tab.
 class LiveMatchesScreen extends StatelessWidget {
   final String? sportName;
+  final bool showBackButton;
 
-  const LiveMatchesScreen({super.key, this.sportName});
+  const LiveMatchesScreen({super.key, this.sportName, this.showBackButton = true});
 
   @override
   Widget build(BuildContext context) {
@@ -39,19 +41,30 @@ class LiveMatchesScreen extends StatelessWidget {
             sportName != null ? '$sportName Scoreboards' : 'My Scoreboards';
 
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: AppC.bg(context),
+          floatingActionButton: showBackButton
+              ? null
+              : FloatingActionButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const ScoreboardScreen())),
+                  backgroundColor: AppColors.primary,
+                  child: const Icon(Icons.add, color: AppColors.textOnPrimary),
+                ),
           appBar: AppBar(
-            backgroundColor: AppColors.background,
             elevation: 0,
-            leading: const BackButton(color: Colors.white),
+            automaticallyImplyLeading: showBackButton,
+            leading: showBackButton
+                ? BackButton(color: AppC.text(context))
+                : null,
             title: Text(
               title,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: AppC.text(context), fontWeight: FontWeight.bold),
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.add_chart_outlined, color: Colors.white),
+                icon: Icon(Icons.add_chart_outlined, color: AppC.text(context)),
                 tooltip: 'Create Scoreboard',
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -92,18 +105,20 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.scoreboard_outlined,
-                color: Colors.white.withValues(alpha: 0.2), size: 64),
+                color: AppC.hint(context), size: 64),
             const SizedBox(height: AppSpacing.md),
-            const Text(
+            Text(
               'No scoreboards yet',
               style: TextStyle(
-                  color: Colors.white,
+                  color: AppC.text(context),
                   fontSize: 18,
                   fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Create a scoreboard to start tracking\nyour $sportName match live.',
+              sportName != null
+                  ? 'Create a scoreboard to start tracking\nyour $sportName match live.'
+                  : 'Create a scoreboard to start tracking\nyour next match live.',
               style: const TextStyle(
                   color: AppColors.textMuted, fontSize: 14),
               textAlign: TextAlign.center,
@@ -118,11 +133,11 @@ class _EmptyState extends StatelessWidget {
               label: const Text('Create Scoreboard'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textOnPrimary,
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.lg, vertical: 14),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(AppRadius.md)),
               ),
             ),
           ],
@@ -158,7 +173,7 @@ class _MatchCard extends StatelessWidget {
           border: Border.all(
             color: isLive
                 ? AppColors.primary.withValues(alpha: 0.35)
-                : Colors.white.withValues(alpha: 0.06),
+                : AppColors.border,
             width: isLive ? 1.5 : 1,
           ),
         ),
@@ -172,7 +187,7 @@ class _MatchCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isLive
                     ? AppColors.primary.withValues(alpha: 0.08)
-                    : Colors.white.withValues(alpha: 0.03),
+                    : AppColors.textPrimary.withValues(alpha: 0.03),
                 borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(14)),
               ),
@@ -184,18 +199,18 @@ class _MatchCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isLive
                         ? AppColors.primary.withValues(alpha: 0.15)
-                        : Colors.grey.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
+                        : AppColors.textMuted.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                     border: Border.all(
                       color: isLive
                           ? AppColors.primary.withValues(alpha: 0.5)
-                          : Colors.grey.withValues(alpha: 0.4),
+                          : AppColors.textMuted.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Text(
                     isLive ? '● LIVE' : isDone ? '✓ FT' : '⏸',
                     style: TextStyle(
-                      color: isLive ? AppColors.primary : Colors.grey,
+                      color: isLive ? AppColors.primary : AppColors.textMuted,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -227,13 +242,13 @@ class _MatchCard extends StatelessWidget {
                           children: [
                             Text(match.teamA,
                                 style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold),
                                 overflow: TextOverflow.ellipsis),
                             Text(match.teamB,
                                 style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold),
                                 overflow: TextOverflow.ellipsis),
@@ -306,20 +321,20 @@ class _MatchCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.07),
+                            color: AppColors.textPrimary.withValues(alpha: 0.07),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2)),
+                                color: AppColors.textPrimary.withValues(alpha: 0.2)),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.table_chart_outlined,
-                                  color: Colors.white70, size: 13),
+                                  color: AppColors.textMuted, size: 13),
                               SizedBox(width: 4),
                               Text('Scorecard',
                                   style: TextStyle(
-                                      color: Colors.white70,
+                                      color: AppColors.textMuted,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600)),
                             ],
@@ -389,7 +404,7 @@ class _MatchCard extends StatelessWidget {
                     color: AppColors.textMuted, fontSize: 12)),
             Text(inn2.fullStr,
                 style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.bold)),
           ]);
@@ -416,7 +431,7 @@ class _MatchCard extends StatelessWidget {
         return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('${r.setsWonA} – ${r.setsWonB} sets',
               style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.bold)),
           Text(
@@ -435,7 +450,7 @@ class _MatchCard extends StatelessWidget {
         return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('Rnd ${c?.currentRound ?? 1}/${c?.totalRounds ?? 3}',
               style: const TextStyle(
-                  color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                  color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.bold)),
         ]);
 
       case MatchSport.csgo:
@@ -452,7 +467,7 @@ class _MatchCard extends StatelessWidget {
   Widget _bigScore(String a, String b) => Row(children: [
         Text(a,
             style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 26,
                 fontWeight: FontWeight.bold)),
         const Padding(
@@ -462,7 +477,7 @@ class _MatchCard extends StatelessWidget {
         ),
         Text(b,
             style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 26,
                 fontWeight: FontWeight.bold)),
       ]);
@@ -518,7 +533,7 @@ class _MatchCard extends StatelessWidget {
   Widget _chip(String label) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
+          color: AppColors.textPrimary.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(5),
         ),
         child: Text(label,
@@ -558,9 +573,9 @@ class _PlayersRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: AppColors.textPrimary.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.07)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -570,7 +585,7 @@ class _PlayersRow extends StatelessWidget {
           Container(
             width: 1,
             margin: const EdgeInsets.symmetric(horizontal: 10),
-            color: Colors.white10,
+            color: AppColors.border,
           ),
           // Team B players
           Expanded(child: _teamColumn(match.teamB, bPlayers)),
@@ -586,7 +601,7 @@ class _PlayersRow extends StatelessWidget {
         Text(
           teamName,
           style: const TextStyle(
-            color: Colors.white60,
+            color: AppColors.textMuted,
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
@@ -596,14 +611,14 @@ class _PlayersRow extends StatelessWidget {
         const SizedBox(height: 4),
         if (players.isEmpty)
           const Text('—',
-              style: TextStyle(color: Colors.white30, fontSize: 11))
+              style: TextStyle(color: AppColors.textHint, fontSize: 11))
         else
           ...players.map((p) => Padding(
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text(
                   p,
                   style: const TextStyle(
-                      color: Colors.white70, fontSize: 11),
+                      color: AppColors.textMuted, fontSize: 11),
                   overflow: TextOverflow.ellipsis,
                 ),
               )),
@@ -638,7 +653,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
       maxChildSize: 0.95,
       builder: (_, scrollCtrl) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A2E),
+          color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
@@ -649,7 +664,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.textHint,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -659,17 +674,17 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
               child: Row(
                 children: [
                   const Icon(Icons.table_chart_outlined,
-                      color: Colors.white70, size: 18),
+                      color: AppColors.textMuted, size: 18),
                   const SizedBox(width: 8),
                   const Text('Scorecard',
                       style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold)),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close,
-                        color: Colors.white54, size: 20),
+                        color: AppColors.textMuted, size: 20),
                     onPressed: () => Navigator.pop(context),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -689,7 +704,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
                 ],
               ),
             ),
-            const Divider(color: Colors.white12, height: 1),
+            const Divider(color: AppColors.border, height: 1),
             // Content
             Expanded(
               child: ListView(
@@ -715,12 +730,12 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
           decoration: BoxDecoration(
             color: selected
                 ? AppColors.primary.withValues(alpha: 0.18)
-                : Colors.white.withValues(alpha: 0.05),
+                : AppColors.textPrimary.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: selected
                   ? AppColors.primary.withValues(alpha: 0.6)
-                  : Colors.white12,
+                  : AppColors.border,
             ),
           ),
           child: Text(
@@ -729,7 +744,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: selected ? AppColors.primary : Colors.white54,
+              color: selected ? AppColors.primary : AppColors.textMuted,
               fontSize: 13,
               fontWeight:
                   selected ? FontWeight.bold : FontWeight.normal,
@@ -788,9 +803,9 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
     }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -799,7 +814,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
             cells: const ['Batsman', 'R', 'B', '4s', '6s', 'SR'],
             isHeader: true,
           ),
-          const Divider(color: Colors.white12, height: 1),
+          const Divider(color: AppColors.border, height: 1),
           ...batsmen.map<Widget>((b) {
             final dismissal = (b.dismissal as String?) ?? '';
             final sr = b.balls == 0
@@ -830,7 +845,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
                       ),
                     ),
                   ),
-                const Divider(color: Colors.white10, height: 1),
+                const Divider(color: AppColors.border, height: 1),
               ],
             );
           }),
@@ -846,9 +861,9 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
     }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -856,7 +871,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
             cells: const ['Bowler', 'O', 'M', 'R', 'W', 'Eco'],
             isHeader: true,
           ),
-          const Divider(color: Colors.white12, height: 1),
+          const Divider(color: AppColors.border, height: 1),
           ...bowlers.map<Widget>((b) => Column(
                 children: [
                   _tableRow(cells: [
@@ -867,7 +882,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
                     '${b.wickets}',
                     b.ecoStr,
                   ], highlight: b.isCurrent == true),
-                  const Divider(color: Colors.white10, height: 1),
+                  const Divider(color: AppColors.border, height: 1),
                 ],
               )),
         ],
@@ -893,9 +908,9 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
       _sectionHeader('$teamName  ·  $score'),
       Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
+          color: AppColors.textPrimary.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: AppColors.border),
         ),
         child: Column(
           children: players
@@ -918,10 +933,10 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
                         ),
                         title: Text(p,
                             style: const TextStyle(
-                                color: Colors.white, fontSize: 13)),
+                                color: AppColors.textPrimary, fontSize: 13)),
                       ),
                       const Divider(
-                          color: Colors.white10, height: 1, indent: 48),
+                          color: AppColors.border, height: 1, indent: 48),
                     ],
                   ))
               .toList(),
@@ -956,7 +971,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
         child: Text(
           title,
           style: const TextStyle(
-              color: Colors.white70,
+              color: AppColors.textMuted,
               fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.4),
@@ -981,7 +996,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
             child: Text(
               cells[0],
               style: TextStyle(
-                color: isHeader ? Colors.white54 : Colors.white,
+                color: isHeader ? AppColors.textMuted : AppColors.textPrimary,
                 fontSize: isHeader ? 10 : 12,
                 fontWeight:
                     isHeader ? FontWeight.w600 : FontWeight.normal,
@@ -996,7 +1011,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
                     c,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: isHeader ? Colors.white54 : Colors.white70,
+                      color: isHeader ? AppColors.textMuted : AppColors.textPrimary,
                       fontSize: isHeader ? 10 : 12,
                       fontWeight: isHeader
                           ? FontWeight.w600
@@ -1014,7 +1029,7 @@ class _ScorecardSheetState extends State<_ScorecardSheet> {
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(msg,
-              style: const TextStyle(color: Colors.white38, fontSize: 13)),
+              style: const TextStyle(color: AppColors.textHint, fontSize: 13)),
         ),
       );
 }

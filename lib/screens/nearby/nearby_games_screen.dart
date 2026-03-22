@@ -9,8 +9,10 @@ import '../../services/game_service.dart';
 import '../../services/location_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/map_picker_sheet.dart';
+import '../home/scheduled_matches_screen.dart';
 import '../register/register_game_screen.dart';
 import 'game_detail_screen.dart';
+import 'host_a_game_screen.dart';
 
 class NearbyGamesScreen extends StatefulWidget {
   final String? sport;
@@ -162,19 +164,23 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
     );
   }
 
-  Future<void> _goToRegister() async {
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => RegisterGameScreen(sport: widget.sport ?? ''),
-    ));
-    setState(() {}); // trigger rebuild
-  }
-
   @override
   Widget build(BuildContext context) {
     final myId = UserService().userId;
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => HostAGameScreen(sport: widget.sport),
+        )),
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.sports_handball_outlined, color: Colors.white),
+        label: const Text(
+          'Host a Game',
+          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+        ),
+      ),
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
@@ -187,7 +193,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
               child: Text(
                 'Nearby${widget.sport != null ? ' ${widget.sport}' : ''} Games',
                 style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.w600),
                 overflow: TextOverflow.ellipsis,
@@ -197,10 +203,12 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_circle_outline,
-                color: AppColors.primary, size: 30),
-            onPressed: _goToRegister,
-            tooltip: 'Add a game',
+            icon: const Icon(Icons.calendar_today_outlined,
+                color: AppColors.primary),
+            tooltip: 'My Schedule',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ScheduledMatchesScreen(sport: widget.sport),
+            )),
           ),
         ],
         bottom: TabBar(
@@ -244,17 +252,17 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                         onChanged: (v) =>
                             setState(() => _locationQuery = v.trim()),
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 14),
+                            color: AppColors.textPrimary, fontSize: 14),
                         decoration: InputDecoration(
                           hintText: 'Search by location…',
                           hintStyle: const TextStyle(
-                              color: Colors.white38, fontSize: 13),
+                              color: AppColors.textHint, fontSize: 13),
                           prefixIcon: const Icon(Icons.search_rounded,
-                              color: Colors.white38, size: 18),
+                              color: AppColors.textHint, size: 18),
                           suffixIcon: _locationQuery.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.close,
-                                      color: Colors.white38, size: 18),
+                                      color: AppColors.textHint, size: 18),
                                   onPressed: () {
                                     _searchCtrl.clear();
                                     setState(() => _locationQuery = '');
@@ -268,12 +276,12 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                const BorderSide(color: Colors.white12),
+                                const BorderSide(color: AppColors.border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide:
-                                const BorderSide(color: Colors.white12),
+                                const BorderSide(color: AppColors.border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -296,7 +304,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                         border: Border.all(
                           color: _radiusMiles != null
                               ? AppColors.primary
-                              : Colors.white12,
+                              : AppColors.border,
                         ),
                       ),
                       child: Row(
@@ -327,7 +335,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                           ),
                           // Divider
                           Container(
-                              width: 1, height: 22, color: Colors.white12),
+                              width: 1, height: 22, color: AppColors.border),
                           // Radius dropdown arrow
                           GestureDetector(
                             onTap: _showRadiusSheet,
@@ -385,7 +393,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                       GestureDetector(
                         onTap: () => setState(() => _radiusMiles = null),
                         child: const Icon(Icons.close,
-                            color: Colors.white38, size: 16),
+                            color: AppColors.textHint, size: 16),
                       ),
                     ],
                   ),
@@ -482,7 +490,7 @@ class _EmptyTab extends StatelessWidget {
                       ? 'No $sport games today'
                       : 'No upcoming $sport games',
               style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w600),
             ),
@@ -493,7 +501,7 @@ class _EmptyTab extends StatelessWidget {
                   : 'Be the first to add one in your area!',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  color: Colors.white54, fontSize: 14, height: 1.5),
+                  color: AppColors.textMuted, fontSize: 14, height: 1.5),
             ),
             if (onAdd != null) ...[
               const SizedBox(height: AppSpacing.xl),
@@ -511,7 +519,7 @@ class _EmptyTab extends StatelessWidget {
                   onPressed: onAdd,
                   child: const Text('Add a Game',
                       style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w600)),
                 ),
               ),
@@ -561,7 +569,7 @@ class _GameCard extends StatelessWidget {
           border: Border.all(
             color: isToday
                 ? AppColors.primary.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.06),
+                : AppColors.textPrimary.withValues(alpha: 0.06),
             width: isToday ? 1.2 : 0.8,
           ),
         ),
@@ -617,7 +625,7 @@ class _GameCard extends StatelessWidget {
                           child: Text(
                             game.location,
                             style: const TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 decoration: TextDecoration.none),
@@ -640,19 +648,19 @@ class _GameCard extends StatelessWidget {
                   Row(
                     children: [
                       const Icon(Icons.access_time_outlined,
-                          color: Colors.white38, size: 14),
+                          color: AppColors.textHint, size: 14),
                       const SizedBox(width: 5),
                       Text(timeLabel,
                           style: const TextStyle(
-                              color: Colors.white60, fontSize: 13)),
+                              color: AppColors.textMuted, fontSize: 13)),
                       if (game.maxPlayers != null) ...[
                         const SizedBox(width: 14),
                         const Icon(Icons.group_outlined,
-                            color: Colors.white38, size: 14),
+                            color: AppColors.textHint, size: 14),
                         const SizedBox(width: 5),
                         Text('${game.maxPlayers} players',
                             style: const TextStyle(
-                                color: Colors.white60, fontSize: 13)),
+                                color: AppColors.textMuted, fontSize: 13)),
                       ],
                     ],
                   ),
@@ -676,7 +684,7 @@ class _GameCard extends StatelessWidget {
                         if (game.ballType != null)
                           _InfoChip(
                               label: game.ballType!,
-                              color: Colors.white12),
+                              color: AppColors.border),
                       ],
                     ),
                   ],
@@ -686,7 +694,7 @@ class _GameCard extends StatelessWidget {
                     Text(
                       game.notes!,
                       style: const TextStyle(
-                          color: Colors.white38,
+                          color: AppColors.textHint,
                           fontSize: 12,
                           height: 1.4),
                       maxLines: 2,
@@ -701,7 +709,7 @@ class _GameCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
+                color: AppColors.textPrimary.withValues(alpha: 0.03),
                 borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(16)),
               ),
@@ -709,14 +717,14 @@ class _GameCard extends StatelessWidget {
                 children: [
                   const Text('RSVP:',
                       style: TextStyle(
-                          color: Colors.white38, fontSize: 11)),
+                          color: AppColors.textHint, fontSize: 11)),
                   const SizedBox(width: 8),
                   _RsvpButton(
                     label: 'In',
                     icon: Icons.check_circle_outline,
                     status: ParticipationStatus.inGame,
                     current: game.status,
-                    activeColor: Colors.green,
+                    activeColor: AppColors.success,
                     gameId: game.id,
                   ),
                   const SizedBox(width: 6),
@@ -725,7 +733,7 @@ class _GameCard extends StatelessWidget {
                     icon: Icons.help_outline,
                     status: ParticipationStatus.tentative,
                     current: game.status,
-                    activeColor: Colors.amber,
+                    activeColor: AppColors.warning,
                     gameId: game.id,
                   ),
                   const SizedBox(width: 6),
@@ -745,19 +753,19 @@ class _GameCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.07),
+                          color: AppColors.textPrimary.withValues(alpha: 0.07),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white12),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.edit_outlined,
-                                color: Colors.white60, size: 14),
+                                color: AppColors.textMuted, size: 14),
                             SizedBox(width: 4),
                             Text('Edit',
                                 style: TextStyle(
-                                    color: Colors.white60,
+                                    color: AppColors.textMuted,
                                     fontSize: 12)),
                           ],
                         ),
@@ -808,12 +816,12 @@ class _RsvpButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isActive
               ? activeColor.withValues(alpha: 0.18)
-              : Colors.white.withValues(alpha: 0.05),
+              : AppColors.textPrimary.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isActive
                 ? activeColor.withValues(alpha: 0.7)
-                : Colors.white12,
+                : AppColors.border,
             width: isActive ? 1.2 : 0.8,
           ),
         ),
@@ -850,21 +858,21 @@ class _DistanceChip extends StatelessWidget {
       padding:
           const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.12),
+        color: AppColors.info.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
         border:
-            Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+            Border.all(color: AppColors.info.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.near_me_outlined,
-              color: Colors.blueAccent, size: 11),
+              color: AppColors.info, size: 11),
           const SizedBox(width: 3),
           Text(
             LocationService().formatDistance(km),
             style: const TextStyle(
-                color: Colors.blueAccent,
+                color: AppColors.info,
                 fontSize: 11,
                 fontWeight: FontWeight.w600),
           ),
@@ -892,15 +900,15 @@ class _DateChip extends StatelessWidget {
         color: isToday
             ? AppColors.primary.withValues(alpha: 0.15)
             : isTomorrow
-                ? Colors.amber.withValues(alpha: 0.12)
-                : Colors.white.withValues(alpha: 0.06),
+                ? AppColors.warning.withValues(alpha: 0.12)
+                : AppColors.textPrimary.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isToday
               ? AppColors.primary.withValues(alpha: 0.5)
               : isTomorrow
-                  ? Colors.amber.withValues(alpha: 0.4)
-                  : Colors.white12,
+                  ? AppColors.warning.withValues(alpha: 0.4)
+                  : AppColors.border,
         ),
       ),
       child: Text(
@@ -909,7 +917,7 @@ class _DateChip extends StatelessWidget {
           color: isToday
               ? AppColors.primary
               : isTomorrow
-                  ? Colors.amber
+                  ? AppColors.warning
                   : Colors.white54,
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -932,7 +940,7 @@ class _InfoChip extends StatelessWidget {
       decoration:
           BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
       child: Text(label,
-          style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
     );
   }
 }
@@ -995,14 +1003,14 @@ class _RadiusSheetState extends State<_RadiusSheet> {
             child: Container(
               width: 40, height: 4,
               decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: AppColors.textHint,
                   borderRadius: BorderRadius.circular(2)),
             ),
           ),
           const SizedBox(height: 18),
           const Text('Search Radius',
               style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 20),
@@ -1011,7 +1019,7 @@ class _RadiusSheetState extends State<_RadiusSheet> {
           Row(
             children: [
               const Text('0',
-                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  style: TextStyle(color: AppColors.textHint, fontSize: 12)),
               Expanded(
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
@@ -1035,7 +1043,7 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                 ),
               ),
               const Text('100',
-                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  style: TextStyle(color: AppColors.textHint, fontSize: 12)),
             ],
           ),
 
@@ -1052,7 +1060,7 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 22,
                       fontWeight: FontWeight.w700),
                   decoration: InputDecoration(
@@ -1076,7 +1084,7 @@ class _RadiusSheetState extends State<_RadiusSheet> {
               const SizedBox(width: 8),
               const Text('miles',
                   style: TextStyle(
-                      color: Colors.white54,
+                      color: AppColors.textMuted,
                       fontSize: 16,
                       fontWeight: FontWeight.w500)),
             ],
@@ -1098,7 +1106,7 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                   onPressed: () => widget.onApply(0), // 0 = clear filter
                   child: const Text('Clear',
                       style: TextStyle(
-                          color: Colors.white54,
+                          color: AppColors.textMuted,
                           fontWeight: FontWeight.w600)),
                 ),
               ),
@@ -1115,7 +1123,7 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                   onPressed: () => widget.onApply(_miles),
                   child: const Text('Apply',
                       style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w700)),
                 ),
               ),
@@ -1184,7 +1192,7 @@ class _SportBanner extends StatelessWidget {
             child: Text(emoji,
                 style: TextStyle(
                     fontSize: 110,
-                    color: Colors.white.withValues(alpha: 0.08))),
+                    color: AppColors.border)),
           ),
           // Sport label + emoji centred
           Center(
@@ -1196,7 +1204,7 @@ class _SportBanner extends StatelessWidget {
                 Text(
                   sport,
                   style: const TextStyle(
-                      color: Colors.white70,
+                      color: AppColors.textMuted,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5),

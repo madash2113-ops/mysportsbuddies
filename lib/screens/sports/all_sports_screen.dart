@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../data/sports_list.dart';
-import '../common/sport_action_glass_sheet.dart';
+import '../nearby/nearby_games_screen.dart';
 
 class AllSportsScreen extends StatefulWidget {
   const AllSportsScreen({super.key});
@@ -23,44 +23,39 @@ class _AllSportsScreenState extends State<AllSportsScreen> {
       ..sort((a, b) => a.name.compareTo(b.name));
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppC.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
+        title: Text(
           'All Sports',
           style: TextStyle(
-            color: Colors.white,
+            color: AppC.text(context),
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
       body: Column(
         children: [
-          // 🔍 SEARCH BAR
           Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: TextField(
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppC.text(context)),
               onChanged: (value) {
                 setState(() => _query = value);
               },
               decoration: InputDecoration(
                 hintText: 'Search sport',
-                hintStyle: const TextStyle(color: Colors.white38),
-                prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                hintStyle: TextStyle(color: AppC.hint(context)),
+                prefixIcon: Icon(Icons.search, color: AppC.muted(context)),
                 filled: true,
-                fillColor: AppColors.card,
+                fillColor: AppC.card(context),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   borderSide: BorderSide.none,
                 ),
               ),
             ),
           ),
-
-          // 🏏 SPORTS LIST
           Expanded(
             child: ListView.builder(
               itemCount: filteredSports.length,
@@ -73,27 +68,21 @@ class _AllSportsScreenState extends State<AllSportsScreen> {
                   ),
                   title: Text(
                     sport.name,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppC.text(context),
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.arrow_forward_ios,
                     size: 14,
-                    color: Colors.white38,
+                    color: AppC.hint(context),
                   ),
                   onTap: () {
-                    Navigator.of(context).push(
-                      PageRouteBuilder(
-                        opaque: false,
-                        pageBuilder: (_, _, _) =>
-                            SportActionGlassScreen(sport: sport.name),
-                        transitionsBuilder: (_, animation, _, child) =>
-                            FadeTransition(opacity: animation, child: child),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => NearbyGamesScreen(sport: sport.name),
+                    ));
                   },
                 );
               },

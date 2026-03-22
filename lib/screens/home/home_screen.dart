@@ -3,19 +3,24 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../controllers/profile_controller.dart';
 import '../../core/models/match_score.dart';
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
+import '../../design/spacing.dart';
 
 import '../../services/location_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/scoreboard_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
-import '../common/sport_action_glass_sheet.dart';
 import '../community/community_feed_screen.dart';
+import '../nearby/nearby_games_screen.dart';
+import '../scoreboard/live_matches_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../sports/all_sports_screen.dart';
@@ -87,6 +92,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// Consistent horizontal page padding used by all home-tab sections.
+const double _kPageH = 20.0;
+
 class _HomeScreenState extends State<HomeScreen> {
   // 0 = Home (default), 1 = Tournaments, 2 = Feed, 3 = Profile
   int _bottomNavIndex = 0;
@@ -110,10 +118,33 @@ class _HomeScreenState extends State<HomeScreen> {
           numericId:       profile.numericId,
         );
       }
+      _requestInitialPermissions();
     });
   }
 
-  // 0 = Home, 1 = Tournaments, 2 = Feed, 3 = Profile
+  Future<void> _requestInitialPermissions() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('permissions_requested') == true) return;
+
+    // Short delay so the home screen renders first
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _PermissionDialog(),
+    );
+
+    if (accepted == true) {
+      await Permission.locationWhenInUse.request();
+      await Permission.notification.request();
+    }
+
+    await prefs.setBool('permissions_requested', true);
+  }
+
+  // 0 = Home, 1 = Tournaments, 2 = Feed, 3 = Scorecard, 4 = Profile
   static const _navItems = [
     BottomNavigationBarItem(
       icon: Icon(Icons.home_outlined),
@@ -131,6 +162,11 @@ class _HomeScreenState extends State<HomeScreen> {
       label: 'Feed',
     ),
     BottomNavigationBarItem(
+      icon: Icon(Icons.scoreboard_outlined),
+      activeIcon: Icon(Icons.scoreboard),
+      label: 'Scorecard',
+    ),
+    BottomNavigationBarItem(
       icon: Icon(Icons.person_outline),
       activeIcon: Icon(Icons.person),
       label: 'Profile',
@@ -139,20 +175,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
-
     final pages = [
       const _HomeTab(),
       const TournamentsListScreen(),
       const CommunityFeedScreen(),
+      const LiveMatchesScreen(showBackButton: false),
       const _ProfileTab(),
     ];
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.background : AppColorsLight.background,
+      backgroundColor: AppC.bg(context),
       drawer: const AppDrawer(),
-      appBar: _buildAppBar(context, isDark),
+      appBar: _buildAppBar(context),
       body: IndexedStack(
         index: _bottomNavIndex,
         children: pages,
@@ -163,27 +197,26 @@ class _HomeScreenState extends State<HomeScreen> {
           highlightColor: Colors.transparent,
         ),
         child: BottomNavigationBar(
-        currentIndex: _bottomNavIndex,
-        onTap: (i) => setState(() => _bottomNavIndex = i),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: primary,
-        unselectedItemColor: isDark ? Colors.white38 : Colors.black38,
-        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
-        elevation: 12,
-        items: _navItems,
-      ),
+          currentIndex: _bottomNavIndex,
+          onTap: (i) => setState(() => _bottomNavIndex = i),
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppC.primary(context),
+          unselectedItemColor: AppC.navUnselected(context),
+          backgroundColor: AppC.navBar(context),
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
+          elevation: 12,
+          items: _navItems,
+        ),
       ),
     );
   }
 
-  AppBar _buildAppBar(BuildContext context, bool isDark) {
-    final iconColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
-    final primary   = isDark ? AppColors.primary : AppColorsLight.primary;
+  AppBar _buildAppBar(BuildContext context) {
+    final iconColor = AppC.text(context);
+    final primary   = AppC.primary(context);
 
     return AppBar(
-      backgroundColor: isDark ? Colors.black : Colors.white,
       elevation: 0,
       leading: Builder(
         builder: (ctx) => IconButton(
@@ -215,26 +248,34 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       centerTitle: false,
       actions: [
-        Stack(
-          children: [
-            IconButton(
-              icon: Icon(Icons.notifications_none, color: iconColor),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-              ),
-            ),
-            Positioned(
-              right: 8, top: 8,
-              child: Container(
-                width: 8, height: 8,
-                decoration: BoxDecoration(
-                  color: primary,
-                  shape: BoxShape.circle,
+        ListenableBuilder(
+          listenable: NotificationService(),
+          builder: (context, _) {
+            final hasUnread = NotificationService().unreadCount > 0;
+            return Stack(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.notifications_none, color: iconColor),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen()),
+                  ),
                 ),
-              ),
-            ),
-          ],
+                if (hasUnread)
+                  Positioned(
+                    right: 8, top: 8,
+                    child: Container(
+                      width: 8, height: 8,
+                      decoration: BoxDecoration(
+                        color: primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
         IconButton(
           icon: Icon(Icons.settings_outlined, color: iconColor),
@@ -300,19 +341,19 @@ class _ProfileTabState extends State<_ProfileTab> {
           decoration: BoxDecoration(
             color: selected
                 ? primary.withValues(alpha: 0.18)
-                : Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(10),
+                : AppC.text(context).withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(
               color: selected
                   ? primary.withValues(alpha: 0.6)
-                  : Colors.white12,
+                  : AppC.border(context),
             ),
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: selected ? primary : Colors.white54,
+              color: selected ? primary : AppC.muted(context),
               fontSize: 13,
               fontWeight: selected ? FontWeight.bold : FontWeight.normal,
             ),
@@ -339,19 +380,19 @@ class _ProfileTabState extends State<_ProfileTab> {
         : 'No $sport stats yet';
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: AppC.text(context).withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppC.border(context)),
       ),
       child: Column(
         children: [
-          Icon(Icons.sports_outlined, size: 36, color: Colors.white24),
+          Icon(Icons.sports_outlined, size: 36, color: AppC.hint(context)),
           const SizedBox(height: 10),
           Text(label,
-              style: const TextStyle(
-                  color: Colors.white54,
+              style: TextStyle(
+                  color: AppC.muted(context),
                   fontSize: 14,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
@@ -360,7 +401,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                 ? 'Play tournament matches to build\nyour career stats.'
                 : 'Play a scoreboard match in this sport\nand stats will appear here automatically.',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white24, fontSize: 12),
+            style: TextStyle(color: AppC.hint(context), fontSize: 12),
           ),
         ],
       ),
@@ -368,8 +409,8 @@ class _ProfileTabState extends State<_ProfileTab> {
   }
 
   Widget _buildBody(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+    final primary = AppC.primary(context);
+    final isDark  = AppC.isDark(context);
     final profile = UserService().profile;
 
     final name              = profile?.name     ?? 'Your Name';
@@ -415,7 +456,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                 Text(
                   name,
                   style: TextStyle(
-                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    color: AppC.text(context),
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                   ),
@@ -469,7 +510,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                     bio,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        color: isDark ? Colors.white60 : Colors.black54,
+                        color: AppC.muted(context),
                         fontSize: 13),
                   ),
                 ],
@@ -506,7 +547,7 @@ class _ProfileTabState extends State<_ProfileTab> {
               Text(
                 'Sport Stats',
                 style: TextStyle(
-                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    color: AppC.text(context),
                     fontSize: 16,
                     fontWeight: FontWeight.w800),
               ),
@@ -536,14 +577,14 @@ class _ProfileTabState extends State<_ProfileTab> {
                             : Icons.star_border_rounded,
                         size: 16,
                         color: statsSvc.defaultSport == _selectedSport
-                            ? Colors.amber
-                            : Colors.white38,
+                            ? AppC.warning(context)
+                            : AppC.hint(context),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         'Set Default',
                         style: TextStyle(
-                            color: Colors.white38, fontSize: 11),
+                            color: AppC.hint(context), fontSize: 11),
                       ),
                     ],
                   ),
@@ -573,8 +614,8 @@ class _ProfileTabState extends State<_ProfileTab> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(12),
+                color: AppC.text(context).withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(color: primary.withValues(alpha: 0.35)),
               ),
               child: Row(
@@ -587,15 +628,15 @@ class _ProfileTabState extends State<_ProfileTab> {
                     const SizedBox(width: 10),
                     Text(
                       _selectedSport!,
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: AppC.text(context),
                           fontSize: 14,
                           fontWeight: FontWeight.w600),
                     ),
                   ] else
-                    const Text('Select a sport',
+                    Text('Select a sport',
                         style: TextStyle(
-                            color: Colors.white38, fontSize: 14)),
+                            color: AppC.hint(context), fontSize: 14)),
                   const Spacer(),
                   Icon(Icons.keyboard_arrow_down_rounded,
                       color: primary, size: 22),
@@ -752,9 +793,7 @@ class _SportStatsCardState extends State<_SportStatsCard> {
     final bestR       = _i(_bowl, 'bestRuns');
     final fiveWickets = _i(_bowl, 'fiveWickets');
 
-    final cardBg = widget.isDark
-        ? const Color(0xFF1C1C1E)
-        : const Color(0xFFF5F5F5);
+    final cardBg = AppC.card(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,10 +801,10 @@ class _SportStatsCardState extends State<_SportStatsCard> {
         // ── Batting summary ─────────────────────────────────────────────
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -809,10 +848,10 @@ class _SportStatsCardState extends State<_SportStatsCard> {
         // ── Bowling summary ─────────────────────────────────────────────
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -850,9 +889,7 @@ class _SportStatsCardState extends State<_SportStatsCard> {
           const SizedBox(height: 16),
           Text('By Format',
               style: TextStyle(
-                  color: widget.isDark
-                      ? Colors.white70
-                      : const Color(0xFF1A1A1A),
+                  color: AppC.text(context),
                   fontSize: 13,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
@@ -877,17 +914,17 @@ class _SportStatsCardState extends State<_SportStatsCard> {
                       color: isSel
                           ? widget.primary.withValues(alpha: 0.15)
                           : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                       border: Border.all(
                           color: isSel
                               ? widget.primary
-                              : Colors.white24),
+                              : AppC.border(context)),
                     ),
                     child: Text(fmt,
                         style: TextStyle(
                           color: isSel
                               ? widget.primary
-                              : Colors.white54,
+                              : AppC.muted(context),
                           fontSize: 12,
                           fontWeight: isSel
                               ? FontWeight.w700
@@ -918,12 +955,10 @@ class _SportStatsCardState extends State<_SportStatsCard> {
     final matches = (widget.stats['matches'] as num?)?.toInt() ?? 0;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: widget.isDark
-            ? const Color(0xFF1C1C1E)
-            : const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(14),
+        color: AppC.card(context),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: _CricStat(label: 'Matches Played', value: '$matches'),
     );
@@ -991,16 +1026,14 @@ class _FormatStatsRow extends StatelessWidget {
       return wickets == 0 ? '-' : (t / wickets).toStringAsFixed(1);
     }
 
-    final cardBg = isDark
-        ? const Color(0xFF242424)
-        : const Color(0xFFEEEEEE);
+    final cardBg = AppC.card(context);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: primary.withValues(alpha: 0.15)),
       ),
       child: Column(
@@ -1064,16 +1097,16 @@ class _CricStat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
-                color: Colors.white,
+            style: TextStyle(
+                color: AppC.text(context),
                 fontSize: 15,
                 fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-                color: Colors.white38,
+            style: TextStyle(
+                color: AppC.hint(context),
                 fontSize: 10),
           ),
         ],
@@ -1093,7 +1126,6 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ConstrainedBox(
       constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width - 48),
@@ -1101,7 +1133,7 @@ class _InfoChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: primary.withValues(alpha: 0.3)),
         ),
         child: Row(
@@ -1113,8 +1145,7 @@ class _InfoChip extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
-                    color:
-                        isDark ? Colors.white70 : const Color(0xFF1A1A1A),
+                    color: AppC.text(context),
                     fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1166,10 +1197,9 @@ class _HomeTabState extends State<_HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
-    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
-    final cardBg  = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF0F0F0);
+    final primary = AppC.primary(context);
+    final textCol = AppC.text(context);
+    final cardBg  = AppC.card(context);
     final name    = (UserService().profile?.name ?? '').split(' ').first;
 
     final location = UserService().profile?.location ?? '';
@@ -1185,22 +1215,22 @@ class _HomeTabState extends State<_HomeTab> {
 
           // ── Greeting + name + location ──────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+            padding: const EdgeInsets.fromLTRB(_kPageH, 10, _kPageH, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(_greeting,
                     style: TextStyle(
-                        color: isDark ? Colors.white54 : Colors.black45,
+                        color: AppC.muted(context),
                         fontSize: 13)),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xs),
                 Text(name.isNotEmpty ? name : 'Athlete',
                     style: TextStyle(
                         color: textCol,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5)),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpacing.sm),
                 GestureDetector(
                   onTap: () => _openLocationPicker(context),
                   child: Row(
@@ -1208,7 +1238,7 @@ class _HomeTabState extends State<_HomeTab> {
                     children: [
                       Icon(Icons.location_on_outlined,
                           size: 14,
-                          color: isDark ? Colors.white38 : Colors.black38),
+                          color: AppC.hint(context)),
                       const SizedBox(width: 3),
                       Flexible(
                         child: Text(
@@ -1216,7 +1246,7 @@ class _HomeTabState extends State<_HomeTab> {
                               ? location.split(',').take(2).join(',').trim()
                               : 'Set your location',
                           style: TextStyle(
-                              color: isDark ? Colors.white38 : Colors.black45,
+                              color: AppC.hint(context),
                               fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1225,7 +1255,7 @@ class _HomeTabState extends State<_HomeTab> {
                       const SizedBox(width: 4),
                       Icon(Icons.keyboard_arrow_down_rounded,
                           size: 14,
-                          color: isDark ? Colors.white24 : Colors.black26),
+                          color: AppC.hint(context)),
                     ],
                   ),
                 ),
@@ -1235,12 +1265,12 @@ class _HomeTabState extends State<_HomeTab> {
 
           // ── Sports | Venues toggle ───────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+            padding: const EdgeInsets.symmetric(horizontal: _kPageH),
             child: Container(
               height: 58,
               decoration: BoxDecoration(
                 color: cardBg,
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Row(
                 children: [
@@ -1249,7 +1279,6 @@ class _HomeTabState extends State<_HomeTab> {
                     icon: Icons.sports_outlined,
                     active: _showSports,
                     primary: primary,
-                    isDark: isDark,
                     onTap: () => setState(() => _showSports = true),
                   ),
                   _ToggleTab(
@@ -1257,7 +1286,6 @@ class _HomeTabState extends State<_HomeTab> {
                     icon: Icons.stadium_outlined,
                     active: !_showSports,
                     primary: primary,
-                    isDark: isDark,
                     onTap: () => setState(() => _showSports = false),
                   ),
                 ],
@@ -1268,7 +1296,7 @@ class _HomeTabState extends State<_HomeTab> {
           // ── Context banners (live / tournament / next game) ─────────────
           if (_showSports) const _ContextBanners(),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.md),
 
           // ── Content: Sports section OR Venues section ────────────────────
           Expanded(
@@ -1294,7 +1322,6 @@ class _ToggleTab extends StatelessWidget {
   final IconData  icon;
   final bool      active;
   final Color     primary;
-  final bool      isDark;
   final VoidCallback onTap;
 
   const _ToggleTab({
@@ -1302,7 +1329,6 @@ class _ToggleTab extends StatelessWidget {
     required this.icon,
     required this.active,
     required this.primary,
-    required this.isDark,
     required this.onTap,
   });
 
@@ -1313,10 +1339,10 @@ class _ToggleTab extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+          margin: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: active ? primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             boxShadow: active
                 ? [BoxShadow(
                     color: primary.withValues(alpha: 0.35),
@@ -1330,14 +1356,14 @@ class _ToggleTab extends StatelessWidget {
               Icon(icon,
                   size: 20,
                   color: active
-                      ? Colors.white
-                      : (isDark ? Colors.white38 : Colors.black38)),
+                      ? AppC.onPrimary(context)
+                      : AppC.hint(context)),
               const SizedBox(width: 8),
               Text(label,
                   style: TextStyle(
                     color: active
-                        ? Colors.white
-                        : (isDark ? Colors.white54 : Colors.black45),
+                        ? AppC.onPrimary(context)
+                        : AppC.muted(context),
                     fontSize: 16,
                     fontWeight:
                         active ? FontWeight.w700 : FontWeight.w500,
@@ -1384,9 +1410,9 @@ class _SportsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
-    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final primary = AppC.primary(context);
+    final textCol = AppC.text(context);
+    final isDark  = AppC.isDark(context);
     final ordered = _orderedSports();
 
     return SingleChildScrollView(
@@ -1395,7 +1421,7 @@ class _SportsGrid extends StatelessWidget {
         children: [
           // ── "Sports" label + See All ───────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 10),
             child: Row(
               children: [
                 Expanded(
@@ -1422,7 +1448,7 @@ class _SportsGrid extends StatelessWidget {
           SizedBox(
             height: 58,
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: _kPageH),
               scrollDirection: Axis.horizontal,
               itemCount: ordered.length,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
@@ -1436,22 +1462,16 @@ class _SportsGrid extends StatelessWidget {
                           MaterialPageRoute(
                               builder: (_) => const AllSportsScreen()));
                     } else {
-                      Navigator.of(context).push(PageRouteBuilder(
-                        opaque: false,
-                        pageBuilder: (_, _, _) =>
-                            SportActionGlassScreen(sport: label),
-                        transitionsBuilder: (_, anim, _, child) =>
-                            FadeTransition(opacity: anim, child: child),
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => NearbyGamesScreen(sport: label),
                       ));
                     }
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? primary.withValues(alpha: 0.12)
-                          : primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
+                      color: primary.withValues(alpha: isDark ? 0.12 : 0.08),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                       border: Border.all(
                           color: primary.withValues(alpha: 0.30)),
                     ),
@@ -1463,9 +1483,7 @@ class _SportsGrid extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(label,
                             style: TextStyle(
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF1A1A1A),
+                                color: textCol,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700)),
                       ],
@@ -1475,10 +1493,10 @@ class _SportsGrid extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
           // Sports Near You header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 10),
             child: Row(
               children: [
                 Expanded(
@@ -1502,7 +1520,7 @@ class _SportsGrid extends StatelessWidget {
             ),
           ),
           const _GamesGrid(),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.lg),
         ],
       ),
     );
@@ -1526,10 +1544,9 @@ class _GamesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
-    final cardBg  = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7);
-    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final primary = AppC.primary(context);
+    final cardBg  = AppC.card(context);
+    final textCol = AppC.text(context);
 
     return ListenableBuilder(
       listenable: GameListingService(),
@@ -1539,13 +1556,13 @@ class _GamesGrid extends StatelessWidget {
 
         if (games.isEmpty) {
           return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+            padding: const EdgeInsets.symmetric(horizontal: _kPageH),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(_kPageH),
               decoration: BoxDecoration(
                 color: cardBg,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
               child: Column(
                 children: [
@@ -1559,7 +1576,7 @@ class _GamesGrid extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text('Be the first to list one!',
                       style: TextStyle(
-                          color: isDark ? Colors.white38 : Colors.black38,
+                          color: AppC.hint(context),
                           fontSize: 12)),
                 ],
               ),
@@ -1569,7 +1586,7 @@ class _GamesGrid extends StatelessWidget {
 
         // 2-column grid rendered inside SingleChildScrollView parent
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: _kPageH),
           child: Column(
             children: [
               for (int i = 0; i < games.length; i += 2)
@@ -1628,7 +1645,6 @@ class _GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final dt = game.scheduledAt as DateTime;
     final h  = dt.hour;
     final am = h < 12 ? 'AM' : 'PM';
@@ -1640,12 +1656,11 @@ class _GameCard extends StatelessWidget {
       onTap: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => GameDetailScreen(listing: game))),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: isDark ? Colors.white10 : Colors.black12),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppC.border(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1672,12 +1687,12 @@ class _GameCard extends StatelessWidget {
               children: [
                 Icon(Icons.schedule_outlined,
                     size: 12,
-                    color: isDark ? Colors.white38 : Colors.black38),
+                    color: AppC.hint(context)),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(timeStr,
                       style: TextStyle(
-                          color: isDark ? Colors.white54 : Colors.black54,
+                          color: AppC.muted(context),
                           fontSize: 11),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
@@ -1691,12 +1706,12 @@ class _GameCard extends StatelessWidget {
                 children: [
                   Icon(Icons.location_on_outlined,
                       size: 12,
-                      color: isDark ? Colors.white38 : Colors.black38),
+                      color: AppC.hint(context)),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(game.venueName as String,
                         style: TextStyle(
-                            color: isDark ? Colors.white54 : Colors.black54,
+                            color: AppC.muted(context),
                             fontSize: 11),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
@@ -1711,13 +1726,13 @@ class _GameCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: spots > 0
                     ? primary.withValues(alpha: 0.15)
-                    : Colors.red.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
+                    : AppC.error(context).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
               child: Text(
                 spots > 0 ? '$spots spot${spots == 1 ? '' : 's'} left' : 'Full',
                 style: TextStyle(
-                    color: spots > 0 ? primary : Colors.redAccent,
+                    color: spots > 0 ? primary : AppC.error(context),
                     fontSize: 11,
                     fontWeight: FontWeight.w700),
               ),
@@ -1736,8 +1751,8 @@ class _VenuesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+    final primary = AppC.primary(context);
+    final isDark  = AppC.isDark(context);
 
     return ListenableBuilder(
       listenable: VenueService(),
@@ -1758,17 +1773,17 @@ class _VenuesGrid extends StatelessWidget {
                       children: [
                         Icon(Icons.stadium_outlined,
                             size: 48,
-                            color: isDark ? Colors.white24 : Colors.black26),
+                            color: AppC.hint(context)),
                         const SizedBox(height: 12),
                         Text('No venues nearby yet',
                             style: TextStyle(
-                                color: isDark ? Colors.white54 : Colors.black45,
+                                color: AppC.muted(context),
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600)),
                         const SizedBox(height: 4),
                         Text('Check back soon!',
                             style: TextStyle(
-                                color: isDark ? Colors.white38 : Colors.black38,
+                                color: AppC.hint(context),
                                 fontSize: 13)),
                       ],
                     ),
@@ -1778,7 +1793,7 @@ class _VenuesGrid extends StatelessWidget {
                 SizedBox(
                   height: 58,
                   child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: _kPageH),
                     scrollDirection: Axis.horizontal,
                     itemCount: venues.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 10),
@@ -1792,10 +1807,8 @@ class _VenuesGrid extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 18),
                           decoration: BoxDecoration(
-                            color: isDark
-                                ? primary.withValues(alpha: 0.12)
-                                : primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(16),
+                            color: primary.withValues(alpha: isDark ? 0.12 : 0.08),
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
                             border: Border.all(
                                 color: primary.withValues(alpha: 0.30)),
                           ),
@@ -1807,9 +1820,7 @@ class _VenuesGrid extends StatelessWidget {
                               const SizedBox(width: 8),
                               Text(v.name,
                                   style: TextStyle(
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFF1A1A1A),
+                                      color: AppC.text(context),
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700),
                                   maxLines: 1,
@@ -1949,10 +1960,9 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg     = isDark ? const Color(0xFF1A1A1A) : Colors.white;
-    final cardBg = isDark ? const Color(0xFF242424) : const Color(0xFFF5F5F5);
-    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final bg      = AppC.surface(context);
+    final cardBg  = AppC.card(context);
+    final textCol = AppC.text(context);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -1962,7 +1972,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       builder: (_, scrollCtrl) => Container(
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
         ),
         child: Column(
           children: [
@@ -1971,7 +1981,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               margin: const EdgeInsets.only(top: 10, bottom: 4),
               width: 40, height: 4,
               decoration: BoxDecoration(
-                color: isDark ? Colors.white24 : Colors.black12,
+                color: AppC.border(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1987,7 +1997,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                           fontWeight: FontWeight.w800)),
                   const Spacer(),
                   IconButton(
-                    icon: Icon(Icons.close, color: isDark ? Colors.white38 : Colors.black38),
+                    icon: Icon(Icons.close, color: AppC.hint(context)),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -2022,15 +2032,15 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(children: [
-                Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                Expanded(child: Divider(color: AppC.border(context))),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text('or search',
                       style: TextStyle(
-                          color: isDark ? Colors.white38 : Colors.black38,
+                          color: AppC.hint(context),
                           fontSize: 12)),
                 ),
-                Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                Expanded(child: Divider(color: AppC.border(context))),
               ]),
             ),
             const SizedBox(height: 12),
@@ -2045,10 +2055,10 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                 decoration: InputDecoration(
                   hintText: 'Search city, area or address…',
                   hintStyle: TextStyle(
-                      color: isDark ? Colors.white38 : Colors.black38,
+                      color: AppC.hint(context),
                       fontSize: 14),
                   prefixIcon: Icon(Icons.search,
-                      color: isDark ? Colors.white38 : Colors.black38),
+                      color: AppC.hint(context)),
                   suffixIcon: _searching
                       ? const Padding(
                           padding: EdgeInsets.all(12),
@@ -2058,7 +2068,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                       : (_searchCtrl.text.isNotEmpty
                           ? IconButton(
                               icon: Icon(Icons.clear,
-                                  color: isDark ? Colors.white38 : Colors.black38,
+                                  color: AppC.hint(context),
                                   size: 18),
                               onPressed: () {
                                 _searchCtrl.clear();
@@ -2086,7 +2096,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                             ? 'Start typing to search'
                             : 'No results found',
                         style: TextStyle(
-                            color: isDark ? Colors.white38 : Colors.black38,
+                            color: AppC.hint(context),
                             fontSize: 13),
                       ),
                     )
@@ -2097,7 +2107,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                       itemCount: _suggestions.length,
                       separatorBuilder: (_, _) => Divider(
                           height: 1,
-                          color: isDark ? Colors.white10 : Colors.black12),
+                          color: AppC.border(context)),
                       itemBuilder: (context, i) => ListTile(
                         leading: Icon(Icons.location_on_outlined,
                             color: AppColors.primary, size: 20),
@@ -2296,17 +2306,15 @@ class _BannerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = AppC.isDark(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+        margin: const EdgeInsets.fromLTRB(_kPageH, 6, _kPageH, 0),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: isDark
-              ? color.withValues(alpha: 0.12)
-              : color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
+          color: color.withValues(alpha: isDark ? 0.12 : 0.08),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: color.withValues(alpha: 0.35)),
         ),
         child: Row(
@@ -2319,7 +2327,7 @@ class _BannerRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                  color: AppC.text(context),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -2330,17 +2338,152 @@ class _BannerRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
               child: Text(actionLabel,
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppC.onPrimary(context),
                       fontSize: 11,
                       fontWeight: FontWeight.w700)),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Permission request dialog (first launch) ─────────────────────────────────
+
+class _PermissionDialog extends StatelessWidget {
+  const _PermissionDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = AppC.primary(context);
+    final textCol = AppC.text(context);
+    final cardBg  = AppC.card(context);
+
+    return Dialog(
+      backgroundColor: cardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.sports_rounded, color: primary, size: 28),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Enhance Your Experience',
+              style: TextStyle(
+                color: textCol,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'MySportsBuddies needs a couple of permissions to work best for you:',
+              style: TextStyle(color: AppC.muted(context), fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const _PermItem(
+              icon: Icons.location_on_outlined,
+              title: 'Location',
+              subtitle: 'Find games and players near you',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const _PermItem(
+              icon: Icons.notifications_outlined,
+              title: 'Notifications',
+              subtitle: 'Get updates on games, scores & messages',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Allow',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Not Now',
+                  style: TextStyle(
+                    color: AppC.muted(context),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PermItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _PermItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = AppC.primary(context);
+    return Row(
+      children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: Icon(icon, color: primary, size: 20),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(
+                color: AppC.text(context),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              )),
+              Text(subtitle, style: TextStyle(
+                color: AppC.muted(context), fontSize: 12)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -2429,9 +2572,9 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: AppC.surface(context),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
         ),
         child: Column(
           children: [
@@ -2440,7 +2583,7 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
               margin: const EdgeInsets.only(top: 10, bottom: 6),
               width: 36, height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppC.border(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2449,14 +2592,14 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  const Text('Select Sport',
+                  Text('Select Sport',
                       style: TextStyle(
-                          color: Colors.white,
+                          color: AppC.text(context),
                           fontSize: 16,
                           fontWeight: FontWeight.bold)),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                    icon: Icon(Icons.close, color: AppC.muted(context), size: 20),
                     onPressed: () => Navigator.pop(context),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -2470,46 +2613,46 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
               child: TextField(
                 controller: _searchCtrl,
                 autofocus: true,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: AppC.text(context), fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Search sport…',
-                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                  hintStyle: TextStyle(color: AppC.hint(context), fontSize: 14),
+                  prefixIcon: Icon(Icons.search, color: AppC.hint(context), size: 20),
                   suffixIcon: _query.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white38, size: 16),
+                          icon: Icon(Icons.close, color: AppC.hint(context), size: 16),
                           onPressed: () => _searchCtrl.clear(),
                           padding: EdgeInsets.zero,
                         )
                       : null,
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.07),
+                  fillColor: AppC.card(context),
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: AppC.border(context)),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: AppC.border(context)),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.primary),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: AppC.primary(context)),
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 4),
-            const Divider(color: Colors.white12, height: 1),
+            Divider(color: AppC.border(context), height: 1),
             // Sports list
             Expanded(
               child: filtered.isEmpty
                   ? Center(
                       child: Text('No sport matching "$_query"',
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 13)),
+                          style: TextStyle(
+                              color: AppC.hint(context), fontSize: 13)),
                     )
                   : ListView.builder(
                       controller: scrollCtrl,
@@ -2526,12 +2669,12 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
                             width: 40, height: 40,
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppColors.primary.withValues(alpha: 0.2)
-                                  : Colors.white.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(10),
+                                  ? AppC.primary(context).withValues(alpha: 0.2)
+                                  : AppC.text(context).withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                               border: isSelected
                                   ? Border.all(
-                                      color: AppColors.primary.withValues(alpha: 0.5))
+                                      color: AppC.primary(context).withValues(alpha: 0.5))
                                   : null,
                             ),
                             child: Center(
@@ -2543,8 +2686,8 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
                             sport,
                             style: TextStyle(
                               color: isSelected
-                                  ? AppColors.primary
-                                  : Colors.white,
+                                  ? AppC.primary(context)
+                                  : AppC.text(context),
                               fontSize: 14,
                               fontWeight: isSelected
                                   ? FontWeight.bold
@@ -2552,14 +2695,14 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
                             ),
                           ),
                           subtitle: hasStats
-                              ? const Text('Stats available',
+                              ? Text('Stats available',
                                   style: TextStyle(
-                                      color: Colors.green,
+                                      color: AppC.success(context),
                                       fontSize: 11))
                               : null,
                           trailing: isSelected
-                              ? const Icon(Icons.check_circle,
-                                  color: AppColors.primary, size: 20)
+                              ? Icon(Icons.check_circle,
+                                  color: AppC.primary(context), size: 20)
                               : null,
                         );
                       },
@@ -2581,7 +2724,7 @@ class BannerImage extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         image: DecorationImage(
           image: AssetImage(imagePath),
           fit: BoxFit.cover,
