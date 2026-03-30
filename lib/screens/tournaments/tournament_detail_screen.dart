@@ -7,6 +7,7 @@ import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
+import '../community/user_profile_screen.dart';
 import 'bracket_widget.dart';
 import 'enroll_team_sheet.dart';
 import 'host_dashboard_screen.dart';
@@ -132,8 +133,8 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                     }
                     setS(() => saving = true);
                     try {
-                      final winnerId   = sA > sB ? m.teamAId! : sB > sA ? m.teamBId! : m.teamAId!;
-                      final winnerName = sA > sB ? m.teamAName! : sB > sA ? m.teamBName! : 'Draw';
+                      final winnerId   = sA > sB ? m.teamAId! : sB > sA ? m.teamBId! : '';
+                      final winnerName = sA > sB ? m.teamAName! : sB > sA ? m.teamBName! : '';
                       await TournamentService().updateMatchResult(
                         tournamentId: widget.tournamentId,
                         matchId:      m.id,
@@ -1033,10 +1034,12 @@ class _TableTab extends StatelessWidget {
 
 class _PTStat {
   final String name;
+  final String teamId;
+  final int wPts, dPts, lPts;
   int played = 0, won = 0, lost = 0, drawn = 0;
   int scoreFor = 0, scoreAgainst = 0;
-  _PTStat(this.name);
-  int get pts => won * 2 + drawn;
+  _PTStat(this.name, {required this.teamId, this.wPts = 3, this.dPts = 1, this.lPts = 0});
+  int get pts => won * wPts + drawn * dPts + lost * lPts;
   double get nrr =>
       played == 0 ? 0 : (scoreFor - scoreAgainst) / played.toDouble();
 }
@@ -1051,7 +1054,14 @@ class _PointsTableView extends StatelessWidget {
 
   Map<String, _PTStat> _buildStats(
       List<TournamentMatch> matches, List<TournamentTeam> teams) {
-    final stats = {for (final t in teams) t.id: _PTStat(t.teamName)};
+    final stats = {
+      for (final t in teams)
+        t.id: _PTStat(t.teamName,
+            teamId: t.id,
+            wPts: tournament.winPoints,
+            dPts: tournament.drawPoints,
+            lPts: tournament.lossPoints),
+    };
     for (final m in matches) {
       if (!m.isPlayed || m.isBye) continue;
       _accum(stats, m.teamAId, m.scoreA, m.scoreB, m.result, isA: true);
@@ -1114,7 +1124,7 @@ class _PointsTableView extends StatelessWidget {
                 children: [
                   _GroupTableHeader(groupName: g.name),
                   _CricbuzzTable(
-                      stats: sorted, sport: tournament.sport),
+                      stats: sorted, sport: tournament.sport, tournamentId: tournamentId),
                   const SizedBox(height: 24),
                 ],
               );
@@ -1127,7 +1137,7 @@ class _PointsTableView extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            _CricbuzzTable(stats: sorted, sport: tournament.sport),
+            _CricbuzzTable(stats: sorted, sport: tournament.sport, tournamentId: tournamentId),
             const SizedBox(height: 80),
           ],
         );
@@ -1166,7 +1176,8 @@ class _GroupTableHeader extends StatelessWidget {
 class _CricbuzzTable extends StatelessWidget {
   final List<_PTStat> stats;
   final String        sport;
-  const _CricbuzzTable({required this.stats, required this.sport});
+  final String        tournamentId;
+  const _CricbuzzTable({required this.stats, required this.sport, required this.tournamentId});
 
   bool   get _isCricket => sport.toLowerCase() == 'cricket';
   String get _diffLabel => _isCricket ? 'NRR' : 'GD';
@@ -1224,7 +1235,18 @@ class _CricbuzzTable extends StatelessWidget {
             return Column(children: [
               if (e.key > 0)
                 const Divider(height: 1, color: Colors.white10),
-              Container(
+              InkWell(
+                onTap: () {
+                  final team = TournamentService()
+                      .teamsFor(tournamentId)
+                      .where((t) => t.id == s.teamId)
+                      .firstOrNull;
+                  if (team != null) {
+                    _TeamDetailSheet.show(context,
+                        tournamentId: tournamentId, team: team);
+                  }
+                },
+                child: Container(
                 color: top2
                     ? AppColors.primary.withAlpha(10)
                     : Colors.transparent,
@@ -1301,6 +1323,7 @@ class _CricbuzzTable extends StatelessWidget {
                             : Colors.white38,
                   ),
                 ]),
+              ),
               ),
             ]);
           }),
@@ -1529,7 +1552,7 @@ class _SquadsTabState extends State<_SquadsTab> {
             border: Border.all(color: Colors.white12),
           ),
           child: Column(children: [
-            // Team header (tap to expand)
+            // Team header (tap to expand, long-press for detail)
             InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () async {
@@ -1541,6 +1564,8 @@ class _SquadsTabState extends State<_SquadsTab> {
                   await svc.loadSquad(widget.tournamentId, team.id);
                 }
               },
+              onLongPress: () => _TeamDetailSheet.show(context,
+                  tournamentId: widget.tournamentId, team: team),
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Row(children: [
@@ -1573,18 +1598,67 @@ class _SquadsTabState extends State<_SquadsTab> {
                 ]),
               ),
             ),
-            // Squad list
+            // Squad list (prefer squad subcollection, fall back to team.players)
             if (isOpen) ...[
               const Divider(height: 1, color: Colors.white12),
-              if (squad.isEmpty)
+              if (squad.isNotEmpty)
+                ...squad.map((p) => _SquadPlayerTile(player: p))
+              else if (team.players.isNotEmpty)
+                ...team.players.asMap().entries.map((e) {
+                  final name   = e.value;
+                  final idx    = e.key;
+                  final userId = idx < team.playerUserIds.length
+                      ? team.playerUserIds[idx] : '';
+                  return InkWell(
+                    onTap: userId.isNotEmpty
+                        ? () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => UserProfileScreen(userId: userId)))
+                        : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      child: Row(children: [
+                        Container(
+                          width: 28, height: 28,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withAlpha(25),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(child: Text('${idx + 1}',
+                              style: const TextStyle(color: AppColors.primary,
+                                  fontSize: 11, fontWeight: FontWeight.w700))),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(name,
+                            style: const TextStyle(color: Colors.white,
+                                fontSize: 13, fontWeight: FontWeight.w500),
+                            maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        if (name == team.captainName) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withAlpha(30),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text('C',
+                                style: TextStyle(color: AppColors.primary,
+                                    fontSize: 10, fontWeight: FontWeight.w800)),
+                          ),
+                        ],
+                        if (userId.isNotEmpty)
+                          const Icon(Icons.chevron_right,
+                              color: Colors.white24, size: 18),
+                      ]),
+                    ),
+                  );
+                })
+              else
                 const Padding(
                   padding: EdgeInsets.all(16),
                   child: Text('No squad members added yet',
                       style: TextStyle(color: Colors.white38, fontSize: 13),
                       textAlign: TextAlign.center),
-                )
-              else
-                ...squad.map((p) => _SquadPlayerTile(player: p)),
+                ),
               const SizedBox(height: 8),
             ],
           ]),
@@ -1600,49 +1674,64 @@ class _SquadPlayerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(children: [
-        Container(
-          width: 32, height: 32,
-          decoration: BoxDecoration(
-            color: Colors.white10,
-            shape: BoxShape.circle,
+    final hasTap = player.userId.isNotEmpty;
+    return InkWell(
+      onTap: hasTap
+          ? () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => UserProfileScreen(userId: player.userId)))
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: Colors.white10,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(player.jerseyNumber > 0
+                  ? '${player.jerseyNumber}'
+                  : player.playerName.isNotEmpty
+                      ? player.playerName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(color: Colors.white70,
+                      fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
           ),
-          child: Center(
-            child: Text(player.jerseyNumber > 0
-                ? '${player.jerseyNumber}'
-                : player.playerName[0].toUpperCase(),
-                style: const TextStyle(color: Colors.white70,
-                    fontSize: 12, fontWeight: FontWeight.w700)),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text(player.playerName,
-                  style: const TextStyle(color: Colors.white,
-                      fontSize: 13, fontWeight: FontWeight.w600)),
-              if (player.isCaptain) ...[
-                const SizedBox(width: 6),
-                _RoleBadge('C', AppColors.primary),
-              ],
-              if (player.isViceCaptain) ...[
-                const SizedBox(width: 4),
-                _RoleBadge('VC', Colors.orange),
-              ],
-            ]),
-            if (player.role.isNotEmpty)
-              Text(player.role,
-                  style: const TextStyle(color: Colors.white38, fontSize: 11)),
-          ],
-        )),
-        if (player.playerId.isNotEmpty)
-          Text(player.playerId,
-              style: const TextStyle(color: Colors.white24, fontSize: 11)),
-      ]),
+          const SizedBox(width: 10),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Flexible(child: Text(player.playerName,
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+                if (player.isCaptain) ...[
+                  const SizedBox(width: 6),
+                  _RoleBadge('C', AppColors.primary),
+                ],
+                if (player.isViceCaptain) ...[
+                  const SizedBox(width: 4),
+                  _RoleBadge('VC', Colors.orange),
+                ],
+              ]),
+              if (player.role.isNotEmpty)
+                Text(player.role,
+                    style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            ],
+          )),
+          if (player.playerId.isNotEmpty)
+            Text(player.playerId,
+                style: const TextStyle(color: Colors.white24, fontSize: 11)),
+          if (hasTap)
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+            ),
+        ]),
+      ),
     );
   }
 }
@@ -2440,4 +2529,305 @@ class _MatchVsBanner extends StatelessWidget {
       ]),
     );
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Team Detail Sheet — shows team info, players, and their matches
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _TeamDetailSheet extends StatelessWidget {
+  final String           tournamentId;
+  final TournamentTeam   team;
+  final ScrollController scrollCtrl;
+
+  const _TeamDetailSheet({
+    required this.tournamentId,
+    required this.team,
+    required this.scrollCtrl,
+  });
+
+  static void show(BuildContext context,
+      {required String tournamentId, required TournamentTeam team}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        minChildSize: 0.4,
+        builder: (ctx, scroll) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF141414),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: _TeamDetailSheet(
+            tournamentId: tournamentId,
+            team: team,
+            scrollCtrl: scroll,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final svc     = TournamentService();
+    final matches = svc.matchesFor(tournamentId);
+
+    // Filter matches involving this team
+    final teamMatches = matches.where((m) =>
+        m.teamAId == team.id || m.teamBId == team.id).toList();
+    final played = teamMatches.where((m) => m.isPlayed).toList();
+    final upcoming = teamMatches.where((m) => !m.isPlayed && !m.isBye).toList();
+
+    // Stats
+    int wins = 0, losses = 0, draws = 0, goalsFor = 0, goalsAgainst = 0;
+    for (final m in played) {
+      if (m.isBye) continue;
+      final isA = m.teamAId == team.id;
+      goalsFor     += (isA ? m.scoreA : m.scoreB) ?? 0;
+      goalsAgainst += (isA ? m.scoreB : m.scoreA) ?? 0;
+      if (m.winnerId == team.id) {
+        wins++;
+      } else if (m.result == TournamentMatchResult.draw) {
+        draws++;
+      } else {
+        losses++;
+      }
+    }
+
+    return ListView(
+      controller: scrollCtrl,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      children: [
+        // Drag handle
+        Center(child: Container(
+          width: 36, height: 4,
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white24,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        )),
+
+        // Team header
+        Row(children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withAlpha(30),
+              shape: BoxShape.circle,
+            ),
+            child: Center(child: Text(
+              team.teamName.isNotEmpty ? team.teamName[0].toUpperCase() : '?',
+              style: const TextStyle(color: AppColors.primary,
+                  fontSize: 22, fontWeight: FontWeight.w800),
+            )),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(team.teamName,
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text('Captain: ${team.captainName}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+            ],
+          )),
+        ]),
+        const SizedBox(height: 20),
+
+        // Stats row
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(children: [
+            _StatBox('P', '${played.length}'),
+            _StatBox('W', '$wins', color: Colors.green),
+            _StatBox('L', '$losses', color: Colors.red[300]),
+            _StatBox('D', '$draws'),
+            _StatBox('GF', '$goalsFor', color: AppColors.primary),
+            _StatBox('GA', '$goalsAgainst'),
+          ]),
+        ),
+        const SizedBox(height: 20),
+
+        // Players
+        if (team.players.isNotEmpty) ...[
+          const Text('SQUAD',
+              style: TextStyle(color: Colors.white38, fontSize: 11,
+                  fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+          const SizedBox(height: 8),
+          ...team.players.asMap().entries.map((e) {
+            final name    = e.value;
+            final idx     = e.key;
+            final userId  = idx < team.playerUserIds.length
+                ? team.playerUserIds[idx] : '';
+            final isCaptain = name == team.captainName;
+
+            return InkWell(
+              onTap: userId.isNotEmpty
+                  ? () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => UserProfileScreen(userId: userId)))
+                  : null,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(children: [
+                  Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: isCaptain
+                          ? AppColors.primary.withAlpha(30) : Colors.white10,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(child: Text('${idx + 1}',
+                        style: TextStyle(
+                          color: isCaptain ? AppColors.primary : Colors.white54,
+                          fontSize: 11, fontWeight: FontWeight.w700))),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(name,
+                      style: const TextStyle(color: Colors.white,
+                          fontSize: 13, fontWeight: FontWeight.w500))),
+                  if (isCaptain)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withAlpha(30),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text('C',
+                          style: TextStyle(color: AppColors.primary,
+                              fontSize: 10, fontWeight: FontWeight.w800)),
+                    ),
+                  if (userId.isNotEmpty)
+                    const Icon(Icons.chevron_right,
+                        color: Colors.white24, size: 18),
+                ]),
+              ),
+            );
+          }),
+          const SizedBox(height: 20),
+        ],
+
+        // Matches
+        const Text('MATCHES',
+            style: TextStyle(color: Colors.white38, fontSize: 11,
+                fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+        const SizedBox(height: 8),
+        if (teamMatches.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No matches scheduled yet',
+                style: TextStyle(color: Colors.white38, fontSize: 13)),
+          )
+        else
+          ...teamMatches.map((m) {
+            final isA   = m.teamAId == team.id;
+            final opp   = isA ? (m.teamBName ?? 'TBD') : (m.teamAName ?? 'TBD');
+            final myScore  = isA ? m.scoreA : m.scoreB;
+            final oppScore = isA ? m.scoreB : m.scoreA;
+            final won      = m.winnerId == team.id;
+            final lost     = m.isPlayed && !won &&
+                m.result != TournamentMatchResult.draw;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: won
+                    ? Colors.green.withAlpha(60)
+                    : lost ? Colors.red.withAlpha(40) : Colors.white12),
+              ),
+              child: Row(children: [
+                // Result badge
+                if (m.isPlayed && !m.isBye)
+                  Container(
+                    width: 28, height: 28,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      color: won ? Colors.green.withAlpha(40)
+                          : lost ? Colors.red.withAlpha(30)
+                          : Colors.white10,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(child: Text(
+                      won ? 'W' : lost ? 'L' : 'D',
+                      style: TextStyle(
+                        color: won ? Colors.green
+                            : lost ? Colors.red[300] : Colors.white54,
+                        fontSize: 11, fontWeight: FontWeight.w800),
+                    )),
+                  )
+                else if (m.isBye)
+                  Container(
+                    width: 28, height: 28,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                        color: Colors.white10, shape: BoxShape.circle),
+                    child: const Center(child: Text('BYE',
+                        style: TextStyle(color: Colors.white38,
+                            fontSize: 8, fontWeight: FontWeight.w700))),
+                  ),
+                // Opponent + score
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(m.isBye ? 'Bye' : 'vs $opp',
+                        style: const TextStyle(color: Colors.white,
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (m.isPlayed && !m.isBye)
+                      Text('$myScore - $oppScore',
+                          style: TextStyle(
+                            color: won ? Colors.green : Colors.white54,
+                            fontSize: 12, fontWeight: FontWeight.w700)),
+                  ],
+                )),
+                // Round label
+                Text('R${m.round}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 11)),
+              ]),
+            );
+          }),
+        if (upcoming.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('${upcoming.length} upcoming match${upcoming.length > 1 ? "es" : ""}',
+              style: const TextStyle(color: Colors.white38, fontSize: 11)),
+        ],
+      ],
+    );
+  }
+}
+
+class _StatBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? color;
+  const _StatBox(this.label, this.value, {this.color});
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Column(children: [
+      Text(value,
+          style: TextStyle(color: color ?? Colors.white,
+              fontSize: 18, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 2),
+      Text(label,
+          style: const TextStyle(color: Colors.white38,
+              fontSize: 10, fontWeight: FontWeight.w600)),
+    ]),
+  );
 }

@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../core/models/match_score.dart';
+import 'notification_service.dart';
 import 'stats_service.dart';
+import 'user_service.dart';
 
 /// Singleton ChangeNotifier — source of truth for all live scoreboards.
 ///
@@ -137,7 +139,29 @@ class ScoreboardService extends ChangeNotifier {
     m.genericScore?.timer.pause();
     _persist(m);
     StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch); // write player stats async
+    _notifyMatchPlayers(m, result);
     notifyListeners();
+  }
+
+  /// Notify all tagged players that a match they were in has ended.
+  void _notifyMatchPlayers(LiveMatch m, String result) {
+    final myUid = UserService().userId ?? '';
+    final allPlayerIds = <String>{
+      ...m.teamAPlayerUserIds,
+      ...m.teamBPlayerUserIds,
+    }..remove(myUid); // don't notify the scorer
+
+    final sport = m.sportDisplayName;
+    for (final uid in allPlayerIds) {
+      if (uid.isEmpty) continue;
+      NotificationService.send(
+        toUserId: uid,
+        type:     NotifType.matchResult,
+        title:    '$sport Match Ended',
+        body:     '${m.teamA} vs ${m.teamB} — $result',
+        targetId: m.id,
+      );
+    }
   }
 
   void setManOfMatch(String matchId, String playerName) {

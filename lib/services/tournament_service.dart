@@ -146,9 +146,106 @@ class TournamentService extends ChangeNotifier {
           .docs.map(TournamentGroup.fromFirestore).toList())
         ..sort((a, b) => a.name.compareTo(b.name));
 
+      // ── Self-healing: repair missing bracket advancements ────────────
+      try {
+        // For League+KO: seed KO bracket from group results if not done yet
+        final tourn = _tournaments
+            .where((t) => t.id == tournamentId).firstOrNull;
+        if (tourn?.format == TournamentFormat.leagueKnockout) {
+          await _advanceGroupWinnersToKO(tournamentId);
+        }
+        await _repairAdvancements(tournamentId);
+      } catch (e) {
+        debugPrint('[bracket] _repairAdvancements error: $e');
+      }
+
       notifyListeners();
     } catch (e) {
       debugPrint('TournamentService.loadDetail error: $e');
+    }
+  }
+
+  /// One-pass repair: for every completed match with a winner, ensure
+  /// that winner appears in the correct slot of the next-round match.
+  /// Reads entirely from Firestore (not in-memory) and uses a single batch.
+  Future<void> _repairAdvancements(String tournamentId) async {
+    // Read ALL match docs directly from Firestore — single source of truth
+    final matchesRef = _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches');
+    final allSnap = await matchesRef.get();
+    if (allSnap.docs.isEmpty) return;
+
+    debugPrint('[repair] ${allSnap.docs.length} match docs in Firestore');
+
+    // Build map: "round_matchIndex" → (docRef, data)
+    final docMap = <String, ({DocumentReference ref, Map<String, dynamic> data})>{};
+    for (final d in allSnap.docs) {
+      final data = d.data();
+      final r  = (data['round']      as num?)?.toInt();
+      final mi = (data['matchIndex'] as num?)?.toInt();
+      if (r != null && mi != null) {
+        docMap['${r}_$mi'] = (ref: d.reference, data: data);
+      }
+    }
+
+    debugPrint('[repair] Keys: ${docMap.keys.toList()..sort()}');
+
+    final batch = _db.batch();
+    int fixes = 0;
+
+    for (final entry in docMap.entries) {
+      final data     = entry.value.data;
+      final winnerId = data['winnerId'] as String?;
+      if (winnerId == null || winnerId.isEmpty) continue;
+
+      // Skip group-stage matches — they don't advance in a knockout tree
+      final note = data['note'] as String? ?? '';
+      if (note.startsWith('Group')) continue;
+
+      final round      = (data['round']      as num).toInt();
+      final matchIndex = (data['matchIndex'] as num).toInt();
+      final winnerName = data['winnerName'] as String? ?? '';
+
+      final nextRound      = round + 1;
+      final nextMatchIndex = matchIndex ~/ 2;
+      final isSlotA        = matchIndex.isEven;
+      final nextKey        = '${nextRound}_$nextMatchIndex';
+
+      final next = docMap[nextKey];
+      if (next == null) continue; // final round — nowhere to advance
+
+      // Check if already correct
+      final slotField = isSlotA ? 'teamAId' : 'teamBId';
+      final currentSlot = next.data[slotField] as String?;
+      if (currentSlot == winnerId) continue;
+
+      debugPrint('[repair] FIX: $winnerName from '
+          'R${round}M$matchIndex → R${nextRound}M$nextMatchIndex '
+          '(${isSlotA ? "A" : "B"}) was=$currentSlot');
+
+      final update = isSlotA
+          ? {'teamAId': winnerId, 'teamAName': winnerName}
+          : {'teamBId': winnerId, 'teamBName': winnerName};
+      batch.update(next.ref, update);
+      fixes++;
+    }
+
+    if (fixes > 0) {
+      debugPrint('[repair] Committing $fixes bracket fixes');
+      await batch.commit();
+      // Re-read into in-memory cache
+      final snap = await matchesRef.get();
+      _matches[tournamentId] = (snap.docs
+          .map(TournamentMatch.fromFirestore)
+          .toList())
+        ..sort((a, b) {
+          final r = a.round.compareTo(b.round);
+          return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
+        });
+    } else {
+      debugPrint('[repair] All advancements correct');
     }
   }
 
@@ -169,9 +266,16 @@ class TournamentService extends ChangeNotifier {
     DateTime?                 endDate,
     String?                   rules,
     String?                   bannerUrl,
+    ScoringType               scoringType = ScoringType.standard,
+    int                       bestOf = 3,
+    int                       winPoints = 3,
+    int                       drawPoints = 1,
+    int                       lossPoints = 0,
+    String?                   customScoringLabel,
   }) async {
-    final isPremium = UserService().profile?.isPremium == true;
-    if (maxTeams > 4 && !isPremium) throw PremiumRequiredException();
+    if (maxTeams > 4 && !UserService().hasFullAccess) {
+      throw PremiumRequiredException();
+    }
 
     final userId   = UserService().userId ?? '';
     final userName = UserService().profile?.name ?? 'Unknown';
@@ -199,9 +303,29 @@ class TournamentService extends ChangeNotifier {
       endDate:          endDate,
       rules:            rules,
       bannerUrl:        bannerUrl,
+      scoringType:      scoringType,
+      bestOf:           bestOf,
+      winPoints:        winPoints,
+      drawPoints:       drawPoints,
+      lossPoints:       lossPoints,
+      customScoringLabel: customScoringLabel,
     );
 
     await ref.set(tournament.toMap());
+
+    // Store the location as the primary venue in the venues subcollection
+    if (location.trim().isNotEmpty) {
+      final venueRef = ref.collection('venues').doc();
+      final venue = TournamentVenue(
+        id:           venueRef.id,
+        tournamentId: ref.id,
+        name:         location,
+        address:      location,
+        city:         location.split(',').last.trim(),
+      );
+      await venueRef.set(venue.toMap());
+    }
+
     return ref.id;
   }
 
@@ -253,12 +377,15 @@ class TournamentService extends ChangeNotifier {
       throw Exception('A team named "$teamName" is already enrolled');
     }
 
-    // Guard: same user already enrolled
-    final alreadyEnrolled = existing.docs.any(
-      (d) => (d.data()['enrolledBy'] as String? ?? '') == userId,
-    );
-    if (alreadyEnrolled) {
-      throw Exception('You have already enrolled a team in this tournament');
+    // Guard: same user already enrolled (hosts can enroll multiple teams)
+    final isHostUser = tourn.createdBy == userId;
+    if (!isHostUser) {
+      final alreadyEnrolled = existing.docs.any(
+        (d) => (d.data()['enrolledBy'] as String? ?? '') == userId,
+      );
+      if (alreadyEnrolled) {
+        throw Exception('You have already enrolled a team in this tournament');
+      }
     }
 
     final seed = existing.docs.length + 1;
@@ -331,6 +458,18 @@ class TournamentService extends ChangeNotifier {
         type:     NotifType.tournamentUpdate,
         title:    '${tourn.name} — New Team',
         body:     '$enrollerName\'s team "$teamName" just enrolled',
+        targetId: tournamentId,
+      );
+    }
+
+    // Notify each player added to this team (except the enrolling user)
+    for (final pUid in playerUserIds) {
+      if (pUid.isEmpty || pUid == userId) continue;
+      await NotificationService.send(
+        toUserId: pUid,
+        type:     NotifType.tournamentUpdate,
+        title:    'You\'ve been added to $teamName',
+        body:     '$enrollerName added you to "$teamName" in ${tourn.name}',
         targetId: tournamentId,
       );
     }
@@ -439,12 +578,42 @@ class TournamentService extends ChangeNotifier {
 
     await batch.commit();
 
-    // Auto-advance byes
-    await loadDetail(tournamentId);
-    final allMatches = _matches[tournamentId] ?? [];
-    for (final m in allMatches.where((m) => m.isBye && m.winnerId != null)) {
-      await _advanceWinner(tournamentId, m);
+    // Auto-advance byes: read all match docs, find byes with winners,
+    // write each winner into the correct next-round slot.
+    final allSnap = await matchesRef.get();
+    final docMap = <String, QueryDocumentSnapshot>{};
+    for (final d in allSnap.docs) {
+      final data = d.data() as Map<String, dynamic>;
+      final r  = (data['round'] as num?)?.toInt();
+      final mi = (data['matchIndex'] as num?)?.toInt();
+      if (r != null && mi != null) docMap['${r}_$mi'] = d;
     }
+
+    final byeBatch = _db.batch();
+    bool hasByeWrites = false;
+    for (final d in allSnap.docs) {
+      final data = d.data() as Map<String, dynamic>;
+      final isBye    = data['isBye'] as bool? ?? false;
+      final winnerId = data['winnerId'] as String?;
+      if (!isBye || winnerId == null || winnerId.isEmpty) continue;
+
+      final round      = (data['round']      as num).toInt();
+      final matchIndex = (data['matchIndex'] as num).toInt();
+      final nextRound      = round + 1;
+      final nextMatchIndex = matchIndex ~/ 2;
+      final isSlotA        = matchIndex.isEven;
+      final nextKey        = '${nextRound}_$nextMatchIndex';
+      final nextDoc        = docMap[nextKey];
+      if (nextDoc == null) continue;
+
+      final winnerName = data['winnerName'] as String? ?? '';
+      final update = isSlotA
+          ? {'teamAId': winnerId, 'teamAName': winnerName}
+          : {'teamBId': winnerId, 'teamBName': winnerName};
+      byeBatch.update(nextDoc.reference, update);
+      hasByeWrites = true;
+    }
+    if (hasByeWrites) await byeBatch.commit();
   }
 
   Future<void> _generateRoundRobin(
@@ -595,6 +764,12 @@ class TournamentService extends ChangeNotifier {
     DateTime?                 endDate,
     String?                   prizePool,
     String?                   rules,
+    ScoringType               scoringType = ScoringType.standard,
+    int                       bestOf = 3,
+    int                       winPoints = 3,
+    int                       drawPoints = 1,
+    int                       lossPoints = 0,
+    String?                   customScoringLabel,
   }) async {
     await _db.collection(_col).doc(tournamentId).update({
       'name':          name,
@@ -609,6 +784,12 @@ class TournamentService extends ChangeNotifier {
       'endDate':       endDate != null ? Timestamp.fromDate(endDate) : null,
       'prizePool':     prizePool,
       'rules':         rules,
+      'scoringType':   scoringType.name,
+      'bestOf':        bestOf,
+      'winPoints':     winPoints,
+      'drawPoints':    drawPoints,
+      'lossPoints':    lossPoints,
+      'customScoringLabel': customScoringLabel,
     });
     await loadTournaments();
   }
@@ -664,6 +845,24 @@ class TournamentService extends ChangeNotifier {
     await loadDetail(tournamentId);
   }
 
+  // ── Clear matches only (preserves teams) ────────────────────────────────
+
+  Future<void> clearMatchesOnly(String tournamentId) async {
+    final ref = _db.collection(_col).doc(tournamentId);
+    QuerySnapshot snap;
+    do {
+      snap = await ref.collection('matches').limit(200).get();
+      if (snap.docs.isEmpty) break;
+      final batch = _db.batch();
+      for (final d in snap.docs) { batch.delete(d.reference); }
+      await batch.commit();
+    } while (snap.docs.length == 200);
+
+    await ref.update({'bracketGenerated': false});
+    _matches.remove(tournamentId);
+    await loadDetail(tournamentId);
+  }
+
   // ── Remove team ──────────────────────────────────────────────────────────
 
   Future<void> removeTeam(String tournamentId, String teamId) async {
@@ -694,18 +893,22 @@ class TournamentService extends ChangeNotifier {
     required String winnerId,
     required String winnerName,
   }) async {
+    debugPrint('[bracket] updateMatchResult: matchId=$matchId '
+        'score=$scoreA-$scoreB winner=$winnerName($winnerId)');
+
     final result = scoreA > scoreB
         ? TournamentMatchResult.teamAWin
         : scoreB > scoreA
             ? TournamentMatchResult.teamBWin
             : TournamentMatchResult.draw;
 
-    await _db
+    final matchesRef = _db
         .collection(_col)
         .doc(tournamentId)
-        .collection('matches')
-        .doc(matchId)
-        .update({
+        .collection('matches');
+
+    // 1. Save the score
+    await matchesRef.doc(matchId).update({
       'scoreA':     scoreA,
       'scoreB':     scoreB,
       'winnerId':   winnerId,
@@ -713,52 +916,81 @@ class TournamentService extends ChangeNotifier {
       'result':     result.name,
     });
 
-    await loadDetail(tournamentId);
+    // 2. Read the match we just updated to get its round/matchIndex
+    final matchDoc = await matchesRef.doc(matchId).get();
+    final mData = matchDoc.data();
+    if (mData == null) {
+      debugPrint('[bracket] ERROR: match doc $matchId not found after write');
+      await loadDetail(tournamentId);
+      return;
+    }
 
-    final match = (_matches[tournamentId] ?? [])
-        .firstWhere((m) => m.id == matchId, orElse: () => throw Exception('Match not found'));
+    final round      = (mData['round']      as num).toInt();
+    final matchIndex = (mData['matchIndex'] as num).toInt();
+    final matchNote  = mData['note'] as String? ?? '';
+    final isGroupMatch = matchNote.startsWith('Group');
 
-    // Update Round Robin stats
-    final tournDoc = _tournaments.firstWhere(
-      (t) => t.id == tournamentId,
-      orElse: () => throw Exception('Tournament not found'),
-    );
-    if (tournDoc.format == TournamentFormat.roundRobin ||
-        tournDoc.format == TournamentFormat.leagueKnockout) {
+    debugPrint('[bracket] Match is R${round}M$matchIndex note="$matchNote"');
+
+    // 3. Advance winner directly — but ONLY for knockout matches.
+    //    Group-stage (RR) matches must NOT trigger knockout advancement.
+    if (winnerId.isNotEmpty && !isGroupMatch) {
+      final nextRound      = round + 1;
+      final nextMatchIndex = matchIndex ~/ 2;
+      final isSlotA        = matchIndex.isEven;
+
+      // Fetch ALL match docs to find the next-round match
+      final allSnap = await matchesRef.get();
+      debugPrint('[bracket] Fetched ${allSnap.docs.length} total match docs');
+
+      // Build a round→matchIndex→docId map for diagnostics
+      final docMap = <String, String>{};
+      for (final d in allSnap.docs) {
+        final dd = d.data();
+        final r  = (dd['round'] as num?)?.toInt();
+        final mi = (dd['matchIndex'] as num?)?.toInt();
+        if (r != null && mi != null) docMap['R${r}M$mi'] = d.id;
+      }
+      debugPrint('[bracket] All match keys: ${docMap.keys.toList()..sort()}');
+
+      final nextDoc = allSnap.docs.where((d) {
+        final dd = d.data();
+        return (dd['round']      as num?)?.toInt() == nextRound &&
+               (dd['matchIndex'] as num?)?.toInt() == nextMatchIndex;
+      }).firstOrNull;
+
+      if (nextDoc != null) {
+        final update = isSlotA
+            ? {'teamAId': winnerId, 'teamAName': winnerName}
+            : {'teamBId': winnerId, 'teamBName': winnerName};
+        debugPrint('[bracket] ADVANCING $winnerName → '
+            'R${nextRound}M$nextMatchIndex '
+            '(${isSlotA ? "slotA" : "slotB"}) docId=${nextDoc.id}');
+        await matchesRef.doc(nextDoc.id).update(update);
+        debugPrint('[bracket] Advancement write SUCCESS');
+      } else {
+        debugPrint('[bracket] No next-round match at R${nextRound}M$nextMatchIndex '
+            '(this is the final round)');
+      }
+    }
+
+    // 4. Update RR stats if applicable
+    final tournDoc = _tournaments
+        .where((t) => t.id == tournamentId).firstOrNull;
+    final format = tournDoc?.format;
+    if (format == TournamentFormat.roundRobin ||
+        format == TournamentFormat.leagueKnockout) {
+      final match = TournamentMatch.fromMap(matchId, mData);
       await _updateRRStats(tournamentId, match, scoreA, scoreB);
     }
 
-    // Advance winner to next bracket slot (Knockout only)
-    if (tournDoc.format == TournamentFormat.knockout ||
-        tournDoc.format == TournamentFormat.leagueKnockout) {
-      await _advanceWinner(tournamentId, match);
+    // 5. League+KO: check if group stage is done and seed KO bracket
+    if (format == TournamentFormat.leagueKnockout) {
+      await _advanceGroupWinnersToKO(tournamentId);
     }
-  }
 
-  Future<void> _advanceWinner(String tournamentId, TournamentMatch match) async {
-    final nextRound      = match.round + 1;
-    final nextMatchIndex = match.matchIndex ~/ 2;
-    final isTeamASlot    = match.matchIndex.isEven;
-
-    final allMatches = _matches[tournamentId] ?? [];
-    final nextMatch  = allMatches.where(
-      (m) => m.round == nextRound && m.matchIndex == nextMatchIndex,
-    );
-    if (nextMatch.isEmpty) return; // Final round — no next match
-
-    final nextId = nextMatch.first.id;
-    await _db
-        .collection(_col)
-        .doc(tournamentId)
-        .collection('matches')
-        .doc(nextId)
-        .update({
-      if (isTeamASlot) 'teamAId':   match.winnerId,
-      if (isTeamASlot) 'teamAName': match.winnerName,
-      if (!isTeamASlot) 'teamBId':   match.winnerId,
-      if (!isTeamASlot) 'teamBName': match.winnerName,
-    });
-
+    // 6. Reload to refresh UI
+    debugPrint('[bracket] Reloading detail...');
     await loadDetail(tournamentId);
   }
 
@@ -770,22 +1002,30 @@ class TournamentService extends ChangeNotifier {
   ) async {
     if (match.teamAId == null || match.teamBId == null) return;
 
+    // Use tournament's configured scoring — fall back to standard 3/1/0
+    final t = _tournaments.where((t) => t.id == tournamentId).firstOrNull;
+    final wPts = t?.winPoints  ?? 3;
+    final dPts = t?.drawPoints ?? 1;
+    final lPts = t?.lossPoints ?? 0;
+
     final Map<String, dynamic> updateA = {'played': FieldValue.increment(1)};
     final Map<String, dynamic> updateB = {'played': FieldValue.increment(1)};
 
     if (scoreA > scoreB) {
       updateA['wins']   = FieldValue.increment(1);
-      updateA['points'] = FieldValue.increment(3);
+      updateA['points'] = FieldValue.increment(wPts);
       updateB['losses'] = FieldValue.increment(1);
+      if (lPts != 0) updateB['points'] = FieldValue.increment(lPts);
     } else if (scoreB > scoreA) {
       updateB['wins']   = FieldValue.increment(1);
-      updateB['points'] = FieldValue.increment(3);
+      updateB['points'] = FieldValue.increment(wPts);
       updateA['losses'] = FieldValue.increment(1);
+      if (lPts != 0) updateA['points'] = FieldValue.increment(lPts);
     } else {
       updateA['draws']  = FieldValue.increment(1);
-      updateA['points'] = FieldValue.increment(1);
+      updateA['points'] = FieldValue.increment(dPts);
       updateB['draws']  = FieldValue.increment(1);
-      updateB['points'] = FieldValue.increment(1);
+      updateB['points'] = FieldValue.increment(dPts);
     }
 
     final teamsRef = _db.collection(_col).doc(tournamentId).collection('teams');
@@ -793,6 +1033,204 @@ class TournamentService extends ChangeNotifier {
       teamsRef.doc(match.teamAId).update(updateA),
       teamsRef.doc(match.teamBId).update(updateB),
     ]);
+  }
+
+  // ── League+KO: advance group winners into knockout bracket ──────────────
+
+  /// After every RR result in a League+KO tournament, check whether ALL
+  /// group-stage matches are done. If so, rank teams per group by points
+  /// (then wins, then GD) and seed the top 2 from each group into the
+  /// empty knockout-round matches.
+  Future<void> _advanceGroupWinnersToKO(String tournamentId) async {
+    final matchesRef = _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches');
+    final allSnap = await matchesRef.get();
+    final allMatches = allSnap.docs
+        .map((d) => (doc: d, data: d.data()))
+        .toList();
+
+    // Separate group-stage vs knockout matches.
+    // Group-stage matches have a note like "Group A", "Group B".
+    // Knockout matches have notes like "Semi-finals", "Final", etc.
+    final groupMatches = allMatches.where((m) {
+      final note = m.data['note'] as String? ?? '';
+      return note.startsWith('Group');
+    }).toList();
+
+    final koMatches = allMatches.where((m) {
+      final note = m.data['note'] as String? ?? '';
+      return !note.startsWith('Group') && note.isNotEmpty;
+    }).toList();
+
+    if (groupMatches.isEmpty || koMatches.isEmpty) return;
+
+    // Check if ALL group matches are played
+    final allGroupDone = groupMatches.every((m) {
+      final result = m.data['result'] as String? ?? 'pending';
+      return result != 'pending';
+    });
+    if (!allGroupDone) {
+      debugPrint('[leagueKO] Not all group matches done yet');
+      return;
+    }
+
+    // Check if KO first-round matches already have CORRECT teams seeded.
+    // We verify by checking if any first-round KO match has a played result.
+    // If KO matches have already been played, don't re-seed.
+    final earlyKORound = koMatches
+        .map((m) => (m.data['round'] as num).toInt())
+        .reduce(math.min);
+    final firstRoundKOPlayed = koMatches.any((m) =>
+        (m.data['round'] as num).toInt() == earlyKORound &&
+        (m.data['result'] as String? ?? 'pending') != 'pending');
+    if (firstRoundKOPlayed) {
+      debugPrint('[leagueKO] KO matches already played — skipping re-seed');
+      return;
+    }
+
+    debugPrint('[leagueKO] All group matches done — seeding KO bracket');
+
+    // Group matches by their group label
+    final groupMap = <String, List<Map<String, dynamic>>>{};
+    for (final m in groupMatches) {
+      final group = m.data['note'] as String;
+      groupMap.putIfAbsent(group, () => []).add(m.data);
+    }
+
+    // Read fresh team stats from Firestore
+    final teamsSnap = await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('teams')
+        .get();
+    final teamById = <String, Map<String, dynamic>>{
+      for (final d in teamsSnap.docs) d.id: d.data(),
+    };
+
+    // For each group, find which team IDs participated
+    final groupTeamIds = <String, Set<String>>{};
+    for (final entry in groupMap.entries) {
+      final ids = <String>{};
+      for (final m in entry.value) {
+        final aId = m['teamAId'] as String?;
+        final bId = m['teamBId'] as String?;
+        if (aId != null) ids.add(aId);
+        if (bId != null) ids.add(bId);
+      }
+      groupTeamIds[entry.key] = ids;
+    }
+
+    // Rank teams within each group by: points desc → wins desc → GD desc
+    // (GD = goals scored - goals conceded, calculated from match results)
+    final qualifiers = <({String teamId, String teamName})>[];
+    final sortedGroupNames = groupTeamIds.keys.toList()..sort();
+
+    for (final groupName in sortedGroupNames) {
+      final teamIds = groupTeamIds[groupName]!;
+      final rankings = <({String id, String name, int pts, int wins, int gd})>[];
+
+      for (final tid in teamIds) {
+        final t = teamById[tid];
+        if (t == null) continue;
+        final pts  = (t['points'] as num?)?.toInt() ?? 0;
+        final wins = (t['wins']   as num?)?.toInt() ?? 0;
+
+        // Calculate goal difference from group matches
+        int gf = 0, ga = 0;
+        for (final m in groupMap[groupName]!) {
+          final aId = m['teamAId'] as String?;
+          final bId = m['teamBId'] as String?;
+          final sA  = (m['scoreA'] as num?)?.toInt() ?? 0;
+          final sB  = (m['scoreB'] as num?)?.toInt() ?? 0;
+          if (aId == tid) { gf += sA; ga += sB; }
+          if (bId == tid) { gf += sB; ga += sA; }
+        }
+
+        rankings.add((
+          id:   tid,
+          name: t['teamName'] as String? ?? 'Unknown',
+          pts:  pts,
+          wins: wins,
+          gd:   gf - ga,
+        ));
+      }
+
+      // Sort: highest points first, then wins, then GD
+      rankings.sort((a, b) {
+        int c = b.pts.compareTo(a.pts);
+        if (c != 0) return c;
+        c = b.wins.compareTo(a.wins);
+        if (c != 0) return c;
+        return b.gd.compareTo(a.gd);
+      });
+
+      debugPrint('[leagueKO] $groupName rankings: '
+          '${rankings.map((r) => '${r.name}(${r.pts}pts)').join(', ')}');
+
+      // Top 2 from each group qualify
+      for (int i = 0; i < math.min(2, rankings.length); i++) {
+        qualifiers.add((teamId: rankings[i].id, teamName: rankings[i].name));
+      }
+    }
+
+    if (qualifiers.isEmpty) return;
+
+    debugPrint('[leagueKO] Qualifiers: '
+        '${qualifiers.map((q) => q.teamName).join(', ')}');
+
+    // Seed qualifiers into KO matches.
+    // Standard cross-seeding: Group A #1 vs Group B #2, Group B #1 vs Group A #2
+    // For >2 groups, fill bracket slots in order.
+    // KO matches sorted by round then matchIndex.
+    final firstKORound = koMatches
+        .map((m) => (m.data['round'] as num).toInt())
+        .reduce(math.min);
+    final firstRoundKO = koMatches
+        .where((m) => (m.data['round'] as num).toInt() == firstKORound)
+        .toList()
+      ..sort((a, b) => (a.data['matchIndex'] as num).toInt()
+          .compareTo((b.data['matchIndex'] as num).toInt()));
+
+    // Cross-seed: A1 vs B2, B1 vs A2, C1 vs D2, D1 vs C2, ...
+    final seeded = <({String teamId, String teamName})>[];
+    final groupCount = sortedGroupNames.length;
+    for (int g = 0; g < groupCount; g += 2) {
+      final g1Top = qualifiers.length > g * 2     ? qualifiers[g * 2]     : null;
+      final g1Run = qualifiers.length > g * 2 + 1 ? qualifiers[g * 2 + 1] : null;
+      final g2Top = qualifiers.length > g * 2 + 2 ? qualifiers[g * 2 + 2] : null;
+      final g2Run = qualifiers.length > g * 2 + 3 ? qualifiers[g * 2 + 3] : null;
+      // Match 1: A1 vs B2
+      if (g1Top != null) seeded.add(g1Top);
+      if (g2Run != null) seeded.add(g2Run);
+      // Match 2: B1 vs A2
+      if (g2Top != null) seeded.add(g2Top);
+      if (g1Run != null) seeded.add(g1Run);
+    }
+
+    // Write into KO match docs
+    final batch = _db.batch();
+    int slotIdx = 0;
+    for (final ko in firstRoundKO) {
+      final Map<String, dynamic> update = {};
+      if (slotIdx < seeded.length) {
+        update['teamAId']   = seeded[slotIdx].teamId;
+        update['teamAName'] = seeded[slotIdx].teamName;
+        slotIdx++;
+      }
+      if (slotIdx < seeded.length) {
+        update['teamBId']   = seeded[slotIdx].teamId;
+        update['teamBName'] = seeded[slotIdx].teamName;
+        slotIdx++;
+      }
+      if (update.isNotEmpty) {
+        batch.update(ko.doc.reference, update);
+        debugPrint('[leagueKO] Seeded KO match ${ko.doc.id}: $update');
+      }
+    }
+    await batch.commit();
+    debugPrint('[leagueKO] KO bracket seeding complete');
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
@@ -854,7 +1292,9 @@ class TournamentService extends ChangeNotifier {
     }
   }
 
-  /// Converts a flat match list into structured TournamentRound list
+  /// Converts a flat match list into structured TournamentRound list.
+  /// Labels rounds from the end: Final, Semi-finals, Quarter-finals, then
+  /// generic "Round N" for earlier stages.
   List<TournamentRound> buildRounds(String tournamentId) {
     final matches = _matches[tournamentId] ?? [];
     if (matches.isEmpty) return [];
@@ -864,13 +1304,27 @@ class TournamentService extends ChangeNotifier {
       byRound.putIfAbsent(m.round, () => []).add(m);
     }
 
+    final sortedKeys = byRound.keys.toList()..sort();
+    final total = sortedKeys.length;
+
     final rounds = <TournamentRound>[];
-    for (final entry in byRound.entries.toList()
-        ..sort((a, b) => a.key.compareTo(b.key))) {
-      final sorted = [...entry.value]..sort((a, b) => a.matchIndex.compareTo(b.matchIndex));
+    for (int i = 0; i < total; i++) {
+      final key    = sortedKeys[i];
+      final sorted = [...byRound[key]!]
+        ..sort((a, b) => a.matchIndex.compareTo(b.matchIndex));
+
+      // Distance from the last round (1 = Final, 2 = SF, 3 = QF, …)
+      final fromEnd = total - i;
+      final label = switch (fromEnd) {
+        1 => 'Final',
+        2 => 'Semi-finals',
+        3 => 'Quarter-finals',
+        _ => 'Round ${i + 1}',
+      };
+
       rounds.add(TournamentRound(
-        roundNumber: entry.key,
-        label:       roundLabel(sorted.length),
+        roundNumber: key,
+        label:       label,
         matches:     sorted,
       ));
     }

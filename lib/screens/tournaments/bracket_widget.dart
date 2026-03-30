@@ -201,11 +201,12 @@ class _MatchCard extends StatelessWidget {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary),
-              onPressed: () async {
-                final winnerId   = scoreA >= scoreB
+                  backgroundColor: scoreA == scoreB
+                      ? Colors.white12 : AppColors.primary),
+              onPressed: scoreA == scoreB ? null : () async {
+                final winnerId   = scoreA > scoreB
                     ? match.teamAId   : match.teamBId;
-                final winnerName = scoreA >= scoreB
+                final winnerName = scoreA > scoreB
                     ? match.teamAName : match.teamBName;
                 Navigator.pop(ctx);
                 await TournamentService().updateMatchResult(
@@ -217,8 +218,9 @@ class _MatchCard extends StatelessWidget {
                   winnerName:   winnerName ?? '',
                 );
               },
-              child: const Text('Save',
-                  style: TextStyle(color: Colors.white)),
+              child: Text(
+                  scoreA == scoreB ? 'No draws — adjust score' : 'Save',
+                  style: const TextStyle(color: Colors.white, fontSize: 13)),
             ),
           ],
         ),

@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/tournament.dart';
+import '../../data/sports_list.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../premium/premium_screen.dart';
+import '../tournaments/tournament_detail_screen.dart';
 
 /// Full tournament creation / edit form — submits directly to Firestore.
 class LeagueEntryScreen extends StatefulWidget {
@@ -43,6 +45,14 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   bool _noPlayerLimit = false;
   int  _playersPerTeam = 11;
 
+  // ── Scoring System ─────────────────────────────────────────────────────────
+  ScoringType _scoringType = ScoringType.standard;
+  int  _bestOf      = 3;
+  int  _winPoints   = 3;
+  int  _drawPoints  = 1;
+  final int  _lossPoints  = 0; // always 0 — no points for losing
+  final _customScoringCtrl = TextEditingController();
+
   // ── Registration Fee ────────────────────────────────────────────────────────
   bool _freeEntry = true;
 
@@ -59,7 +69,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   ];
   static const _formats = ['Knockout', 'Round Robin', 'League'];
 
-  bool get _isPremium => UserService().profile?.isPremium == true;
+  bool get _isPremium => UserService().hasFullAccess;
 
   @override
   void initState() {
@@ -87,6 +97,11 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
       };
       _format             = fmtMap[t.format] ?? 'Knockout';
       _existingBannerUrl  = t.bannerUrl;
+      _scoringType        = t.scoringType;
+      _bestOf             = t.bestOf;
+      _winPoints          = t.winPoints;
+      _drawPoints         = t.drawPoints;
+      _customScoringCtrl.text = t.customScoringLabel ?? '';
     }
   }
 
@@ -97,6 +112,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
     _entryFeeCtrl.dispose();
     _prizeCtrl.dispose();
     _rulesCtrl.dispose();
+    _customScoringCtrl.dispose();
     super.dispose();
   }
 
@@ -240,6 +256,13 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           prizePool:      _prizeCtrl.text.trim().isEmpty ? null : _prizeCtrl.text.trim(),
           playersPerTeam: playersPerTeam,
           rules:          _rulesCtrl.text.trim().isEmpty ? null : _rulesCtrl.text.trim(),
+          scoringType:    _scoringType,
+          bestOf:         _bestOf,
+          winPoints:      _winPoints,
+          drawPoints:     _drawPoints,
+          lossPoints:     _lossPoints,
+          customScoringLabel: _customScoringCtrl.text.trim().isEmpty
+              ? null : _customScoringCtrl.text.trim(),
         );
         // Upload new banner if host picked one
         if (_bannerImage != null) {
@@ -269,6 +292,13 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         prizePool:      _prizeCtrl.text.trim().isEmpty ? null : _prizeCtrl.text.trim(),
         playersPerTeam: playersPerTeam,
         rules:          _rulesCtrl.text.trim().isEmpty ? null : _rulesCtrl.text.trim(),
+        scoringType:    _scoringType,
+        bestOf:         _bestOf,
+        winPoints:      _winPoints,
+        drawPoints:     _drawPoints,
+        lossPoints:     _lossPoints,
+        customScoringLabel: _customScoringCtrl.text.trim().isEmpty
+            ? null : _customScoringCtrl.text.trim(),
       );
 
       // Upload banner if selected
@@ -306,9 +336,15 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                   backgroundColor: AppColors.primary, elevation: 0),
               onPressed: () {
                 Navigator.pop(context);       // close dialog
-                Navigator.pop(context, true); // pop LeagueEntryScreen → home switches to Tournaments tab
+                Navigator.pop(context, true); // pop LeagueEntryScreen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TournamentDetailScreen(tournamentId: id),
+                  ),
+                );
               },
-              child: const Text('View Tournaments',
+              child: const Text('View Tournament',
                   style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -357,16 +393,32 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
 
             // ── Sport ──────────────────────────────────────────────────────
             _label('Sport'),
-            _dropdown(
-              value: _sport,
-              items: _sports,
-              onChanged: (v) => setState(() {
-                _sport = v!;
-                if (!_noPlayerLimit) {
-                  _playersPerTeam = _sportDefaultPlayers(_sport);
-                }
-              }),
-              icon: Icons.sports_cricket_outlined,
+            GestureDetector(
+              onTap: _showSportPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      _sportEmoji(_sport),
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _sport,
+                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down,
+                        color: Colors.white38, size: 22),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -379,6 +431,12 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
               onChanged: (v) => setState(() => _format = v!),
               icon: Icons.format_list_bulleted,
             ),
+
+            const SizedBox(height: 16),
+
+            // ── Scoring System ──────────────────────────────────────────
+            _label('Scoring System'),
+            _buildScoringSection(),
 
             const SizedBox(height: 16),
 
@@ -823,17 +881,269 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
     );
   }
 
+  // ── Sport picker ─────────────────────────────────────────────────────────
+
+  String _sportEmoji(String name) {
+    for (final s in allSports) {
+      if (s.name == name) return s.emoji;
+    }
+    return '🏅';
+  }
+
+  void _showSportPicker() {
+    showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF111111),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollCtrl) => _SportPickerSheet(controller: scrollCtrl),
+      ),
+    ).then((selected) {
+      if (selected != null) {
+        setState(() {
+          _sport = selected;
+          if (!_noPlayerLimit) {
+            _playersPerTeam = _sportDefaultPlayers(_sport);
+          }
+          // Reset draw points for sports where draws are impossible
+          if (!_sportAllowsDraws(_sport)) {
+            _drawPoints = 0;
+          }
+          // Smart scoring defaults per sport family
+          _scoringType = _defaultScoringType(_sport);
+        });
+      }
+    });
+  }
+
+  // ── Scoring section builder ──────────────────────────────────────────────
+
+  Widget _buildScoringSection() {
+    const types = ScoringType.values;
+    const labels = {
+      ScoringType.standard: 'Standard Score',
+      ScoringType.bestOfSets: 'Best of Sets',
+      ScoringType.points: 'Points System',
+      ScoringType.custom: 'Custom',
+    };
+    final subtitles = {
+      ScoringType.standard: 'Single game score (goals, runs, etc.)',
+      ScoringType.bestOfSets: 'Best of 3 / 5 / 7 sets',
+      ScoringType.points: _sportAllowsDraws(_sport)
+          ? 'Win / Draw / Loss points'
+          : 'Win / Loss points',
+      ScoringType.custom: 'Define your own scoring',
+    };
+    const icons = {
+      ScoringType.standard: Icons.scoreboard_outlined,
+      ScoringType.bestOfSets: Icons.format_list_numbered,
+      ScoringType.points: Icons.star_outline,
+      ScoringType.custom: Icons.tune_outlined,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Type selector chips
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: types.map((t) {
+            final selected = _scoringType == t;
+            return GestureDetector(
+              onTap: () => setState(() => _scoringType = t),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.primary.withAlpha(30)
+                      : const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected ? AppColors.primary : Colors.white12,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icons[t], size: 16,
+                        color: selected ? AppColors.primary : Colors.white38),
+                    const SizedBox(width: 8),
+                    Text(labels[t]!,
+                        style: TextStyle(
+                            color: selected ? AppColors.primary : Colors.white70,
+                            fontSize: 13,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 6),
+        Text(subtitles[_scoringType]!,
+            style: const TextStyle(color: Colors.white38, fontSize: 11)),
+
+        // Best of sets config
+        if (_scoringType == ScoringType.bestOfSets) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text('Best of', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(width: 12),
+              for (final n in [3, 5, 7])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _bestOf = n),
+                    child: Container(
+                      width: 40, height: 36,
+                      decoration: BoxDecoration(
+                        color: _bestOf == n
+                            ? AppColors.primary.withAlpha(30)
+                            : const Color(0xFF1A1A1A),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _bestOf == n ? AppColors.primary : Colors.white12,
+                        ),
+                      ),
+                      child: Center(child: Text('$n',
+                          style: TextStyle(
+                              color: _bestOf == n ? AppColors.primary : Colors.white70,
+                              fontSize: 15, fontWeight: FontWeight.w700))),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+
+        // Points system config
+        if (_scoringType == ScoringType.points) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _pointField('Win', _winPoints, (v) => setState(() => _winPoints = v)),
+              if (_sportAllowsDraws(_sport)) ...[
+                const SizedBox(width: 12),
+                _pointField('Draw', _drawPoints, (v) => setState(() => _drawPoints = v)),
+              ],
+            ],
+          ),
+        ],
+
+        // Custom scoring
+        if (_scoringType == ScoringType.custom) ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _customScoringCtrl,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'e.g. "Points per frame" or "Sets + Legs"',
+              hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xFF1A1A1A),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _pointField(String label, int value, ValueChanged<int> onChanged) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () { if (value > 0) onChanged(value - 1); },
+                  child: const Icon(Icons.remove, color: Colors.white38, size: 18),
+                ),
+                Expanded(
+                  child: Text('$value',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white,
+                          fontSize: 16, fontWeight: FontWeight.w700)),
+                ),
+                GestureDetector(
+                  onTap: () => onChanged(value + 1),
+                  child: const Icon(Icons.add, color: AppColors.primary, size: 18),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /// Smart default scoring type based on sport family.
+  ScoringType _defaultScoringType(String sport) {
+    const rallySports = {
+      'Badminton', 'Tennis', 'Table Tennis', 'Volleyball',
+      'Squash', 'Padel', 'Beach Volleyball',
+    };
+    if (rallySports.contains(sport)) return ScoringType.bestOfSets;
+    return ScoringType.standard;
+  }
+
+  /// Sports where draws are impossible (rally = someone always wins,
+  /// combat = winner declared, chess included as decisive games dominate
+  /// tournament play).
+  bool _sportAllowsDraws(String sport) {
+    const noDrawSports = {
+      'Badminton', 'Tennis', 'Table Tennis', 'Volleyball',
+      'Squash', 'Padel', 'Beach Volleyball',     // rally
+      'Boxing', 'MMA', 'Wrestling', 'Fencing',   // combat
+    };
+    return !noDrawSports.contains(sport);
+  }
 
   int _sportDefaultPlayers(String sport) {
     switch (sport) {
-      case 'Cricket':    return 11;
-      case 'Football':   return 11;
-      case 'Basketball': return 5;
-      case 'Volleyball': return 6;
-      case 'Badminton':  return 2;
-      case 'Tennis':     return 2;
-      default:           return 5;
+      case 'Cricket':          return 11;
+      case 'Football':         return 11;
+      case 'Basketball':       return 5;
+      case 'Volleyball':       return 6;
+      case 'Badminton':        return 2;
+      case 'Tennis':           return 2;
+      case 'Table Tennis':     return 1;
+      case 'Handball':         return 7;
+      case 'Throwball':        return 7;
+      case 'Kabaddi':          return 7;
+      case 'Hockey':           return 11;
+      case 'Boxing':           return 1;
+      case 'Chess':            return 1;
+      default:                 return 5;
     }
   }
 
@@ -993,4 +1303,100 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           ],
         ),
       );
+}
+
+// ── Sport picker bottom sheet ─────────────────────────────────────────────────
+
+class _SportPickerSheet extends StatefulWidget {
+  final ScrollController controller;
+  const _SportPickerSheet({required this.controller});
+
+  @override
+  State<_SportPickerSheet> createState() => _SportPickerSheetState();
+}
+
+class _SportPickerSheetState extends State<_SportPickerSheet> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = allSports
+        .where((s) => s.name.toLowerCase().contains(_query.toLowerCase()))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    return Column(
+      children: [
+        // Handle bar
+        const SizedBox(height: 12),
+        Container(
+          width: 40, height: 4,
+          decoration: BoxDecoration(
+            color: Colors.white24,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Title
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Select Sport',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Search field
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: TextField(
+            autofocus: true,
+            style: const TextStyle(color: Colors.white, fontSize: 15),
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              hintText: 'Search sport...',
+              hintStyle: const TextStyle(color: Colors.white38),
+              prefixIcon:
+                  const Icon(Icons.search, color: Colors.white38, size: 20),
+              filled: true,
+              fillColor: const Color(0xFF1A1A1A),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // List
+        Expanded(
+          child: ListView.builder(
+            controller: widget.controller,
+            itemCount: filtered.length,
+            itemBuilder: (_, i) {
+              final sport = filtered[i];
+              return ListTile(
+                leading: Text(sport.emoji,
+                    style: const TextStyle(fontSize: 22)),
+                title: Text(sport.name,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500)),
+                onTap: () => Navigator.pop(context, sport.name),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 }

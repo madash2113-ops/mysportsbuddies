@@ -18,6 +18,12 @@ const List<String> kOwnerUserIds = [
   // 'paste-your-firebase-uid-here',
 ];
 
+/// Numeric player IDs that always get full premium access.
+/// Use this when you know the player ID but not the Firebase UID.
+const Set<int> kOwnerNumericIds = {
+  517913,
+};
+
 /// Numeric player IDs reserved for specific Firebase UIDs.
 /// These override the auto-generated 6-digit ID at startup.
 /// Format: { 'firebase-uid': reservedNumericId }

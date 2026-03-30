@@ -415,7 +415,12 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                       return RefreshIndicator(
                         color: AppColors.primary,
                         backgroundColor: AppColors.card,
-                        onRefresh: () async => _initLocation(),
+                        onRefresh: () async {
+                          await Future.wait([
+                            _initLocation(),
+                            GameService().loadFromFirestore(),
+                          ]);
+                        },
                         child: ListView.builder(
                           padding: const EdgeInsets.all(AppSpacing.md),
                           itemCount: games.length,

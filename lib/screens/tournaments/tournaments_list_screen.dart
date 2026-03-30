@@ -552,20 +552,33 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
   String _query = '';
   final _searchCtrl = TextEditingController();
 
-  static const _sports = [
-    'All', 'Cricket', 'Football', 'Basketball',
-    'Badminton', 'Tennis', 'Volleyball', 'Other',
+  static const _allSports = [
+    ('All',          '🏆'),
+    ('Cricket',      '🏏'),
+    ('Football',     '⚽'),
+    ('Basketball',   '🏀'),
+    ('Badminton',    '🏸'),
+    ('Tennis',       '🎾'),
+    ('Volleyball',   '🏐'),
+    ('Table Tennis', '🏓'),
+    ('Hockey',       '🏑'),
+    ('Boxing',       '🥊'),
+    ('Kabaddi',      '🤼'),
+    ('Throwball',    '🎯'),
+    ('Handball',     '🤾'),
+    ('Swimming',     '🏊'),
+    ('Cycling',      '🚴'),
+    ('Rugby',        '🏉'),
+    ('Golf',         '⛳'),
+    ('Squash',       '🎾'),
+    ('Wrestling',    '🤼'),
+    ('Athletics',    '🏃'),
+    ('Archery',      '🏹'),
+    ('Other',        '🎯'),
   ];
 
-  static const _sportEmoji = {
-    'All':        '🏆',
-    'Cricket':    '🏏',
-    'Football':   '⚽',
-    'Basketball': '🏀',
-    'Badminton':  '🏸',
-    'Tennis':     '🎾',
-    'Volleyball': '🏐',
-    'Other':      '🎯',
+  static final _sportEmoji = {
+    for (final (name, emoji) in _allSports) name: emoji,
   };
 
   @override
@@ -663,7 +676,7 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                               context: context,
                               builder: (_) => _SportPickerDialog(
                                 selected: _sport,
-                                sports: _sports,
+                                sports: _allSports,
                                 emojis: _sportEmoji,
                               ),
                             );
@@ -847,9 +860,9 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
 
 // ── Sport picker dialog ───────────────────────────────────────────────────────
 
-class _SportPickerDialog extends StatelessWidget {
+class _SportPickerDialog extends StatefulWidget {
   final String selected;
-  final List<String> sports;
+  final List<(String, String)> sports;
   final Map<String, String> emojis;
 
   const _SportPickerDialog({
@@ -859,12 +872,35 @@ class _SportPickerDialog extends StatelessWidget {
   });
 
   @override
+  State<_SportPickerDialog> createState() => _SportPickerDialogState();
+}
+
+class _SportPickerDialogState extends State<_SportPickerDialog> {
+  String _search = '';
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  List<(String, String)> get _filtered {
+    if (_search.isEmpty) return widget.sports;
+    final q = _search.toLowerCase();
+    return widget.sports
+        .where((s) => s.$1.toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final list = _filtered;
     return Dialog(
       backgroundColor: const Color(0xFF1A1A1A),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -874,56 +910,91 @@ class _SportPickerDialog extends StatelessWidget {
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w700)),
-            const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                childAspectRatio: 0.9,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+            const SizedBox(height: 12),
+            // ── Search field ──────────────────────────────────────
+            TextField(
+              controller: _ctrl,
+              onChanged: (v) => setState(() => _search = v.trim()),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Search sports…',
+                hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: Colors.white38, size: 20),
+                suffixIcon: _search.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          _ctrl.clear();
+                          setState(() => _search = '');
+                        },
+                        child: const Icon(Icons.close,
+                            color: Colors.white38, size: 18),
+                      )
+                    : null,
+                filled: true,
+                fillColor: const Color(0xFF252525),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
               ),
-              itemCount: sports.length,
-              itemBuilder: (_, i) {
-                final s   = sports[i];
-                final sel = s == selected;
-                return GestureDetector(
-                  onTap: () => Navigator.pop(context, s),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    decoration: BoxDecoration(
-                      color: sel
-                          ? AppColors.primary
-                          : const Color(0xFF252525),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: sel ? AppColors.primary : Colors.white10,
+            ),
+            const SizedBox(height: 12),
+            // ── Sport list ────────────────────────────────────────
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.45,
+              ),
+              child: list.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(
+                        child: Text('No sports found',
+                            style: TextStyle(color: Colors.white38)),
                       ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: list.length,
+                      itemBuilder: (_, i) {
+                        final (name, emoji) = list[i];
+                        final sel = name == widget.selected;
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => Navigator.pop(context, name),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: sel
+                                  ? AppColors.primary.withValues(alpha: 0.15)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(emoji, style: const TextStyle(fontSize: 20)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      color: sel ? AppColors.primary : Colors.white70,
+                                      fontSize: 14,
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                                if (sel)
+                                  const Icon(Icons.check_circle,
+                                      color: AppColors.primary, size: 20),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(emojis[s] ?? '🎯',
-                            style: const TextStyle(fontSize: 22)),
-                        const SizedBox(height: 4),
-                        Text(s,
-                            style: TextStyle(
-                                color: sel
-                                    ? Colors.white
-                                    : Colors.white54,
-                                fontSize: 10,
-                                fontWeight: sel
-                                    ? FontWeight.w700
-                                    : FontWeight.normal),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                  ),
-                );
-              },
             ),
           ],
         ),

@@ -7,6 +7,18 @@ enum TournamentFormat  { knockout, roundRobin, leagueKnockout }
 enum ScheduleMode      { auto, manual }
 enum TournamentMatchResult { pending, teamAWin, teamBWin, draw, bye }
 
+/// How match scores are counted for the bracket / standings.
+enum ScoringType {
+  /// Single game score (e.g. goals in football, runs in cricket).
+  standard,
+  /// Best of N sets (e.g. table tennis best of 3, tennis best of 5).
+  bestOfSets,
+  /// Points-based (e.g. 3 for win, 1 for draw, 0 for loss).
+  points,
+  /// Host defines their own scoring label.
+  custom,
+}
+
 enum AdminPermission {
   scheduleMatches,
   updateScores,
@@ -43,6 +55,12 @@ class Tournament {
   final List<String>     adminIds;         // userIds of assigned admins
   final bool             hasGroups;        // true once groups have been created
   final int              groupCount;       // number of groups (0 = no groups)
+  final ScoringType      scoringType;      // how scores are counted
+  final int              bestOf;           // sets count for bestOfSets (3, 5, 7)
+  final int              winPoints;        // points for a win (points mode)
+  final int              drawPoints;       // points for a draw (points mode)
+  final int              lossPoints;       // points for a loss (points mode)
+  final String?          customScoringLabel; // host-defined label (custom mode)
 
   const Tournament({
     required this.id,
@@ -70,6 +88,12 @@ class Tournament {
     this.adminIds = const [],
     this.hasGroups = false,
     this.groupCount = 0,
+    this.scoringType = ScoringType.standard,
+    this.bestOf = 3,
+    this.winPoints = 3,
+    this.drawPoints = 1,
+    this.lossPoints = 0,
+    this.customScoringLabel,
   });
 
   double get totalFee => entryFee + serviceFee;
@@ -99,6 +123,12 @@ class Tournament {
     'adminIds':         adminIds,
     'hasGroups':        hasGroups,
     'groupCount':       groupCount,
+    'scoringType':      scoringType.name,
+    'bestOf':           bestOf,
+    'winPoints':        winPoints,
+    'drawPoints':       drawPoints,
+    'lossPoints':       lossPoints,
+    'customScoringLabel': customScoringLabel,
   };
 
   static Tournament fromFirestore(DocumentSnapshot doc) =>
@@ -137,43 +167,76 @@ class Tournament {
     adminIds:         List<String>.from(m['adminIds'] as List? ?? []),
     hasGroups:        m['hasGroups']  as bool? ?? false,
     groupCount:       (m['groupCount'] as num?)?.toInt() ?? 0,
+    scoringType:      ScoringType.values.firstWhere(
+                        (e) => e.name == m['scoringType'],
+                        orElse: () => ScoringType.standard),
+    bestOf:           (m['bestOf'] as num?)?.toInt() ?? 3,
+    winPoints:        (m['winPoints'] as num?)?.toInt() ?? 3,
+    drawPoints:       (m['drawPoints'] as num?)?.toInt() ?? 1,
+    lossPoints:       (m['lossPoints'] as num?)?.toInt() ?? 0,
+    customScoringLabel: m['customScoringLabel'] as String?,
   );
 
   Tournament copyWith({
+    String? name,
+    String? sport,
+    TournamentFormat? format,
     TournamentStatus? status,
+    DateTime? startDate,
+    String? location,
+    int? maxTeams,
+    double? entryFee,
+    double? serviceFee,
+    ScheduleMode? scheduleMode,
     bool? bracketGenerated,
+    String? prizePool,
     int? registeredTeams,
     int? playersPerTeam,
-    List<String>? adminIds,
+    DateTime? endDate,
+    String? rules,
+    String? bannerUrl,
     String? description,
+    List<String>? adminIds,
     bool? hasGroups,
     int? groupCount,
+    ScoringType? scoringType,
+    int? bestOf,
+    int? winPoints,
+    int? drawPoints,
+    int? lossPoints,
+    String? customScoringLabel,
   }) => Tournament(
     id:               id,
-    name:             name,
-    sport:            sport,
-    format:           format,
+    name:             name             ?? this.name,
+    sport:            sport            ?? this.sport,
+    format:           format           ?? this.format,
     status:           status           ?? this.status,
-    startDate:        startDate,
-    location:         location,
-    maxTeams:         maxTeams,
-    entryFee:         entryFee,
-    serviceFee:       serviceFee,
+    startDate:        startDate        ?? this.startDate,
+    location:         location         ?? this.location,
+    maxTeams:         maxTeams         ?? this.maxTeams,
+    entryFee:         entryFee         ?? this.entryFee,
+    serviceFee:       serviceFee       ?? this.serviceFee,
     createdBy:        createdBy,
     createdByName:    createdByName,
     createdAt:        createdAt,
-    scheduleMode:     scheduleMode,
+    scheduleMode:     scheduleMode     ?? this.scheduleMode,
     bracketGenerated: bracketGenerated ?? this.bracketGenerated,
-    prizePool:        prizePool,
+    prizePool:        prizePool        ?? this.prizePool,
     registeredTeams:  registeredTeams  ?? this.registeredTeams,
     playersPerTeam:   playersPerTeam   ?? this.playersPerTeam,
-    endDate:          endDate,
-    rules:            rules,
-    bannerUrl:        bannerUrl,
+    endDate:          endDate          ?? this.endDate,
+    rules:            rules            ?? this.rules,
+    bannerUrl:        bannerUrl        ?? this.bannerUrl,
     description:      description      ?? this.description,
     adminIds:         adminIds         ?? this.adminIds,
     hasGroups:        hasGroups        ?? this.hasGroups,
     groupCount:       groupCount       ?? this.groupCount,
+    scoringType:      scoringType      ?? this.scoringType,
+    bestOf:           bestOf           ?? this.bestOf,
+    winPoints:        winPoints        ?? this.winPoints,
+    drawPoints:       drawPoints       ?? this.drawPoints,
+    lossPoints:       lossPoints       ?? this.lossPoints,
+    customScoringLabel: customScoringLabel ?? this.customScoringLabel,
   );
 }
 

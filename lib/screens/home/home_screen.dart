@@ -368,16 +368,16 @@ class _ProfileTabState extends State<_ProfileTab> {
     final rawStats = statsSvc.statsForSport(sport);
     final Map<String, dynamic>? stats = sport == 'Cricket'
         ? (rawStats?[_cricketMode] as Map?)?.cast<String, dynamic>()
-        : rawStats;
+        : (rawStats?[_cricketMode] as Map?)?.cast<String, dynamic>()
+          ?? rawStats;
 
     if (stats != null && stats.isNotEmpty) {
       return _SportStatsCard(
           sport: sport, stats: stats, primary: primary, isDark: isDark);
     }
 
-    final label = sport == 'Cricket'
-        ? 'No ${_cricketMode == 'career' ? 'Career' : 'Regular'} Cricket stats yet'
-        : 'No $sport stats yet';
+    final modeLabel = _cricketMode == 'career' ? 'Career' : 'Regular';
+    final label = 'No $modeLabel $sport stats yet';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -952,7 +952,26 @@ class _SportStatsCardState extends State<_SportStatsCard> {
   }
 
   Widget _genericCard() {
-    final matches = (widget.stats['matches'] as num?)?.toInt() ?? 0;
+    final s = widget.stats;
+    final matches = (s['matches'] as num?)?.toInt() ?? 0;
+    final wins    = (s['wins']    as num?)?.toInt() ?? 0;
+    final losses  = (s['losses']  as num?)?.toInt() ?? 0;
+    final draws   = (s['draws']   as num?)?.toInt() ?? 0;
+    final winPct  = matches > 0
+        ? '${(wins / matches * 100).toStringAsFixed(0)}%'
+        : '-';
+
+    // Detect engine type from stored keys to show appropriate detail row.
+    final bool isRally   = s.containsKey('setsWon');
+    final bool isEsports = s.containsKey('roundsWon');
+    final bool isCombat  = !s.containsKey('scored') &&
+        !s.containsKey('conceded') &&
+        !s.containsKey('points') &&
+        !isRally &&
+        !isEsports;
+    // Basketball uses 'points', football/hockey/generic use 'scored'.
+    final bool isBasketball = s.containsKey('points') && !s.containsKey('scored');
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -960,7 +979,64 @@ class _SportStatsCardState extends State<_SportStatsCard> {
         color: AppC.card(context),
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
-      child: _CricStat(label: 'Matches Played', value: '$matches'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.sports_outlined, size: 14, color: widget.primary),
+            const SizedBox(width: 6),
+            Text('Overview',
+                style: TextStyle(
+                    color: widget.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 12),
+          // Row 1 — always: Played / Won / Lost / Drawn (or Win%)
+          Row(children: [
+            _CricStat(label: 'Played', value: '$matches'),
+            _CricStat(label: 'Won',    value: '$wins'),
+            _CricStat(label: 'Lost',   value: '$losses'),
+            if (isCombat || isRally || isEsports)
+              _CricStat(label: 'Win %', value: winPct)
+            else
+              _CricStat(label: 'Drawn', value: '$draws'),
+          ]),
+          // Row 2 — engine-specific detail
+          if (!isCombat) ...[
+            const SizedBox(height: 10),
+            if (isRally)
+              Row(children: [
+                _CricStat(label: 'Sets Won',  value: '${(s['setsWon'] as num?)?.toInt() ?? 0}'),
+                _CricStat(label: 'Sets Lost', value: '${(s['setsLost'] as num?)?.toInt() ?? 0}'),
+                _CricStat(label: 'Pts For',   value: '${(s['pointsFor'] as num?)?.toInt() ?? 0}'),
+                _CricStat(label: 'Pts Agst',  value: '${(s['pointsAgainst'] as num?)?.toInt() ?? 0}'),
+              ])
+            else if (isEsports)
+              Row(children: [
+                _CricStat(label: 'Win %',      value: winPct),
+                _CricStat(label: 'Rnds Won',   value: '${(s['roundsWon'] as num?)?.toInt() ?? 0}'),
+                _CricStat(label: 'Rnds Lost',  value: '${(s['roundsLost'] as num?)?.toInt() ?? 0}'),
+                const Expanded(child: SizedBox()),
+              ])
+            else if (isBasketball)
+              Row(children: [
+                _CricStat(label: 'Win %',    value: winPct),
+                _CricStat(label: 'Points',   value: '${(s['points'] as num?)?.toInt() ?? 0}'),
+                _CricStat(label: 'Conceded', value: '${(s['conceded'] as num?)?.toInt() ?? 0}'),
+                const Expanded(child: SizedBox()),
+              ])
+            else
+              // Football, Hockey, Generic — scored/conceded
+              Row(children: [
+                _CricStat(label: 'Win %',    value: winPct),
+                _CricStat(label: 'Scored',   value: '${(s['scored'] as num?)?.toInt() ?? 0}'),
+                _CricStat(label: 'Conceded', value: '${(s['conceded'] as num?)?.toInt() ?? 0}'),
+                const Expanded(child: SizedBox()),
+              ]),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1415,18 +1491,28 @@ class _SportsGrid extends StatelessWidget {
     final isDark  = AppC.isDark(context);
     final ordered = _orderedSports();
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── "Sports" label + See All ───────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text('Sports',
-                      style: TextStyle(
+    return RefreshIndicator(
+      color: AppC.primary(context),
+      backgroundColor: AppC.card(context),
+      onRefresh: () async {
+        // Data is kept live via Firestore listeners — just re-trigger them
+        GameListingService().listenToOpenGames();
+        VenueService().listenToVenues();
+        await Future.delayed(const Duration(milliseconds: 400));
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── "Sports" label + See All ───────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Sports',
+                        style: TextStyle(
                           color: textCol,
                           fontSize: 17,
                           fontWeight: FontWeight.w800)),
@@ -1522,6 +1608,7 @@ class _SportsGrid extends StatelessWidget {
           const _GamesGrid(),
           const SizedBox(height: AppSpacing.lg),
         ],
+        ),
       ),
     );
   }
@@ -1759,13 +1846,21 @@ class _VenuesGrid extends StatelessWidget {
       builder: (context, _) {
         final venues = VenueService().venues;
 
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Pills
-              if (venues.isEmpty)
-                SizedBox(
+        return RefreshIndicator(
+          color: AppC.primary(context),
+          backgroundColor: AppC.card(context),
+          onRefresh: () async {
+            VenueService().listenToVenues();
+            await Future.delayed(const Duration(milliseconds: 400));
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Pills
+                if (venues.isEmpty)
+                  SizedBox(
                   height: 300,
                   child: Center(
                     child: Column(
@@ -1833,7 +1928,8 @@ class _VenuesGrid extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 20),
-            ],
+              ],
+            ),
           ),
         );
       },

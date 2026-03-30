@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:photo_view/photo_view_gallery.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/game.dart';
@@ -74,6 +76,12 @@ class GameDetailScreen extends StatelessWidget {
     final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m ${dt.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  void _openPhotoViewer(BuildContext context, List<String> urls, int index) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => _FullScreenPhotoViewer(urls: urls, initialIndex: index),
+    ));
   }
 
   void _shareToFeed(BuildContext context) {
@@ -185,79 +193,73 @@ class GameDetailScreen extends StatelessWidget {
               ],
             ],
             flexibleSpace: FlexibleSpaceBar(
-              background: GestureDetector(
-                onTap: () => _showImageGallery(context),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Gradient background
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: _gradient,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                    ),
-                    // Sport emoji centered
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+              background: game.photoUrls.isNotEmpty
+                  ? _PhotoBanner(
+                      photoUrls: game.photoUrls,
+                      onTap: (i) => _openPhotoViewer(context, game.photoUrls, i),
+                    )
+                  : GestureDetector(
+                      onTap: () => _showImageGallery(context),
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          Text(
-                            _sportEmoji(game.sport),
-                            style: const TextStyle(fontSize: 64),
-                          ),
-                          const SizedBox(height: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.black38,
-                              borderRadius: BorderRadius.circular(20),
+                              gradient: LinearGradient(
+                                colors: _gradient,
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                             ),
-                            child: Row(
+                          ),
+                          Center(
+                            child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.photo_library_outlined,
-                                    color: Colors.white70, size: 13),
-                                const SizedBox(width: 4),
-                                Text(
-                                  game.photoUrls.isEmpty
-                                      ? 'No photos yet'
-                                      : 'Tap to view ${game.photoUrls.length} photo${game.photoUrls.length > 1 ? 's' : ''}',
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 12),
+                                Text(_sportEmoji(game.sport),
+                                    style: const TextStyle(fontSize: 64)),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black38,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.photo_library_outlined,
+                                          color: Colors.white70, size: 13),
+                                      SizedBox(width: 4),
+                                      Text('No photos yet',
+                                          style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12)),
+                                    ],
+                                  ),
                                 ),
                               ],
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0, left: 0, right: 0, height: 60,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    AppColors.background,
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    // Bottom fade
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: 60,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              AppColors.background,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
 
@@ -755,28 +757,186 @@ class GameDetailScreen extends StatelessWidget {
                         mainAxisSpacing: 8,
                       ),
                       itemCount: game.photoUrls.length,
-                      itemBuilder: (_, i) => ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          game.photoUrls[i],
-                          fit: BoxFit.cover,
-                          loadingBuilder: (_, child, progress) =>
-                              progress == null
-                                  ? child
-                                  : Container(
-                                      color: const Color(0xFF1C1C1C),
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppColors.primary,
+                      itemBuilder: (_, i) => GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context); // close gallery sheet
+                          _openPhotoViewer(context, game.photoUrls, i);
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            game.photoUrls[i],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (_, child, progress) =>
+                                progress == null
+                                    ? child
+                                    : Container(
+                                        color: const Color(0xFF1C1C1C),
+                                        child: const Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.primary,
+                                          ),
                                         ),
                                       ),
-                                    ),
+                          ),
                         ),
                       ),
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Photo banner slider (header) ──────────────────────────────────────────────
+
+class _PhotoBanner extends StatefulWidget {
+  final List<String> photoUrls;
+  final void Function(int index) onTap;
+
+  const _PhotoBanner({required this.photoUrls, required this.onTap});
+
+  @override
+  State<_PhotoBanner> createState() => _PhotoBannerState();
+}
+
+class _PhotoBannerState extends State<_PhotoBanner> {
+  int _current = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          itemCount: widget.photoUrls.length,
+          onPageChanged: (i) => setState(() => _current = i),
+          itemBuilder: (_, i) => GestureDetector(
+            onTap: () => widget.onTap(i),
+            child: Image.network(
+              widget.photoUrls[i],
+              fit: BoxFit.cover,
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : Container(
+                      color: const Color(0xFF1C1C1C),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.primary),
+                      ),
+                    ),
+            ),
+          ),
+        ),
+        // Bottom fade
+        Positioned(
+          bottom: 0, left: 0, right: 0, height: 60,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, AppColors.background],
+              ),
+            ),
+          ),
+        ),
+        // Page indicator dots
+        if (widget.photoUrls.length > 1)
+          Positioned(
+            bottom: 12, left: 0, right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(widget.photoUrls.length, (i) => Container(
+                width: i == _current ? 18 : 6,
+                height: 6,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: i == _current
+                      ? AppColors.primary
+                      : Colors.white38,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              )),
+            ),
+          ),
+        // Photo count badge
+        Positioned(
+          top: 48, right: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${_current + 1}/${widget.photoUrls.length}',
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Full-screen photo viewer with swipe ───────────────────────────────────────
+
+class _FullScreenPhotoViewer extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+
+  const _FullScreenPhotoViewer({required this.urls, required this.initialIndex});
+
+  @override
+  State<_FullScreenPhotoViewer> createState() => _FullScreenPhotoViewerState();
+}
+
+class _FullScreenPhotoViewerState extends State<_FullScreenPhotoViewer> {
+  late int _current;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.initialIndex;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          '${_current + 1} / ${widget.urls.length}',
+          style: const TextStyle(color: Colors.white70, fontSize: 15),
+        ),
+        centerTitle: true,
+      ),
+      body: PhotoViewGallery.builder(
+        itemCount: widget.urls.length,
+        pageController: PageController(initialPage: widget.initialIndex),
+        onPageChanged: (i) => setState(() => _current = i),
+        builder: (_, i) => PhotoViewGalleryPageOptions(
+          imageProvider: NetworkImage(widget.urls[i]),
+          minScale: PhotoViewComputedScale.contained,
+          maxScale: PhotoViewComputedScale.covered * 2,
+        ),
+        scrollPhysics: const BouncingScrollPhysics(),
+        backgroundDecoration: const BoxDecoration(color: Colors.black),
+        loadingBuilder: (_, event) => Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primary,
+            value: event == null ? null
+                : event.cumulativeBytesLoaded / (event.expectedTotalBytes ?? 1),
+          ),
         ),
       ),
     );

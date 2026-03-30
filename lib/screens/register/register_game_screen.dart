@@ -42,6 +42,7 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
 
   PlayerEntry? _contactEntry;
   String _countryCode = '+91';
+  final List<File> _pendingPhotos = [];
 
   DateTime?  _date;
   TimeOfDay? _time;
@@ -81,6 +82,24 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
         setState(() => _venueError = false);
       }
     });
+  }
+
+  /// Splits a full phone string like "+919876543210" into (countryCode, digits).
+  /// Falls back to ("+91", rawDigits) if no known prefix is found.
+  (String, String) _parsePhone(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^\d+]'), '');
+    // Common country codes sorted longest-first so +91 doesn't swallow +1
+    const codes = ['+971', '+966', '+965', '+61', '+44', '+91', '+1'];
+    for (final code in codes) {
+      if (digits.startsWith(code)) {
+        return (code, digits.substring(code.length));
+      }
+    }
+    // If raw starts with "91" (no +), treat as India
+    if (digits.startsWith('91') && digits.length > 10) {
+      return ('+91', digits.substring(2));
+    }
+    return ('+91', digits.replaceAll('+', ''));
   }
 
   @override
@@ -168,24 +187,60 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
     if (result != null) setState(() { _time = result; _timeError = false; });
   }
 
+  Future<void> _pickPhotos() async {
+    final existingCount = widget.existingGame?.photoUrls.length ?? 0;
+    final remaining = 10 - existingCount - _pendingPhotos.length;
+    if (remaining <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Maximum 10 photos allowed'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      return;
+    }
+    final picked = await ImagePicker().pickMultiImage(imageQuality: 75);
+    if (picked.isEmpty) return;
+    final files = picked.take(remaining).map((x) => File(x.path)).toList();
+    setState(() => _pendingPhotos.addAll(files));
+  }
+
   Future<void> _uploadEditPhoto(BuildContext context) async {
+    final existing = GameService()
+        .bySport(widget.sport)
+        .where((g) => g.id == widget.existingGame!.id)
+        .firstOrNull;
+    final currentCount = existing?.photoUrls.length ?? widget.existingGame!.photoUrls.length;
+    if (currentCount >= 10) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Maximum 10 photos allowed'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      return;
+    }
     final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, imageQuality: 75);
-    if (picked == null) return;
+        .pickMultiImage(imageQuality: 75);
+    if (picked.isEmpty) return;
     if (!context.mounted) return;
+    final remaining = 10 - currentCount;
+    final files = picked.take(remaining).map((x) => File(x.path)).toList();
     final snack = ScaffoldMessenger.of(context);
-    snack.showSnackBar(const SnackBar(
-      content: Text('Uploading photo...'),
-      duration: Duration(seconds: 30),
+    snack.showSnackBar(SnackBar(
+      content: Text('Uploading ${files.length} photo${files.length > 1 ? 's' : ''}...'),
+      duration: const Duration(seconds: 30),
       behavior: SnackBarBehavior.floating,
     ));
     try {
-      await GameService()
-          .uploadGamePhoto(widget.existingGame!.id, File(picked.path));
+      for (final file in files) {
+        await GameService()
+            .uploadGamePhoto(widget.existingGame!.id, file);
+      }
       snack.hideCurrentSnackBar();
       if (!context.mounted) return;
-      snack.showSnackBar(const SnackBar(
-        content: Text('Photo added!'),
+      snack.showSnackBar(SnackBar(
+        content: Text('${files.length} photo${files.length > 1 ? 's' : ''} added!'),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
       ));
@@ -315,7 +370,18 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
             PlayerSearchField(
               controller: _contactNameCtrl,
               hint: 'Search by name, email or ID',
-              onSelected: (entry) => setState(() => _contactEntry = entry),
+              onSelected: (entry) {
+                setState(() => _contactEntry = entry);
+                // Auto-fill phone from the selected user's profile
+                final phone = entry.phone;
+                if (phone != null && phone.isNotEmpty) {
+                  final parsed = _parsePhone(phone);
+                  setState(() {
+                    _countryCode = parsed.$1;
+                    _contactPhoneCtrl.text = parsed.$2;
+                  });
+                }
+              },
             ),
             const SizedBox(height: AppSpacing.md),
 
@@ -452,10 +518,11 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
 
             const SizedBox(height: AppSpacing.xl),
 
-            // ── Ground Photos (Edit mode only) ────────────────────────────
-            if (widget.existingGame != null) ...[
-              const _SectionHeader('GROUND PHOTOS'),
-              const SizedBox(height: AppSpacing.md),
+            // ── Ground Photos ────────────────────────────────────────────
+            const _SectionHeader('GROUND PHOTOS (max 10)'),
+            const SizedBox(height: AppSpacing.md),
+            if (widget.existingGame != null)
+              // Edit mode — show uploaded photos from Firestore
               Consumer<GameService>(
                 builder: (ctx, gameSvc, _) {
                   final live = gameSvc
@@ -487,6 +554,10 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
+                        Text('${urls.length}/10 photos',
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 12)),
+                        const SizedBox(height: AppSpacing.sm),
                       ],
                       SizedBox(
                         width: double.infinity,
@@ -509,9 +580,79 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     ],
                   );
                 },
+              )
+            else
+              // Create mode — show pending local photos
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_pendingPhotos.isNotEmpty) ...[
+                    SizedBox(
+                      height: 80,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _pendingPhotos.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(width: 8),
+                        itemBuilder: (_, i) => Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                _pendingPhotos[i],
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 2, right: 2,
+                              child: GestureDetector(
+                                onTap: () => setState(() =>
+                                    _pendingPhotos.removeAt(i)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close,
+                                      color: Colors.white, size: 14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text('${_pendingPhotos.length}/10 photos selected',
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 12)),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _pickPhotos,
+                      icon: const Icon(
+                          Icons.add_photo_alternate_outlined, size: 18),
+                      label: Text(_pendingPhotos.isEmpty
+                          ? 'Add Photos'
+                          : 'Add More Photos'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        side: const BorderSide(color: Colors.white24),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xl),
-            ],
+            const SizedBox(height: AppSpacing.xl),
 
             // ── Submit ────────────────────────────────────────────────────
             SizedBox(
@@ -524,7 +665,7 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     borderRadius: BorderRadius.circular(AppSpacing.sm),
                   ),
                 ),
-                onPressed: () {
+                onPressed: () async {
                   final venueEmpty = _venueCtrl.text.trim().isEmpty;
                   final dateEmpty  = _date == null;
                   final timeEmpty  = _time == null;
@@ -594,6 +735,13 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     GameService().updateGame(game);
                   } else {
                     GameService().addGame(game);
+                  }
+
+                  // Upload pending photos (create mode)
+                  if (_pendingPhotos.isNotEmpty) {
+                    for (final file in _pendingPhotos) {
+                      await GameService().uploadGamePhoto(game.id, file);
+                    }
                   }
 
                   if (!context.mounted) return;

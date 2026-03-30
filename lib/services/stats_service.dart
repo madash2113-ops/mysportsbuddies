@@ -86,8 +86,10 @@ class StatsService extends ChangeNotifier {
   Future<void> updateFromMatch(LiveMatch match, {bool isCareer = false}) async {
     if (match.sport == MatchSport.cricket && match.cricket != null) {
       await _updateCricket(match, isCareer: isCareer);
+    } else {
+      // Generic stats for all non-cricket sports
+      await _updateGeneric(match, isCareer: isCareer);
     }
-    // Future sports: football goals, etc.
     await load(); // Refresh cache
   }
 
@@ -286,6 +288,199 @@ class StatsService extends ChangeNotifier {
       });
     } catch (e) {
       debugPrint('StatsService._updateBowling error [$userId]: $e');
+    }
+  }
+
+  // ── Generic sport stats (non-cricket) ────────────────────────────────────
+  //
+  // Sport engine categories and what we track:
+  //
+  // RALLY (Table Tennis, Badminton, Tennis, Volleyball, Squash, Padel)
+  //   No draws. Winner takes the match. Stats: matches, wins, losses,
+  //   setsWon, setsLost, totalPoints (sum of all points scored across sets).
+  //
+  // FOOTBALL (Football, Futsal, Rugby, Handball, AFL, Water Polo, Lacrosse, Polo)
+  //   Draws possible. Stats: matches, wins, draws, losses, goals, conceded.
+  //
+  // BASKETBALL (Basketball, Netball)
+  //   No draws in regulation. Stats: matches, wins, losses, points, conceded.
+  //
+  // HOCKEY (Hockey, Ice Hockey)
+  //   Draws possible. Stats: matches, wins, draws, losses, goals, conceded.
+  //
+  // COMBAT (Boxing, MMA, Wrestling, Fencing)
+  //   No draws (winner declared). Stats: matches, wins, losses.
+  //
+  // ESPORTS (CS:GO, Valorant, LoL, Dota 2, FIFA)
+  //   Rounds-based. Stats: matches, wins, losses, roundsWon, roundsLost.
+  //
+  // GENERIC (Kabaddi, Kho Kho, etc.)
+  //   Points-based. Draws possible. Stats: matches, wins, draws, losses,
+  //   scored, conceded.
+
+  Future<void> _updateGeneric(LiveMatch match, {bool isCareer = false}) async {
+    final sport    = match.sportDisplayName;
+    final statsKey = isCareer ? 'career' : 'regular';
+    final engine   = match.engine;
+
+    // Build stat payload per engine type
+    final (dataA, dataB) = _buildStatPayload(match, engine);
+
+    // Write stats for team A players
+    for (final uid in match.teamAPlayerUserIds) {
+      if (uid.isEmpty) continue;
+      await _writeGenericStat(
+          userId: uid, sport: sport, statsKey: statsKey, data: dataA);
+    }
+
+    // Write stats for team B players
+    for (final uid in match.teamBPlayerUserIds) {
+      if (uid.isEmpty) continue;
+      await _writeGenericStat(
+          userId: uid, sport: sport, statsKey: statsKey, data: dataB);
+    }
+  }
+
+  /// Build Firestore-increment maps for each team based on the engine type.
+  /// Returns (teamAPayload, teamBPayload).
+  (Map<String, int>, Map<String, int>) _buildStatPayload(
+      LiveMatch m, SportEngine engine) {
+    switch (engine) {
+      case SportEngine.rally:
+        // Table Tennis, Badminton, Tennis, Volleyball, Squash, Padel
+        // No draws — always a winner.
+        final r = m.rally!;
+        final aWon = r.setsWonA > r.setsWonB;
+        // Sum all set scores
+        int ptsA = 0, ptsB = 0;
+        for (final s in r.sets) {
+          ptsA += s.scoreA;
+          ptsB += s.scoreB;
+        }
+        return (
+          {
+            'matches': 1,
+            if (aWon) 'wins': 1 else 'losses': 1,
+            'setsWon': r.setsWonA, 'setsLost': r.setsWonB,
+            'pointsFor': ptsA, 'pointsAgainst': ptsB,
+          },
+          {
+            'matches': 1,
+            if (!aWon) 'wins': 1 else 'losses': 1,
+            'setsWon': r.setsWonB, 'setsLost': r.setsWonA,
+            'pointsFor': ptsB, 'pointsAgainst': ptsA,
+          },
+        );
+
+      case SportEngine.football:
+        // Football, Futsal, Rugby, Handball, etc. — draws possible.
+        final sA = m.football?.teamAGoals ?? m.genericScore?.teamAScore ?? 0;
+        final sB = m.football?.teamBGoals ?? m.genericScore?.teamBScore ?? 0;
+        return _goalsPayload(sA, sB);
+
+      case SportEngine.hockey:
+        // Hockey, Ice Hockey — draws possible.
+        final sA = m.hockey?.teamAGoals ?? 0;
+        final sB = m.hockey?.teamBGoals ?? 0;
+        return _goalsPayload(sA, sB);
+
+      case SportEngine.basketball:
+        // Basketball, Netball — no draws in regulation.
+        final sA = m.basketball?.teamATotal ?? 0;
+        final sB = m.basketball?.teamBTotal ?? 0;
+        final aWon = sA > sB;
+        return (
+          {
+            'matches': 1,
+            if (sA > sB) 'wins': 1
+            else if (sB > sA) 'losses': 1
+            else 'draws': 1,
+            'points': sA, 'conceded': sB,
+          },
+          {
+            'matches': 1,
+            if (aWon) 'losses': 1
+            else if (sB > sA) 'wins': 1
+            else 'draws': 1,
+            'points': sB, 'conceded': sA,
+          },
+        );
+
+      case SportEngine.combat:
+        // Boxing, MMA, Wrestling, Fencing — winner declared, rare draws.
+        final w = m.combat?.winner ?? '';
+        return (
+          {
+            'matches': 1,
+            if (w == 'A') 'wins': 1
+            else if (w == 'B') 'losses': 1
+            else 'draws': 1,
+          },
+          {
+            'matches': 1,
+            if (w == 'B') 'wins': 1
+            else if (w == 'A') 'losses': 1
+            else 'draws': 1,
+          },
+        );
+
+      case SportEngine.esports:
+        // Rounds-based.
+        final rA = m.esports?.teamARounds ?? 0;
+        final rB = m.esports?.teamBRounds ?? 0;
+        final aWon = rA > rB;
+        return (
+          {
+            'matches': 1,
+            if (aWon) 'wins': 1 else 'losses': 1,
+            'roundsWon': rA, 'roundsLost': rB,
+          },
+          {
+            'matches': 1,
+            if (!aWon) 'wins': 1 else 'losses': 1,
+            'roundsWon': rB, 'roundsLost': rA,
+          },
+        );
+
+      case SportEngine.generic:
+        // Kabaddi, Kho Kho, etc. — generic score, draws possible.
+        final sA = m.genericScore?.teamAScore ?? 0;
+        final sB = m.genericScore?.teamBScore ?? 0;
+        return _goalsPayload(sA, sB);
+
+      case SportEngine.cricket:
+        return ({}, {}); // handled by _updateCricket
+    }
+  }
+
+  /// Helper for goal/point-based sports with draws (football, hockey, generic).
+  (Map<String, int>, Map<String, int>) _goalsPayload(int sA, int sB) {
+    final String oA, oB;
+    if (sA > sB) { oA = 'wins'; oB = 'losses'; }
+    else if (sB > sA) { oA = 'losses'; oB = 'wins'; }
+    else { oA = 'draws'; oB = 'draws'; }
+    return (
+      {'matches': 1, oA: 1, 'scored': sA, 'conceded': sB},
+      {'matches': 1, oB: 1, 'scored': sB, 'conceded': sA},
+    );
+  }
+
+  Future<void> _writeGenericStat({
+    required String userId,
+    required String sport,
+    required String statsKey,
+    required Map<String, int> data,
+  }) async {
+    if (data.isEmpty) return;
+    try {
+      final prefix = 'sportStats.$sport.$statsKey';
+      final update = <String, dynamic>{
+        for (final e in data.entries)
+          '$prefix.${e.key}': FieldValue.increment(e.value),
+      };
+      await _db.doc('$_col/$userId').update(update);
+    } catch (e) {
+      debugPrint('StatsService._writeGenericStat error [$userId]: $e');
     }
   }
 

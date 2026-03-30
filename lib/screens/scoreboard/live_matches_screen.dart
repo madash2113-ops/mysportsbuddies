@@ -13,36 +13,60 @@ import 'scoreboard_screen.dart';
 /// Shows live / completed matches. If [sportName] is null, shows all sports.
 /// All viewers subscribe to ScoreboardService so the list stays live.
 /// Set [showBackButton] to false when embedding as a bottom-nav tab.
-class LiveMatchesScreen extends StatelessWidget {
+class LiveMatchesScreen extends StatefulWidget {
   final String? sportName;
   final bool showBackButton;
 
   const LiveMatchesScreen({super.key, this.sportName, this.showBackButton = true});
 
   @override
+  State<LiveMatchesScreen> createState() => _LiveMatchesScreenState();
+}
+
+class _LiveMatchesScreenState extends State<LiveMatchesScreen> {
+  String? _selectedSport; // null = "All"
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<ScoreboardService>(
       builder: (context, svc, _) {
         final uid = UserService().userId ?? '';
-        final all = sportName != null
-            ? svc.bySport(sportName!)
+
+        // Base list: either pre-filtered by sportName or all
+        final all = widget.sportName != null
+            ? svc.bySport(widget.sportName!)
             : (svc.all.toList()
               ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
         // Show only matches the current user created or was added as a player
-        final matches = uid.isEmpty
+        final myMatches = uid.isEmpty
             ? all
             : all.where((m) =>
                 m.createdByUserId == uid ||
                 m.teamAPlayerUserIds.contains(uid) ||
                 m.teamBPlayerUserIds.contains(uid)).toList();
 
-        final title =
-            sportName != null ? '$sportName Scoreboards' : 'My Scoreboards';
+        // Collect distinct sports from user's matches (for filter chips)
+        final sportNames = <String>{};
+        for (final m in myMatches) {
+          final name = m.sportDisplayName;
+          if (name.isNotEmpty) sportNames.add(name);
+        }
+        final sortedSports = sportNames.toList()..sort();
+
+        // Apply sport filter
+        final matches = _selectedSport == null
+            ? myMatches
+            : myMatches.where((m) =>
+                m.sportDisplayName == _selectedSport).toList();
+
+        final title = widget.sportName != null
+            ? '${widget.sportName} Scoreboards'
+            : 'My Scoreboards';
 
         return Scaffold(
           backgroundColor: AppC.bg(context),
-          floatingActionButton: showBackButton
+          floatingActionButton: widget.showBackButton
               ? null
               : FloatingActionButton(
                   onPressed: () => Navigator.of(context).push(
@@ -53,8 +77,8 @@ class LiveMatchesScreen extends StatelessWidget {
                 ),
           appBar: AppBar(
             elevation: 0,
-            automaticallyImplyLeading: showBackButton,
-            leading: showBackButton
+            automaticallyImplyLeading: widget.showBackButton,
+            leading: widget.showBackButton
                 ? BackButton(color: AppC.text(context))
                 : null,
             title: Text(
@@ -68,24 +92,103 @@ class LiveMatchesScreen extends StatelessWidget {
                 tooltip: 'Create Scoreboard',
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => sportName != null
-                        ? MatchSetupScreen(sportName: sportName!)
+                    builder: (_) => widget.sportName != null
+                        ? MatchSetupScreen(sportName: widget.sportName!)
                         : const ScoreboardScreen(),
                   ),
                 ),
               ),
             ],
           ),
-          body: matches.isEmpty
-              ? _EmptyState(sportName: sportName)
-              : ListView.builder(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  itemCount: matches.length,
-                  itemBuilder: (context, i) =>
-                      _MatchCard(match: matches[i]),
+          body: Column(
+            children: [
+              // Sport filter chips — only show when not pre-filtered and >1 sport
+              if (widget.sportName == null && sortedSports.length > 1)
+                SizedBox(
+                  height: 48,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                    children: [
+                      _SportChip(
+                        label: 'All',
+                        selected: _selectedSport == null,
+                        onTap: () => setState(() => _selectedSport = null),
+                      ),
+                      ...sortedSports.map((sport) => _SportChip(
+                        label: sport,
+                        selected: _selectedSport == sport,
+                        onTap: () => setState(() => _selectedSport = sport),
+                      )),
+                    ],
+                  ),
                 ),
+              // Match list
+              Expanded(
+                child: matches.isEmpty
+                    ? _EmptyState(sportName: _selectedSport ?? widget.sportName)
+                    : RefreshIndicator(
+                        color: AppColors.primary,
+                        backgroundColor: AppC.card(context),
+                        onRefresh: () => ScoreboardService().loadFromFirestore(),
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          itemCount: matches.length,
+                          itemBuilder: (context, i) =>
+                              _MatchCard(match: matches[i]),
+                        ),
+                      ),
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _SportChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SportChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.primary
+                : AppColors.textMuted.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: selected
+                  ? AppColors.primary
+                  : AppColors.textMuted.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? AppColors.textOnPrimary : AppC.text(context),
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

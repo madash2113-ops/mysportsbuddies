@@ -73,10 +73,11 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
   }
 
   void _onFocusChange() {
-    if (!_focusNode.hasFocus) {
-      // Short delay so a tap on a result row fires before we hide
-      Future.delayed(const Duration(milliseconds: 200), _hideDropdown);
-    }
+    // Do NOT hide the dropdown when focus is lost (e.g. keyboard "Done" pressed).
+    // The dropdown should only be dismissed via:
+    //   • _select() — user picked a result
+    //   • onTapOutside — user tapped outside the field + dropdown area
+    //   • _onChanged() with empty text
   }
 
   void _onChanged(String value) {
@@ -248,11 +249,9 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
         overlayChildBuilder:  (_) => _buildDropdown(),
         child: TapRegion(
           onTapOutside: (_) {
-            // Only unfocus — _onFocusChange schedules _hideDropdown after 200 ms,
-            // giving the overlay result tile's onTap time to fire first.
-            // Calling _hideDropdown() here directly would dismiss the dropdown
-            // before _select() runs, swallowing the tap on the result.
             _focusNode.unfocus();
+            // Short delay so a tap on a result row fires before we hide
+            Future.delayed(const Duration(milliseconds: 200), _hideDropdown);
           },
           child: TextField(
             controller:        widget.controller,

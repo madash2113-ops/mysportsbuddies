@@ -10,6 +10,8 @@ import '../community/community_feed_screen.dart';
 import '../community/messages_screen.dart';
 import '../nearby/game_detail_screen.dart';
 import '../nearby/nearby_games_screen.dart';
+import '../../services/scoreboard_service.dart';
+import '../scoreboard/live_scoreboard_screen.dart';
 import '../scoreboard/scoreboard_menu_screen.dart';
 import '../sports/all_sports_screen.dart';
 import '../tournaments/tournament_detail_screen.dart';
@@ -165,6 +167,19 @@ class _NotifTile extends StatelessWidget {
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => const CommunityFeedScreen(allowBack: true)));
       case NotifType.matchResult:
+        final matchId = notif.targetId;
+        if (matchId != null && matchId.isNotEmpty) {
+          final match = ScoreboardService().byId(matchId);
+          if (match != null) {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => LiveScoreboardScreen(
+                matchId: match.id,
+                isScorer: false,
+              ),
+            ));
+            return;
+          }
+        }
         Navigator.of(context).push(PageRouteBuilder(
           opaque: false,
           pageBuilder: (_, _, _) => const ScoreboardMenuScreen(),

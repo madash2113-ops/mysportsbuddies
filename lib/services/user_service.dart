@@ -47,6 +47,8 @@ class UserService extends ChangeNotifier {
   bool get hasFullAccess {
     if (kDevMode) return true;
     if (_userId != null && kOwnerUserIds.contains(_userId)) return true;
+    final nid = _profile?.numericId;
+    if (nid != null && kOwnerNumericIds.contains(nid)) return true;
     return _profile?.isPremium == true;
   }
 

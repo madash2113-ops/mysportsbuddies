@@ -5,6 +5,7 @@ import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
 import '../sports/league_entry_screen.dart';
 import 'admin_management_screen.dart';
+import 'enroll_team_sheet.dart';
 import 'group_management_screen.dart';
 import 'schedule_management_screen.dart';
 import 'squad_management_screen.dart';
@@ -594,6 +595,28 @@ class _TeamsSheetState extends State<_TeamsSheet> {
                 style: const TextStyle(color: Colors.white,
                     fontSize: 16, fontWeight: FontWeight.w700)),
             const Spacer(),
+            if (widget.isHost)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(context); // close teams sheet
+                  EnrollTeamSheet.show(
+                    context,
+                    tournamentId:   widget.tournament.id,
+                    entryFee:       widget.tournament.entryFee,
+                    serviceFee:     widget.tournament.serviceFee,
+                    playersPerTeam: widget.tournament.playersPerTeam,
+                  );
+                },
+                icon: const Icon(Icons.add, size: 18, color: AppColors.primary),
+                label: const Text('Add Team',
+                    style: TextStyle(color: AppColors.primary,
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
             IconButton(
               icon: const Icon(Icons.close, color: Colors.white38),
               onPressed: () => Navigator.pop(context),
