@@ -248,7 +248,9 @@ class TournamentTeam {
   final String       teamName;
   final String       captainName;
   final String       captainPhone;
-  final String       captainUserId; // Firestore userId; '' if not registered
+  final String       captainUserId;      // Firestore userId; '' if not registered
+  final String       viceCaptainName;
+  final String       viceCaptainUserId;  // '' if not registered
   final List<String> players;
   final List<String> playerUserIds; // parallel to players; '' if unregistered
   final String       enrolledBy;
@@ -269,6 +271,8 @@ class TournamentTeam {
     required this.captainName,
     required this.captainPhone,
     this.captainUserId = '',
+    this.viceCaptainName = '',
+    this.viceCaptainUserId = '',
     required this.players,
     this.playerUserIds = const [],
     required this.enrolledBy,
@@ -287,8 +291,10 @@ class TournamentTeam {
     'teamName':         teamName,
     'captainName':      captainName,
     'captainPhone':     captainPhone,
-    'captainUserId':    captainUserId,
-    'players':          players,
+    'captainUserId':      captainUserId,
+    'viceCaptainName':    viceCaptainName,
+    'viceCaptainUserId':  viceCaptainUserId,
+    'players':            players,
     'playerUserIds':    playerUserIds,
     'enrolledBy':       enrolledBy,
     'enrolledAt':       Timestamp.fromDate(enrolledAt),
@@ -311,8 +317,10 @@ class TournamentTeam {
       teamName:         m['teamName']         as String,
       captainName:      m['captainName']      as String,
       captainPhone:     m['captainPhone']     as String,
-      captainUserId:    m['captainUserId']    as String? ?? '',
-      players:          List<String>.from(m['players']       as List? ?? []),
+      captainUserId:     m['captainUserId']     as String? ?? '',
+      viceCaptainName:   m['viceCaptainName']   as String? ?? '',
+      viceCaptainUserId: m['viceCaptainUserId'] as String? ?? '',
+      players:           List<String>.from(m['players']      as List? ?? []),
       playerUserIds:    List<String>.from(m['playerUserIds'] as List? ?? []),
       enrolledBy:       m['enrolledBy'] as String? ?? '',
       enrolledAt:       m['enrolledAt'] != null

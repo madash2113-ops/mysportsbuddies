@@ -15,6 +15,8 @@ class UserProfile {
   final String? imageUrl;
   final DateTime updatedAt;
   final bool isPremium;
+  final bool isAdmin;
+  final String? membershipId;   // set when premium is granted, e.g. "MSB-517913-4821"
   final UserRole role;
 
   // ── Player statistics ─────────────────────────────────────────────────────
@@ -37,6 +39,8 @@ class UserProfile {
     this.imageUrl,
     required this.updatedAt,
     this.isPremium = false,
+    this.isAdmin = false,
+    this.membershipId,
     this.role = UserRole.player,
     this.tournamentsPlayed = 0,
     this.matchesPlayed = 0,
@@ -94,7 +98,7 @@ class UserProfile {
         'nameReversed': nameReversed,
         'nameWords':    nameWords,
         'searchTokens': searchTokens,
-        'emailLower':   emailLower,    // lowercase email, case-insensitive
+        'emailLower':   emailLower,
         if (numericIdStr != null) 'numericIdStr': numericIdStr,
         // ────────────────────────────────────────────────────────────────
         'email': email,
@@ -105,6 +109,8 @@ class UserProfile {
         if (imageUrl != null) 'imageUrl': imageUrl,
         'updatedAt': Timestamp.fromDate(updatedAt),
         'isPremium': isPremium,
+        'isAdmin':   isAdmin,
+        if (membershipId != null) 'membershipId': membershipId,
         'role': role.name,
         'tournamentsPlayed': tournamentsPlayed,
         'matchesPlayed':     matchesPlayed,
@@ -125,14 +131,16 @@ class UserProfile {
         updatedAt: map['updatedAt'] != null
             ? (map['updatedAt'] as Timestamp).toDate()
             : DateTime.now(),
-        isPremium:          map['isPremium']          as bool? ?? false,
+        isPremium:    map['isPremium']    as bool?   ?? false,
+        isAdmin:      map['isAdmin']      as bool?   ?? false,
+        membershipId: map['membershipId'] as String?,
         role: UserRole.values.firstWhere(
           (r) => r.name == (map['role'] as String? ?? 'player'),
           orElse: () => UserRole.player,
         ),
-        tournamentsPlayed:  (map['tournamentsPlayed'] as num?)?.toInt() ?? 0,
-        matchesPlayed:      (map['matchesPlayed']     as num?)?.toInt() ?? 0,
-        matchesWon:         (map['matchesWon']        as num?)?.toInt() ?? 0,
+        tournamentsPlayed: (map['tournamentsPlayed'] as num?)?.toInt() ?? 0,
+        matchesPlayed:     (map['matchesPlayed']     as num?)?.toInt() ?? 0,
+        matchesWon:        (map['matchesWon']        as num?)?.toInt() ?? 0,
         favoriteSports: (() {
           final raw = map['favoriteSports'];
           if (raw == null) return null;
@@ -154,6 +162,8 @@ class UserProfile {
     String? bio,
     String? imageUrl,
     bool? isPremium,
+    bool? isAdmin,
+    String? membershipId,
     UserRole? role,
     int? tournamentsPlayed,
     int? matchesPlayed,
@@ -172,6 +182,8 @@ class UserProfile {
         imageUrl: imageUrl ?? this.imageUrl,
         updatedAt: DateTime.now(),
         isPremium: isPremium ?? this.isPremium,
+        isAdmin:   isAdmin   ?? this.isAdmin,
+        membershipId: membershipId ?? this.membershipId,
         role: role ?? this.role,
         tournamentsPlayed: tournamentsPlayed ?? this.tournamentsPlayed,
         matchesPlayed:     matchesPlayed     ?? this.matchesPlayed,

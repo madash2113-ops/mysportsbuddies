@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback;
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -9,14 +9,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../controllers/profile_controller.dart';
 import '../../core/models/match_score.dart';
-import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 
 import '../../services/location_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/scoreboard_service.dart';
-import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../community/community_feed_screen.dart';
 import '../nearby/nearby_games_screen.dart';
@@ -24,7 +22,6 @@ import '../scoreboard/live_matches_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../sports/all_sports_screen.dart';
-import '../tournaments/tournament_detail_screen.dart';
 import '../tournaments/tournaments_list_screen.dart';
 import '../common/app_drawer.dart';
 import '../games/create_game_screen.dart';
@@ -479,6 +476,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                         onTap: () async {
                           await Clipboard.setData(
                               ClipboardData(text: '$numId'));
+                          await HapticFeedback.lightImpact();
                           if (!mounted) return;
                           setState(() => _idCopied = true);
                           Future.delayed(const Duration(seconds: 2), () {
@@ -2287,10 +2285,13 @@ class _ContextBanners extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Live scoreboard banner
+        // Live scoreboard banner — only shown when the current user is the active scorer
         Consumer<ScoreboardService>(
           builder: (context, svc, _) {
-            final live = svc.all.where((m) => m.status == MatchStatus.live).toList();
+            final uid  = UserService().userId;
+            final live = svc.all.where((m) =>
+                m.status == MatchStatus.live &&
+                m.createdByUserId == uid).toList();
             if (live.isEmpty) return const SizedBox.shrink();
             final m = live.first;
             final score = _liveScore(m);
@@ -2303,28 +2304,6 @@ class _ContextBanners extends StatelessWidget {
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) =>
                       LiveScoreboardScreen(matchId: m.id, isScorer: true))),
-            );
-          },
-        ),
-        // Active tournament banner
-        ListenableBuilder(
-          listenable: TournamentService(),
-          builder: (context, _) {
-            final svc = TournamentService();
-            final ongoing = svc.tournaments.where((t) =>
-                t.status == TournamentStatus.ongoing &&
-                svc.myEnrolledIds.contains(t.id)).toList();
-            if (ongoing.isEmpty) return const SizedBox.shrink();
-            final t = ongoing.first;
-            return _BannerRow(
-              color: AppColors.primary,
-              leading: const Icon(Icons.emoji_events, color: AppColors.primary, size: 14),
-              label: t.name,
-              detail: t.sport,
-              actionLabel: 'View',
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) =>
-                      TournamentDetailScreen(tournamentId: t.id))),
             );
           },
         ),

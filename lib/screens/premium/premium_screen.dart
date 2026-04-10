@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../design/colors.dart';
+import '../../services/user_service.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -13,8 +14,6 @@ class PremiumScreen extends StatefulWidget {
 class _PremiumScreenState extends State<PremiumScreen> {
   int _selectedPlan = 1; // 0=Monthly, 1=Annual, 2=Lifetime
 
-  // ── Currency detection ──────────────────────────────────────────────────────
-
   static String _detectCurrency() {
     try {
       final locale = Platform.localeName;
@@ -25,20 +24,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
         case 'GB': return 'GBP';
         case 'AU':
         case 'NZ': return 'AUD';
-        case 'DE':
-        case 'FR':
-        case 'IT':
-        case 'ES':
-        case 'NL':
-        case 'AT':
-        case 'BE':
-        case 'PT':
-        case 'FI':
-        case 'GR': return 'EUR';
-        case 'AE':
-        case 'SA':
-        case 'QA':
-        case 'KW': return 'AED';
+        case 'DE': case 'FR': case 'IT': case 'ES':
+        case 'NL': case 'AT': case 'BE': case 'PT':
+        case 'FI': case 'GR': return 'EUR';
+        case 'AE': case 'SA': case 'QA': case 'KW': return 'AED';
         case 'SG': return 'SGD';
         case 'MY': return 'MYR';
         case 'PK': return 'PKR';
@@ -56,7 +45,6 @@ class _PremiumScreenState extends State<PremiumScreen> {
     }
   }
 
-  // prices[currency] = [monthly, annual, lifetime]
   static const _prices = <String, List<String>>{
     'INR': ['\u20B9199',   '\u20B9999',    '\u20B92,499'],
     'USD': ['\u00243.99',  '\u002429.99',  '\u002449.99'],
@@ -94,14 +82,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
   ];
 
   late final String _currency = _detectCurrency();
-
-  List<String> get _planPrices =>
-      _prices[_currency] ?? _prices['USD']!;
+  List<String> get _planPrices => _prices[_currency] ?? _prices['USD']!;
 
   List<_Plan> get _plans => [
-        _Plan('Monthly',  _planPrices[0], '/month',   '',           false),
-        _Plan('Annual',   _planPrices[1], '/year',    'Save 58%',   true),
-        _Plan('Lifetime', _planPrices[2], 'one-time', 'Best deal',  false),
+        _Plan('Monthly',  _planPrices[0], '/month',   '',          false),
+        _Plan('Annual',   _planPrices[1], '/year',    'Save 58%',  true),
+        _Plan('Lifetime', _planPrices[2], 'one-time', 'Best deal', false),
       ];
 
   void _subscribe() {
@@ -114,8 +100,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
         backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -123,166 +108,877 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final bg      = isDark ? const Color(0xFF0A0A0A) : AppColorsLight.background;
-    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
-    final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
-    final plans   = _plans;
-    final canPop  = Navigator.canPop(context);
+    return ListenableBuilder(
+      listenable: UserService(),
+      builder: (context, _) {
+        final profile = UserService().profile;
 
-    return Scaffold(
-      backgroundColor: bg,
-      body: CustomScrollView(
-        slivers: [
-          // ── Hero ────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Stack(
-              children: [
-                _HeroBanner(isDark: isDark),
-                if (canPop)
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 4,
-                    left: 4,
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        // ── Already premium → show membership card ──────────────────────
+        if (profile?.isPremium == true) {
+          return _MembershipScreen(profile: profile!);
+        }
 
-          // ── Free vs Premium comparison ───────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-              child: _ComparisonTable(
-                features: _features,
-                isDark: isDark,
-                primary: primary,
-                textCol: textCol,
-              ),
-            ),
-          ),
+        // ── Not premium → show upgrade screen ───────────────────────────
+        final isDark  = Theme.of(context).brightness == Brightness.dark;
+        final bg      = isDark ? const Color(0xFF0A0A0A) : AppColorsLight.background;
+        final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+        final textCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
+        final plans   = _plans;
+        final canPop  = Navigator.canPop(context);
 
-          // ── Plan selector ────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Choose Your Plan',
-                      style: TextStyle(
-                          color: textCol,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 14),
-                  ...plans.asMap().entries.map(
-                        (e) => _PlanCard(
-                          plan: e.value,
-                          selected: _selectedPlan == e.key,
-                          primary: primary,
-                          textCol: textCol,
-                          isDark: isDark,
-                          onTap: () =>
-                              setState(() => _selectedPlan = e.key),
-                        ),
-                      ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── CTA ──────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            primary,
-                            primary.withValues(alpha: 0.75),
-                          ],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primary.withValues(alpha: 0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
+        return Scaffold(
+          backgroundColor: bg,
+          extendBodyBehindAppBar: true,
+          body: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Stack(
+                    fit: StackFit.passthrough,
+                    children: [
+                      _HeroBanner(isDark: isDark),
+                      if (canPop)
+                        Positioned(
+                          top: MediaQuery.of(context).padding.top + 4,
+                          left: 4,
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                            onPressed: () => Navigator.pop(context),
                           ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _subscribe,
-                          borderRadius: BorderRadius.circular(14),
-                          child: Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('\u26A1',
-                                    style: TextStyle(fontSize: 18)),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Get ${plans[_selectedPlan].name} — ${plans[_selectedPlan].price}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _ComparisonTable(
+                    features: _features,
+                    isDark: isDark,
+                    primary: primary,
+                    textCol: textCol,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Choose Your Plan',
+                          style: TextStyle(
+                              color: textCol,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 14),
+                      ...plans.asMap().entries.map(
+                            (e) => _PlanCard(
+                              plan: e.value,
+                              selected: _selectedPlan == e.key,
+                              primary: primary,
+                              textCol: textCol,
+                              isDark: isDark,
+                              onTap: () =>
+                                  setState(() => _selectedPlan = e.key),
+                            ),
+                          ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                primary,
+                                primary.withValues(alpha: 0.75),
                               ],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: primary.withValues(alpha: 0.35),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _subscribe,
+                              borderRadius: BorderRadius.circular(14),
+                              child: Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text('\u26A1',
+                                        style: TextStyle(fontSize: 18)),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Get ${plans[_selectedPlan].name} — ${plans[_selectedPlan].price}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Cancel anytime \u00B7 Secure payment \u00B7 No hidden fees',
-                    style: TextStyle(
-                      color: isDark ? Colors.white38 : Colors.black38,
-                      fontSize: 11,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _TextLink('Restore Purchases', isDark),
-                      const SizedBox(width: 16),
-                      _TextLink('Terms', isDark),
-                      const SizedBox(width: 16),
-                      _TextLink('Privacy', isDark),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Cancel anytime \u00B7 Secure payment \u00B7 No hidden fees',
+                        style: TextStyle(
+                          color: isDark ? Colors.white38 : Colors.black38,
+                          fontSize: 11,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _TextLink('Restore Purchases', isDark),
+                          const SizedBox(width: 16),
+                          _TextLink('Terms', isDark),
+                          const SizedBox(width: 16),
+                          _TextLink('Privacy', isDark),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 100 + MediaQuery.of(context).padding.bottom,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// "Your Premium" screen — shown when already premium
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _MembershipScreen extends StatelessWidget {
+  final dynamic profile; // UserProfile
+  const _MembershipScreen({required this.profile});
+
+  static const _perks = [
+    ('PDF Match Reports',        'Export full scorecards as formatted PDFs',    Icons.picture_as_pdf_outlined),
+    ('Advanced Statistics',      'Batting avg, bowling economy, strike rates',  Icons.bar_chart_outlined),
+    ('Unlimited Scoreboards',    'Create as many live scoreboards as you need', Icons.scoreboard_outlined),
+    ('Premium Badge',            'Red ⚡ badge on your profile',                Icons.verified_outlined),
+    ('Priority Alerts',          'First to know about nearby games',            Icons.notifications_active_outlined),
+    ('Tournament Early Access',  'Register before general availability',        Icons.emoji_events_outlined),
+    ('Live Streaming',           'Stream & watch sports live (coming soon)',    Icons.wifi_tethering),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final canPop   = Navigator.canPop(context);
+    final memberId = profile.membershipId as String? ?? '—';
+    final name     = (profile.name as String).isNotEmpty
+        ? profile.name as String : 'Member';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A0A0A),
+        elevation: 0,
+        automaticallyImplyLeading: canPop,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Your Premium',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+        children: [
+          // ── Subscription card ─────────────────────────────────────────────
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(left: 16, top: 16),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF222222),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('Subscription',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: Row(children: [
+                    const Text('\uD83C\uDFC6',
+                        style: TextStyle(fontSize: 18)),
+                    const SizedBox(width: 6),
+                    const Text('MySportsBuddies',
+                        style: TextStyle(
+                            color: Colors.white70, fontSize: 13)),
+                  ]),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: Text('Premium',
+                      style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+                  child: Text(name,
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 13)),
+                ),
+                if (memberId != '—')
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+                    child: Text(memberId,
+                        style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                            letterSpacing: 1.2)),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white30),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 8),
+                      ),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              _ManageSubscriptionScreen(profile: profile),
+                        ),
+                      ),
+                      child: const Text('Manage',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 100 + MediaQuery.of(context).padding.bottom,
+          const SizedBox(height: 24),
+
+          // ── Snapshot of your benefits ─────────────────────────────────────
+          const Text('Snapshot of your benefits',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 14),
+
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: _perks.asMap().entries.map((e) {
+                final label = e.value.$1;
+                final isLast = e.key == _perks.length - 1;
+                return Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    child: Row(children: [
+                      const Icon(Icons.check,
+                          color: AppColors.primary, size: 20),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(label,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500)),
+                      ),
+                    ]),
+                  ),
+                  if (!isLast)
+                    const Divider(
+                        height: 1, color: Colors.white10, indent: 50),
+                ]);
+              }).toList(),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Manage Subscription screen
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ManageSubscriptionScreen extends StatelessWidget {
+  final dynamic profile;
+  const _ManageSubscriptionScreen({required this.profile});
+
+
+  @override
+  Widget build(BuildContext context) {
+    final memberId = profile.membershipId as String? ?? '—';
+    final name     = (profile.name as String).isNotEmpty
+        ? profile.name as String : 'Member';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A0A0A),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Manage subscription',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
+        children: [
+          // ── Plan card ──────────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Text('\uD83C\uDFC6',
+                      style: TextStyle(fontSize: 18)),
+                  const SizedBox(width: 6),
+                  const Text('MySportsBuddies',
+                      style: TextStyle(
+                          color: Colors.white70, fontSize: 13)),
+                ]),
+                const SizedBox(height: 6),
+                const Text('Premium',
+                    style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('1 Premium account · $name',
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 13)),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Membership ID ──────────────────────────────────────────────────
+          if (memberId != '—') ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161616),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Membership ID',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Text(memberId,
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2)),
+                  const SizedBox(height: 6),
+                  const Text(
+                      'Present this ID to claim premium benefits at events.',
+                      style: TextStyle(
+                          color: Colors.white38, fontSize: 12)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // ── Payment info ───────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Payment',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                const Text(
+                    'Your premium access was granted by your administrator.',
+                    style: TextStyle(
+                        color: Colors.white54, fontSize: 13, height: 1.5)),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(25),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: AppColors.primary.withAlpha(80)),
+                    ),
+                    child: const Text('Active',
+                        style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Available plans & add-ons ──────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Available plans and add-ons',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 14),
+                // Explore all benefits
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const _AllBenefitsScreen(),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              const Text('Explore all benefits',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text('New',
+                                    style: TextStyle(
+                                        color: AppColors.primary,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            ]),
+                            const Text(
+                                'See everything included in your plan',
+                                style: TextStyle(
+                                    color: Colors.white38, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios,
+                          color: Colors.white38, size: 16),
+                    ]),
+                  ),
+                ),
+                const Divider(height: 1, color: Colors.white10),
+                const SizedBox(height: 8),
+                // Explore plans
+                Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text('Explore plans',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                        Text('Affordable options for any situation.',
+                            style: TextStyle(
+                                color: Colors.white38, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Cancel subscription ────────────────────────────────────────────
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      _CancelSubscriptionScreen(profile: profile),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(children: [
+                  const Expanded(
+                    child: Text('Cancel Subscription',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                  const Icon(Icons.arrow_forward_ios,
+                      color: Colors.white38, size: 16),
+                ]),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// All Benefits screen
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _AllBenefitsScreen extends StatelessWidget {
+  const _AllBenefitsScreen();
+
+  static const _benefits = [
+    ('PDF Match Reports',        'Export full scorecards as formatted PDFs',     Icons.picture_as_pdf_outlined),
+    ('Advanced Statistics',      'Batting avg, bowling economy, strike rates',   Icons.bar_chart_outlined),
+    ('Unlimited Scoreboards',    'Create as many live scoreboards as you need',  Icons.scoreboard_outlined),
+    ('Premium Badge on Profile', 'Red ⚡ badge visible to all players',          Icons.verified_outlined),
+    ('Priority Game Alerts',     'First to know about nearby games',             Icons.notifications_active_outlined),
+    ('Tournament Early Access',  'Register before general availability',         Icons.emoji_events_outlined),
+    ('Live Streaming',           'Stream & watch sports live (coming soon)',      Icons.wifi_tethering),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A0A0A),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Your benefits',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: _benefits.asMap().entries.map((e) {
+                final (title, subtitle, icon) = e.value;
+                final isLast = e.key == _benefits.length - 1;
+                return Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withAlpha(25),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon,
+                            color: AppColors.primary, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600)),
+                            Text(subtitle,
+                                style: const TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 12,
+                                    height: 1.3)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.check_circle_rounded,
+                          color: AppColors.primary, size: 20),
+                    ]),
+                  ),
+                  if (!isLast)
+                    const Divider(
+                        height: 1, color: Colors.white10, indent: 74),
+                ]);
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Cancel Subscription confirmation screen
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _CancelSubscriptionScreen extends StatefulWidget {
+  final dynamic profile;
+  const _CancelSubscriptionScreen({required this.profile});
+
+  @override
+  State<_CancelSubscriptionScreen> createState() =>
+      _CancelSubscriptionScreenState();
+}
+
+class _CancelSubscriptionScreenState
+    extends State<_CancelSubscriptionScreen> {
+  bool _cancelling = false;
+
+  Future<void> _confirmCancel() async {
+    setState(() => _cancelling = true);
+    try {
+      await UserService().cancelPremium();
+      if (!mounted) return;
+      // Pop all the way back to the screen that opened Premium
+      Navigator.of(context).popUntil((route) {
+        return route.isFirst ||
+            route.settings.name == '/home' ||
+            route.settings.name == '/premium';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your premium subscription has been cancelled.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _cancelling = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to cancel: $e'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A0A0A),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Cancel subscription',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700)),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Warning icon
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Colors.red.withAlpha(25),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.cancel_outlined,
+                  color: Colors.red, size: 32),
+            ),
+            const SizedBox(height: 20),
+            const Text('Are you sure you want to cancel?',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            const Text(
+              'If you cancel, you will lose access to all premium features immediately, including:',
+              style: TextStyle(
+                  color: Colors.white54, fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            _lossItem('PDF Match Reports'),
+            _lossItem('Advanced Statistics'),
+            _lossItem('Unlimited Scoreboards'),
+            _lossItem('Premium Badge'),
+            _lossItem('Tournament Early Access'),
+            const Spacer(),
+            // ── Back to account ──────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed:
+                    _cancelling ? null : () => Navigator.pop(context),
+                child: const Text('Keep Premium',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white54,
+                  side: const BorderSide(color: Colors.white24),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: _cancelling ? null : _confirmCancel,
+                child: _cancelling
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white38))
+                    : const Text('Yes, Cancel Subscription',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _lossItem(String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: [
+          const Icon(Icons.remove_circle_outline,
+              color: Colors.red, size: 16),
+          const SizedBox(width: 10),
+          Text(text,
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 14)),
+        ]),
+      );
 }
 
 // ── Hero banner ───────────────────────────────────────────────────────────────
@@ -295,6 +991,7 @@ class _HeroBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusBarH = MediaQuery.of(context).padding.top;
     return Container(
+      width: double.infinity,
       height: 260 + statusBarH,
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
@@ -324,23 +1021,20 @@ class _HeroBanner extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 Container(
-                  width: 90,
-                  height: 90,
+                  width: 90, height: 90,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white.withValues(alpha: 0.07),
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.primary.withValues(alpha: 0.4),
-                        blurRadius: 30,
-                        spreadRadius: 4,
+                        blurRadius: 30, spreadRadius: 4,
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  width: 70,
-                  height: 70,
+                  width: 70, height: 70,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
@@ -350,8 +1044,7 @@ class _HeroBanner extends StatelessWidget {
                       ],
                     ),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 1.5,
+                      color: Colors.white.withValues(alpha: 0.3), width: 1.5,
                     ),
                   ),
                   child: const Center(
@@ -362,43 +1055,32 @@ class _HeroBanner extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
-            const Text(
-              'MySportsBuddies',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.2,
-              ),
-            ),
+            const Text('MySportsBuddies',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2)),
             const SizedBox(height: 4),
-            const Text(
-              'Premium Membership',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
-            ),
+            const Text('Premium Membership',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5)),
             const SizedBox(height: 8),
-            Text(
-              'Unlock the complete sports experience',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 13,
-              ),
-            ),
+            Text('Unlock the complete sports experience',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 13)),
             const SizedBox(height: 16),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.2),
-                ),
+                    color: Colors.white.withValues(alpha: 0.2)),
               ),
               child: const Text(
                 '\u2B50  Trusted by 10,000+ sports enthusiasts',
@@ -415,7 +1097,7 @@ class _HeroBanner extends StatelessWidget {
   }
 }
 
-// ── Comparison table — ticks & crosses only, no colour coding ─────────────────
+// ── Comparison table ──────────────────────────────────────────────────────────
 
 class _ComparisonTable extends StatelessWidget {
   final List<_Feature> features;
@@ -437,14 +1119,9 @@ class _ComparisonTable extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'What You Unlock',
-          style: TextStyle(
-            color: textCol,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Text('What You Unlock',
+            style: TextStyle(
+                color: textCol, fontSize: 18, fontWeight: FontWeight.w800)),
         const SizedBox(height: 14),
         Container(
           decoration: BoxDecoration(
@@ -454,7 +1131,6 @@ class _ComparisonTable extends StatelessWidget {
           ),
           child: Column(
             children: [
-              // Header row
               Container(
                 decoration: BoxDecoration(
                   color: primary.withValues(alpha: 0.08),
@@ -494,8 +1170,6 @@ class _ComparisonTable extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Feature rows — only ✓ / ✗, no color coding
               ...features.asMap().entries.map((e) {
                 final f = e.value;
                 final isLast = e.key == features.length - 1;
@@ -504,11 +1178,7 @@ class _ComparisonTable extends StatelessWidget {
                     border: isLast
                         ? null
                         : Border(
-                            bottom: BorderSide(
-                              color: divCol,
-                              width: 0.5,
-                            ),
-                          ),
+                            bottom: BorderSide(color: divCol, width: 0.5)),
                   ),
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 12),
@@ -525,15 +1195,12 @@ class _ComparisonTable extends StatelessWidget {
                                     fontWeight: FontWeight.w600)),
                             Text(f.subtitle,
                                 style: TextStyle(
-                                    color: subCol,
-                                    fontSize: 11,
-                                    height: 1.3),
+                                    color: subCol, fontSize: 11, height: 1.3),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       ),
-                      // Free column — plain ✓ or ✗
                       SizedBox(
                         width: 52,
                         child: Center(
@@ -547,7 +1214,6 @@ class _ComparisonTable extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Pro column — plain ✓ or ✗
                       SizedBox(
                         width: 60,
                         child: Center(
@@ -592,19 +1258,14 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cardBg = isDark
-        ? (selected
-            ? primary.withValues(alpha: 0.10)
-            : const Color(0xFF111111))
-        : (selected
-            ? primary.withValues(alpha: 0.06)
-            : Colors.white);
+        ? (selected ? primary.withValues(alpha: 0.10) : const Color(0xFF111111))
+        : (selected ? primary.withValues(alpha: 0.06) : Colors.white);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(14),
@@ -619,8 +1280,7 @@ class _PlanCard extends StatelessWidget {
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              width: 22,
-              height: 22,
+              width: 22, height: 22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
@@ -632,8 +1292,7 @@ class _PlanCard extends StatelessWidget {
                 color: selected ? primary : Colors.transparent,
               ),
               child: selected
-                  ? const Icon(Icons.check,
-                      color: Colors.white, size: 13)
+                  ? const Icon(Icons.check, color: Colors.white, size: 13)
                   : null,
             ),
             const SizedBox(width: 14),
@@ -677,9 +1336,7 @@ class _PlanCard extends StatelessWidget {
                         style: TextStyle(
                             color: selected
                                 ? primary
-                                : (isDark
-                                    ? Colors.white54
-                                    : Colors.black54),
+                                : (isDark ? Colors.white54 : Colors.black54),
                             fontSize: 12,
                             fontWeight: FontWeight.w600)),
                 ],
@@ -695,9 +1352,7 @@ class _PlanCard extends StatelessWidget {
                         fontWeight: FontWeight.w800)),
                 Text(plan.period,
                     style: TextStyle(
-                        color: isDark
-                            ? Colors.white38
-                            : Colors.black38,
+                        color: isDark ? Colors.white38 : Colors.black38,
                         fontSize: 11)),
               ],
             ),
@@ -731,14 +1386,12 @@ class _TextLink extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: _onTap,
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isDark ? Colors.white38 : Colors.black38,
-          fontSize: 11,
-          decoration: TextDecoration.underline,
-        ),
-      ),
+      child: Text(label,
+          style: TextStyle(
+            color: isDark ? Colors.white38 : Colors.black38,
+            fontSize: 11,
+            decoration: TextDecoration.underline,
+          )),
     );
   }
 }
@@ -754,6 +1407,5 @@ class _Feature {
 class _Plan {
   final String name, price, period, subLabel;
   final bool isBest;
-  const _Plan(
-      this.name, this.price, this.period, this.subLabel, this.isBest);
+  const _Plan(this.name, this.price, this.period, this.subLabel, this.isBest);
 }

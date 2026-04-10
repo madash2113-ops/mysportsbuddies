@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,6 +38,7 @@ class UserService extends ChangeNotifier {
   String?      _userId;
   UserProfile? _profile;
   bool         _initialized = false;
+  StreamSubscription<DocumentSnapshot>? _profileSub;
 
   String?      get userId      => _userId;
   UserProfile? get profile     => _profile;
@@ -49,6 +52,7 @@ class UserService extends ChangeNotifier {
     if (_userId != null && kOwnerUserIds.contains(_userId)) return true;
     final nid = _profile?.numericId;
     if (nid != null && kOwnerNumericIds.contains(nid)) return true;
+    if (_profile?.isAdmin == true) return true;
     return _profile?.isPremium == true;
   }
 
@@ -79,6 +83,7 @@ class UserService extends ChangeNotifier {
     await _ensureNumericId();
     _backfillSearchFields();       // fire-and-forget: indexes current user
     _globalBackfillSearchFields(); // fire-and-forget: indexes all unindexed users
+    _startProfileListener(_userId!); // real-time updates (e.g. admin grants premium)
     _initialized = true;
     notifyListeners();
   }
@@ -294,8 +299,45 @@ class UserService extends ChangeNotifier {
     }
 
     await _ensureNumericId();
+    _startProfileListener(uid); // real-time updates for this user
     _initialized = true;
     notifyListeners();
+  }
+
+  // ── Real-time profile listener ────────────────────────────────────────────
+
+  /// Subscribes to real-time updates for the current user's Firestore doc.
+  /// Any external write (e.g. admin granting premium) is picked up instantly.
+  /// Also auto-generates a membershipId if the user is premium but has none.
+  void _startProfileListener(String uid) {
+    _profileSub?.cancel();
+    _profileSub = _db.collection(_col).doc(uid).snapshots().listen(
+      (snap) async {
+        if (!snap.exists) return;
+        final p = UserProfile.fromFirestore(snap);
+        _profile = p;
+        notifyListeners();
+
+        // Auto-generate membershipId if premium but none assigned yet
+        if (p.isPremium && (p.membershipId == null || p.membershipId!.isEmpty)) {
+          final suffix = (DateTime.now().millisecondsSinceEpoch % 9000 + 1000).toString();
+          final mid = p.numericId != null
+              ? 'MSB-${p.numericId}-$suffix'
+              : 'MSB-${uid.substring(0, 6).toUpperCase()}-$suffix';
+          try {
+            await _db.collection(_col).doc(uid).set(
+              {'membershipId': mid},
+              SetOptions(merge: true),
+            );
+          } catch (e) {
+            debugPrint('UserService: membershipId generation error: $e');
+          }
+        }
+      },
+      onError: (dynamic e) {
+        debugPrint('UserService profile listener error: $e');
+      },
+    );
   }
 
   // ── Load ─────────────────────────────────────────────────────────────────
@@ -518,6 +560,33 @@ class UserService extends ChangeNotifier {
       debugPrint('UserService.searchByEmail error: $e');
       return null;
     }
+  }
+
+  /// Cancels the current user's premium subscription.
+  Future<void> cancelPremium() async {
+    if (_userId == null) return;
+    await _db.collection(_col).doc(_userId).set(
+      {'isPremium': false},
+      SetOptions(merge: true),
+    );
+  }
+
+  /// Returns true if [phone] is already stored on a different user's profile.
+  /// Pass [excludeUserId] to ignore the current user (for profile edits).
+  Future<bool> isPhoneInUse(String phone, {String? excludeUserId}) async {
+    final found = await searchByPhone(phone);
+    if (found == null) return false;
+    if (excludeUserId != null && found.id == excludeUserId) return false;
+    return true;
+  }
+
+  /// Returns true if [email] is already stored on a different user's profile.
+  /// Pass [excludeUserId] to ignore the current user (for profile edits).
+  Future<bool> isEmailInUse(String email, {String? excludeUserId}) async {
+    final found = await searchByEmail(email);
+    if (found == null) return false;
+    if (excludeUserId != null && found.id == excludeUserId) return false;
+    return true;
   }
 
   /// Search by phone number — tries all common storage formats in parallel

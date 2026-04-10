@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'core/routes/app_routes.dart';
 import 'controllers/profile_controller.dart';
 import 'design/theme.dart';
+import 'services/admin_service.dart';
 import 'services/auth_service.dart';
 import 'services/feed_service.dart';
 import 'services/follow_service.dart';
@@ -66,6 +67,7 @@ void main() async {
     await TournamentService().loadTournaments(); // ensure data on first frame
     VenueService().listenToVenues();
     GameListingService().listenToOpenGames();
+    AdminService().listen(); // real-time admin roster
     debugPrint('✅ Real-time listeners started');
   } catch (e) {
     debugPrint('❌ Firebase error: $e');
@@ -88,6 +90,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => VenueService()),
         ChangeNotifierProvider(create: (_) => GameListingService()),
         ChangeNotifierProvider(create: (_) => StatsService()),
+        ChangeNotifierProvider(create: (_) => AdminService()),
       ],
       child: const MySportsApp(),
     ),

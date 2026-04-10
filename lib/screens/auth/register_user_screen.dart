@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/auth_service.dart';
+import '../../services/user_service.dart';
 import 'auth_router.dart';
 
 class RegisterUserScreen extends StatefulWidget {
@@ -51,6 +52,30 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
     }
 
     setState(() { _loading = true; _error = null; });
+
+    // ── Uniqueness checks before creating the Firebase Auth account ─────────
+    if (phone.isNotEmpty) {
+      final phoneInUse = await UserService().isPhoneInUse(phone);
+      if (!mounted) return;
+      if (phoneInUse) {
+        setState(() {
+          _loading = false;
+          _error = 'This phone number is already registered. Please sign in instead.';
+        });
+        return;
+      }
+    }
+
+    final emailInUse = await UserService().isEmailInUse(email);
+    if (!mounted) return;
+    if (emailInUse) {
+      setState(() {
+        _loading = false;
+        _error = 'An account with this email already exists. Please sign in instead.';
+      });
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     final ok = await AuthService().signUpWithEmail(
       name:     name,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback;
 import 'package:provider/provider.dart';
 import '../../controllers/profile_controller.dart';
+import '../../services/admin_service.dart';
 import '../../services/user_service.dart';
+import '../admin/admin_panel_screen.dart';
 import '../home/scheduled_matches_screen.dart';
 import '../home/my_matches_screen.dart';
 import '../home/help_screen.dart';
@@ -23,7 +25,7 @@ class _AppDrawerState extends State<AppDrawer> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: UserService(),
+      listenable: Listenable.merge([UserService(), AdminService()]),
       builder: (context, _) {
         final profile  = UserService().profile;
         final imageUrl = profile?.imageUrl;
@@ -106,6 +108,7 @@ class _AppDrawerState extends State<AppDrawer> {
                                 if (profile?.numericId == null) return;
                                 await Clipboard.setData(ClipboardData(
                                     text: '${profile!.numericId}'));
+                                await HapticFeedback.lightImpact();
                                 if (!mounted) return;
                                 setState(() => _idCopied = true);
                                 Future.delayed(const Duration(seconds: 2), () {
@@ -236,6 +239,49 @@ class _AppDrawerState extends State<AppDrawer> {
                         height: 24,
                         indent: 16,
                         endIndent: 16),
+                    // ── Admin Panel (only for admins) ──────────────────
+                    if (AdminService().isCurrentUserAdmin) ...[
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
+                        child: Divider(color: Colors.white12),
+                      ),
+                      ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 0),
+                        leading: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFB3640).withAlpha(20),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: const Color(0xFFFB3640).withAlpha(80)),
+                          ),
+                          child: const Icon(Icons.admin_panel_settings_rounded,
+                              color: Color(0xFFFB3640), size: 16),
+                        ),
+                        title: const Text('Admin Panel',
+                            style: TextStyle(
+                                color: Color(0xFFFB3640),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700)),
+                        subtitle: const Text('Control panel',
+                            style: TextStyle(
+                                color: Colors.white38, fontSize: 11)),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AdminPanelScreen()));
+                        },
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 4, 20, 4),
+                        child: Divider(color: Colors.white12),
+                      ),
+                    ],
                     _item(context, Icons.workspace_premium_outlined,
                         'Go Premium', () {
                       Navigator.pop(context);

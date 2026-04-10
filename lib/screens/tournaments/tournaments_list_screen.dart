@@ -548,9 +548,17 @@ class _OpenTournamentsScreen extends StatefulWidget {
 }
 
 class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
-  String _sport = 'All';
-  String _query = '';
+  String _sport  = 'All';
+  String _format = 'All';
+  String _query  = '';
   final _searchCtrl = TextEditingController();
+
+  static const _formatOptions = [
+    ('All',                  'All Formats'),
+    ('knockout',             'Knockout'),
+    ('roundRobin',           'Round Robin'),
+    ('leagueKnockout',       'League + KO'),
+  ];
 
   static const _allSports = [
     ('All',          '🏆'),
@@ -595,6 +603,9 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
     var list = _sport == 'All'
         ? active
         : active.where((t) => t.sport == _sport).toList();
+    if (_format != 'All') {
+      list = list.where((t) => t.format.name == _format).toList();
+    }
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       list = list
@@ -629,7 +640,8 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                         fontWeight: FontWeight.w700)),
                 iconTheme: const IconThemeData(color: Colors.white),
                 bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(104),
+                  preferredSize: Size.fromHeight(
+                      _sport != 'All' ? 148 : 104),
                   child: Container(
                     color: AppColors.background,
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
@@ -681,7 +693,11 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                               ),
                             );
                             if (picked != null) {
-                              setState(() => _sport = picked);
+                              setState(() {
+                                _sport = picked;
+                                // Reset format when sport changes
+                                _format = 'All';
+                              });
                             }
                           },
                           child: Container(
@@ -732,8 +748,10 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                                 if (_sport != 'All') ...[
                                   const SizedBox(width: 4),
                                   GestureDetector(
-                                    onTap: () =>
-                                        setState(() => _sport = 'All'),
+                                    onTap: () => setState(() {
+                                      _sport  = 'All';
+                                      _format = 'All';
+                                    }),
                                     child: const Icon(Icons.close,
                                         color: AppColors.primary,
                                         size: 16),
@@ -743,6 +761,75 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                             ),
                           ),
                         ),
+                        // ── Format dropdown — only when sport is selected ──
+                        if (_sport != 'All') ...[
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () async {
+                              final picked = await showDialog<String>(
+                                context: context,
+                                builder: (_) => _FormatPickerDialog(
+                                  selected: _format,
+                                  options:  _formatOptions,
+                                ),
+                              );
+                              if (picked != null) {
+                                setState(() => _format = picked);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _format != 'All'
+                                    ? AppColors.primary.withValues(alpha: 0.12)
+                                    : const Color(0xFF1E1E1E),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _format != 'All'
+                                      ? AppColors.primary
+                                      : Colors.white12,
+                                ),
+                              ),
+                              child: Row(children: [
+                                const Icon(Icons.filter_list_rounded,
+                                    color: Colors.white38, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _format == 'All'
+                                      ? 'All Formats'
+                                      : _formatOptions
+                                          .firstWhere((o) => o.$1 == _format)
+                                          .$2,
+                                  style: TextStyle(
+                                    color: _format != 'All'
+                                        ? AppColors.primary
+                                        : Colors.white60,
+                                    fontSize: 13,
+                                    fontWeight: _format != 'All'
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Icon(Icons.keyboard_arrow_down_rounded,
+                                    color: _format != 'All'
+                                        ? AppColors.primary
+                                        : Colors.white38,
+                                    size: 20),
+                                if (_format != 'All') ...[
+                                  const SizedBox(width: 4),
+                                  GestureDetector(
+                                    onTap: () =>
+                                        setState(() => _format = 'All'),
+                                    child: const Icon(Icons.close,
+                                        color: AppColors.primary, size: 16),
+                                  ),
+                                ],
+                              ]),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -756,9 +843,9 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                   child: Text(
                     filtered.isEmpty
                         ? isFiltered
-                            ? 'No $_sport tournaments found'
+                            ? 'No ${_format != 'All' ? _formatOptions.firstWhere((o) => o.$1 == _format).$2 + ' ' : ''}$_sport tournaments found'
                             : 'No tournaments found'
-                        : '${filtered.length} tournament${filtered.length == 1 ? '' : 's'}${isFiltered ? ' · $_sport' : ''}',
+                        : '${filtered.length} tournament${filtered.length == 1 ? '' : 's'}${isFiltered ? ' · $_sport' : ''}${_format != 'All' ? ' · ${_formatOptions.firstWhere((o) => o.$1 == _format).$2}' : ''}',
                     style: const TextStyle(
                         color: Colors.white38, fontSize: 12),
                   ),
@@ -996,6 +1083,86 @@ class _SportPickerDialogState extends State<_SportPickerDialog> {
                       },
                     ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Format picker dialog ──────────────────────────────────────────────────────
+
+class _FormatPickerDialog extends StatelessWidget {
+  final String selected;
+  final List<(String, String)> options;
+
+  const _FormatPickerDialog({
+    required this.selected,
+    required this.options,
+  });
+
+  static const _formatIcons = {
+    'All':             Icons.grid_view_rounded,
+    'knockout':        Icons.account_tree_rounded,
+    'roundRobin':      Icons.repeat_rounded,
+    'leagueKnockout':  Icons.emoji_events_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Filter by Format',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            ...options.map((opt) {
+              final (value, label) = opt;
+              final sel = value == selected;
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => Navigator.pop(context, value),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: sel
+                        ? AppColors.primary.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                      _formatIcons[value] ?? Icons.tune_rounded,
+                      color: sel ? AppColors.primary : Colors.white38,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(label,
+                          style: TextStyle(
+                            color: sel ? AppColors.primary : Colors.white70,
+                            fontSize: 14,
+                            fontWeight:
+                                sel ? FontWeight.w700 : FontWeight.normal,
+                          )),
+                    ),
+                    if (sel)
+                      const Icon(Icons.check_circle,
+                          color: AppColors.primary, size: 20),
+                  ]),
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -1412,10 +1579,6 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
       svc.loadTournaments(),
       svc.loadMyEnrollments(widget.userId),
     ]);
-    // Load details for all open/ongoing tournaments + any known enrolled ones.
-    // This ensures we discover pre-migration enrollments (where the team data
-    // lives only in the subcollection, not yet in the top-level enrollments
-    // collection). loadDetail() will populate _myTeamMap as a side-effect.
     final toLoad = svc.tournaments.where((t) =>
         t.status == TournamentStatus.open ||
         t.status == TournamentStatus.ongoing ||
@@ -1429,15 +1592,25 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
     for (final t in svc.tournaments) {
       final myTeam = svc.myTeamIn(t.id);
       if (myTeam == null) continue;
-      final mine = svc.matchesFor(t.id).where((m) =>
-          !m.isBye &&
-          (m.teamAId == myTeam.id || m.teamBId == myTeam.id));
-      for (final m in mine) {
+      for (final m in svc.matchesFor(t.id)) {
+        if (m.isBye) continue;
+        if (m.teamAId != myTeam.id && m.teamBId != myTeam.id) continue;
         result.add(_MatchEntry(match: m, tournament: t, myTeam: myTeam));
       }
     }
+    // Sort: scheduled matches first (ascending), TBD last
+    result.sort((a, b) {
+      final at = a.match.scheduledAt;
+      final bt = b.match.scheduledAt;
+      if (at == null && bt == null) return 0;
+      if (at == null) return 1;
+      if (bt == null) return -1;
+      return at.compareTo(bt);
+    });
     return result;
   }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -1451,78 +1624,58 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : ListenableBuilder(
-              listenable: TournamentService(),
-              builder: (context, _) {
-                final svc     = TournamentService();
-                final entries = _myMatches(svc);
-
-                if (entries.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.calendar_month_outlined,
-                            size: 64, color: Colors.white12),
-                        const SizedBox(height: 16),
-                        const Text('No fixtures yet',
-                            style: TextStyle(color: Colors.white38, fontSize: 15)),
-                        const SizedBox(height: 8),
-                        const Text(
-                            'Once a host generates the schedule,\nyour matches will appear here',
-                            style: TextStyle(color: Colors.white24, fontSize: 13),
-                            textAlign: TextAlign.center),
-                        const SizedBox(height: 24),
-                        TextButton.icon(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back,
-                              size: 16, color: AppColors.primary),
-                          label: const Text('Back',
-                              style: TextStyle(color: AppColors.primary)),
-                        ),
-                      ],
-                    ),
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary))
+          : RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: _load,
+              child: ListenableBuilder(
+                listenable: TournamentService(),
+                builder: (context, _) {
+                  final entries = _myMatches(TournamentService());
+                  if (entries.isEmpty) return _buildEmpty(context);
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                    itemCount: entries.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) => _FixtureCard(entry: entries[i]),
                   );
-                }
-
-                final upcoming  = entries.where((e) =>
-                    e.match.result == TournamentMatchResult.pending).toList();
-                final completed = entries.where((e) =>
-                    e.match.result != TournamentMatchResult.pending).toList();
-
-                return RefreshIndicator(
-                  color: AppColors.primary,
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                    children: [
-                      if (upcoming.isNotEmpty) ...[
-                        _fixtureHeading('UPCOMING FIXTURES'),
-                        ...upcoming.map((e) => _FixtureCard(entry: e)),
-                        const SizedBox(height: 8),
-                      ],
-                      if (completed.isNotEmpty) ...[
-                        _fixtureHeading('COMPLETED'),
-                        ...completed.map((e) => _FixtureCard(entry: e)),
-                      ],
-                    ],
-                  ),
-                );
-              },
+                },
+              ),
             ),
     );
   }
 
-  Widget _fixtureHeading(String label) => Padding(
-        padding: const EdgeInsets.only(bottom: 10, top: 4),
-        child: Text(label,
-            style: const TextStyle(
-                color: Colors.white38,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8)),
-      );
+  // ── Empty state ─────────────────────────────────────────────────────────────
+
+  Widget _buildEmpty(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.calendar_month_outlined,
+              size: 64, color: Colors.white12),
+          const SizedBox(height: 16),
+          const Text('No fixtures yet',
+              style: TextStyle(color: Colors.white38, fontSize: 15)),
+          const SizedBox(height: 8),
+          const Text(
+            'Once a host generates the schedule,\nyour matches will appear here',
+            style: TextStyle(color: Colors.white24, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back,
+                size: 16, color: AppColors.primary),
+            label: const Text('Back',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Fixture Card ─────────────────────────────────────────────────────────────
@@ -2100,6 +2253,7 @@ class _TournamentCard extends StatelessWidget {
                             entryFee:       tournament.entryFee,
                             serviceFee:     tournament.serviceFee,
                             playersPerTeam: tournament.playersPerTeam,
+                            sport:          tournament.sport,
                           ),
                           style: TextButton.styleFrom(
                             backgroundColor: AppColors.primary,

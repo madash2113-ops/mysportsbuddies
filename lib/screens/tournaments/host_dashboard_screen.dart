@@ -605,6 +605,7 @@ class _TeamsSheetState extends State<_TeamsSheet> {
                     entryFee:       widget.tournament.entryFee,
                     serviceFee:     widget.tournament.serviceFee,
                     playersPerTeam: widget.tournament.playersPerTeam,
+                    sport:          widget.tournament.sport,
                   );
                 },
                 icon: const Icon(Icons.add, size: 18, color: AppColors.primary),

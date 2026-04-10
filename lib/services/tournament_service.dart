@@ -31,10 +31,20 @@ class TournamentService extends ChangeNotifier {
   final Map<String, Map<String, List<TournamentSquadPlayer>>> _squads = {};
   List<String>                        _myEnrolledIds = [];
   final Map<String, TournamentTeam>   _myTeamMap     = {};
+  // captain photo cache: captainUserId → imageUrl
+  final Map<String, String>           _captainPhotoCache = {};
 
   List<Tournament>          get tournaments    => List.unmodifiable(_tournaments);
   List<TournamentTeam>      teamsFor(String id)   => List.unmodifiable(_teams[id]   ?? []);
   List<TournamentMatch>     matchesFor(String id) => List.unmodifiable(_matches[id] ?? []);
+  /// Returns the best available photo for a team's representative.
+  /// Pass [captainUserId] and [teamId]; fallback chain is already resolved in loadDetail.
+  String? teamRepPhotoFor({required String captainUserId, required String teamId}) {
+    if (captainUserId.isNotEmpty && _captainPhotoCache.containsKey(captainUserId)) {
+      return _captainPhotoCache[captainUserId];
+    }
+    return _captainPhotoCache['team:$teamId'];
+  }
   List<TournamentVenue>     venuesFor(String id)  => List.unmodifiable(_venues[id]  ?? []);
   List<TournamentAdmin>     adminsFor(String id)  => List.unmodifiable(_admins[id]  ?? []);
   List<TournamentGroup>     groupsFor(String id)  => List.unmodifiable(_groups[id]  ?? []);
@@ -145,6 +155,80 @@ class TournamentService extends ChangeNotifier {
       _groups[tournamentId] = ((results[4] as QuerySnapshot)
           .docs.map(TournamentGroup.fromFirestore).toList())
         ..sort((a, b) => a.name.compareTo(b.name));
+
+      // ── Pre-fetch captain photos with fallback chain ─────────────────
+      // Fallback: captain → vice captain (from squad) → any squad player with photo
+      try {
+        final teams = _teams[tournamentId]!;
+
+        // Step 1: collect all unique userIds we need to fetch
+        // Start with captainUserIds
+        final allUserIds = teams
+            .map((t) => t.captainUserId)
+            .where((uid) => uid.isNotEmpty)
+            .toSet();
+
+        // Also load all squads for this tournament to find vice captains
+        await Future.wait(teams.map((t) => _loadSquadInternal(tournamentId, t.id)));
+
+        // Add vice captain and squad player userIds
+        for (final t in teams) {
+          final squad = _squads[tournamentId]?[t.id] ?? [];
+          for (final p in squad) {
+            if (p.userId.isNotEmpty) allUserIds.add(p.userId);
+          }
+        }
+
+        // Step 2: fetch all profiles we don't have cached yet
+        final toFetch = allUserIds
+            .where((uid) => !_captainPhotoCache.containsKey(uid))
+            .toList();
+        if (toFetch.isNotEmpty) {
+          final profiles = await Future.wait(
+              toFetch.map((uid) => UserService().loadProfileById(uid)));
+          for (var i = 0; i < toFetch.length; i++) {
+            final photo = profiles[i]?.imageUrl;
+            if (photo != null && photo.isNotEmpty) {
+              _captainPhotoCache[toFetch[i]] = photo;
+            }
+          }
+        }
+
+        // Step 3: for each team, resolve the best photo (captain → vc → any)
+        for (final t in teams) {
+          if (_captainPhotoCache.containsKey(t.captainUserId)) continue;
+          // Captain has no photo — try vice captain then any squad player
+          final squad = _squads[tournamentId]?[t.id] ?? [];
+          String? fallbackPhoto;
+          // Vice captain first
+          for (final p in squad) {
+            if (p.isViceCaptain && p.userId.isNotEmpty &&
+                _captainPhotoCache.containsKey(p.userId)) {
+              fallbackPhoto = _captainPhotoCache[p.userId];
+              break;
+            }
+          }
+          // Any squad player with photo
+          if (fallbackPhoto == null) {
+            for (final p in squad) {
+              if (p.userId.isNotEmpty &&
+                  _captainPhotoCache.containsKey(p.userId)) {
+                fallbackPhoto = _captainPhotoCache[p.userId];
+                break;
+              }
+            }
+          }
+          // Store under team's captain key so card lookup still works
+          if (fallbackPhoto != null && t.captainUserId.isNotEmpty) {
+            _captainPhotoCache[t.captainUserId] = fallbackPhoto;
+          } else if (fallbackPhoto != null) {
+            // captainUserId empty — store under teamId as key
+            _captainPhotoCache['team:${t.id}'] = fallbackPhoto;
+          }
+        }
+      } catch (e) {
+        debugPrint('[TournamentService] captain photo prefetch error: $e');
+      }
 
       // ── Self-healing: repair missing bracket advancements ────────────
       try {
@@ -347,7 +431,9 @@ class TournamentService extends ChangeNotifier {
     required String       teamName,
     required String       captainName,
     required String       captainPhone,
-    String                captainUserId = '',
+    String                captainUserId     = '',
+    String                viceCaptainName   = '',
+    String                viceCaptainUserId = '',
     required List<String> players,
     List<String>          playerUserIds = const [],
   }) async {
@@ -391,18 +477,20 @@ class TournamentService extends ChangeNotifier {
     final seed = existing.docs.length + 1;
     final ref  = teamsRef.doc();
     final team = TournamentTeam(
-      id:               ref.id,
-      tournamentId:     tournamentId,
-      teamName:         teamName,
-      captainName:      captainName,
-      captainPhone:     captainPhone,
-      captainUserId:    captainUserId,
-      players:          players,
-      playerUserIds:    playerUserIds,
-      enrolledBy:       userId,
-      enrolledAt:       DateTime.now(),
-      paymentConfirmed: true,
-      seed:             seed,
+      id:                ref.id,
+      tournamentId:      tournamentId,
+      teamName:          teamName,
+      captainName:       captainName,
+      captainPhone:      captainPhone,
+      captainUserId:     captainUserId,
+      viceCaptainName:   viceCaptainName,
+      viceCaptainUserId: viceCaptainUserId,
+      players:           players,
+      playerUserIds:     playerUserIds,
+      enrolledBy:        userId,
+      enrolledAt:        DateTime.now(),
+      paymentConfirmed:  true,
+      seed:              seed,
     );
 
     // ── Atomic batch: all writes succeed or none do ───────────────────────
@@ -1447,6 +1535,22 @@ class TournamentService extends ChangeNotifier {
   }
 
   // ── Squad methods ───────────────────────────────────────────────────────
+
+  /// Internal squad loader used during loadDetail — does not call notifyListeners.
+  Future<void> _loadSquadInternal(String tournamentId, String teamId) async {
+    try {
+      if (_squads[tournamentId]?.containsKey(teamId) == true) return;
+      final snap = await _db
+          .collection(_col).doc(tournamentId)
+          .collection('teams').doc(teamId)
+          .collection('squad').get();
+      _squads.putIfAbsent(tournamentId, () => {});
+      _squads[tournamentId]![teamId] =
+          snap.docs.map(TournamentSquadPlayer.fromFirestore).toList();
+    } catch (e) {
+      debugPrint('TournamentService._loadSquadInternal error: $e');
+    }
+  }
 
   Future<void> loadSquad(String tournamentId, String teamId) async {
     try {
