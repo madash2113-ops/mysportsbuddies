@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:flutter_application_1/main.dart';
-import 'package:flutter_application_1/controllers/profile_controller.dart';
+import 'package:mysportsbuddies/main.dart';
+import 'package:mysportsbuddies/controllers/profile_controller.dart';
 
 void main() {
   testWidgets('MySportsApp renders without errors', (WidgetTester tester) async {
