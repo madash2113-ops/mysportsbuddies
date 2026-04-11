@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>793247401031-1q1469jbafasvst6v8kchpgod0bi66j8.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.793247401031-1q1469jbafasvst6v8kchpgod0bi66j8</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>793247401031-outb32irumi8v1r6ok63rleg3h8bb5pn.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBdrgwJIAxj_EQGKDOLRVWn9OgSPMCMDso</string>
+	<key>GCM_SENDER_ID</key>
+	<string>793247401031</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.mysportsbuddies.app</string>
+	<key>PROJECT_ID</key>
+	<string>mysportsbuddies-4d077</string>
+	<key>STORAGE_BUCKET</key>
+	<string>mysportsbuddies-4d077.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:793247401031:ios:ce984909816ef538645d62</string>
+	<key>DATABASE_URL</key>
+	<string>https://mysportsbuddies-4d077-default-rtdb.firebaseio.com</string>
+</dict>
+</plist>

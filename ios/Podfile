@@ -1,0 +1,152 @@
+# Minimum iOS version required by Firebase & all packages we use
+platform :ios, '13.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      # iOS 26+ simulators on Apple Silicon are arm64-only.
+      # Explicitly pin simulator builds to arm64 to avoid:
+      #   1. "destination not found" (Xcode rejects x86_64-only builds for arm64 sims)
+      #   2. "35 duplicate symbols" (Firebase static libs linked for both archs)
+      config.build_settings['ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
+
+      # Force dSYM generation for ALL configurations (Debug, Profile, Release).
+      # objective_c.framework (Dart FFI) defaults to plain DWARF which omits
+      # the .dSYM bundle, failing App Store archive validation with UUID error.
+      config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+      config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+
+      # Enable permission_handler macros for location + notification
+      if target.name == 'permission_handler_apple'
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_LOCATION=1'
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_NOTIFICATIONS=1'
+      end
+
+      # Exclude *_Test.{h,m} files from geolocator_apple compilation.
+      # The umbrella header and module map both reference GeolocationHandler_Test.h
+      # and GeolocatorPlugin_Test.h which import <Test/Test.h> (XCTest).
+      # XCTest is unavailable in Release/Archive builds, causing a linker error.
+      if target.name == 'geolocator_apple'
+        config.build_settings['EXCLUDED_SOURCE_FILE_NAMES'] = '*_Test.h *_Test.m'
+      end
+    end
+  end
+
+  # Remove duplicate nanopb C source files that accumulate when pod install is
+  # run multiple times.  CocoaPods occasionally creates "pb_encode 2.c",
+  # "pb_encode 3.c", … copies alongside the canonical pb_encode.c.
+  # Each copy defines the same symbols (_pb_encode, _pb_decode, etc.), causing
+  # "35 duplicate symbols" linker failures.  Deleting them here is idempotent
+  # (Dir.glob returns nothing if no numbered copies exist).
+  nanopb_dir = File.join(installer.sandbox.root, 'nanopb')
+  if File.directory?(nanopb_dir)
+    Dir.glob(File.join(nanopb_dir, 'pb_*.c')).each do |f|
+      # Keep only the canonical files (no space in the basename before .c)
+      File.delete(f) if File.basename(f) =~ /\s/
+    end
+  end
+
+  # Patch geolocator_apple modulemap — remove the explicit Test module block.
+  # CocoaPods generates Target Support Files/geolocator_apple/geolocator_apple.modulemap
+  # with an "explicit module Test { ... }" that references GeolocationHandler_Test.h and
+  # GeolocatorPlugin_Test.h. Both files import <Test/Test.h> (XCTest) which is not
+  # available in Release/Archive builds, failing the linker with a missing framework error.
+  geolocator_modulemap = File.join(
+    installer.sandbox.root,
+    'Target Support Files', 'geolocator_apple', 'geolocator_apple.modulemap'
+  )
+  if File.exist?(geolocator_modulemap)
+    content = File.read(geolocator_modulemap)
+    # Remove the entire "explicit module Test { ... }" block
+    patched = content.gsub(/\n?\s*explicit module Test \{[^}]*\}\n?/, "\n")
+    File.write(geolocator_modulemap, patched) if patched != content
+  end
+
+  # Inject a Run Script Build Phase into Runner.xcodeproj (not the Pods project).
+  # objective_c.framework is built by Flutter's Dart toolchain — NOT by CocoaPods —
+  # so post_install pod settings never reach it.  The only way to generate its dSYM
+  # at archive time is via a script that runs inside the Runner target's build pipeline.
+  #
+  # The script walks every embedded .framework in the app bundle and calls dsymutil
+  # on any whose .dSYM is absent from DWARF_DSYM_FOLDER_PATH, which is exactly the
+  # folder Xcode's archive validator inspects for UUID matching.
+  runner_project_path = File.join(File.dirname(__FILE__), 'Runner.xcodeproj')
+  runner_project = Xcodeproj::Project.open(runner_project_path)
+  runner_target  = runner_project.targets.find { |t| t.name == 'Runner' }
+
+  if runner_target
+    # Override arch settings on the Runner target itself.
+    # Flutter regenerates Generated.xcconfig with:
+    #   EXCLUDED_ARCHS[sdk=iphonesimulator*]=i386 arm64
+    # which prevents iOS 26+ arm64 simulators from being recognised as valid
+    # build destinations. Setting ARCHS explicitly to 'arm64' here wins over
+    # that xcconfig entry and prevents the "35 duplicate symbols" error caused
+    # by Firebase static frameworks being linked for both arm64 and x86_64.
+    runner_target.build_configurations.each do |rc|
+      rc.build_settings['ARCHS[sdk=iphonesimulator*]']    = 'arm64'
+      rc.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
+    end
+
+    phase_name = 'Generate Missing dSYMs'
+    existing   = runner_target.shell_script_build_phases.find { |p| p.name == phase_name }
+
+    unless existing
+      phase = runner_target.new_shell_script_build_phase(phase_name)
+      phase.shell_script = <<~'BASH'
+        # Generate dSYM files for Flutter-embedded frameworks that lack them.
+        # Fixes objective_c.framework UUID validation failure on App Store Connect.
+        FRAMEWORKS_DIR="${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}"
+        [ -d "$FRAMEWORKS_DIR" ] || exit 0
+        find "$FRAMEWORKS_DIR" -maxdepth 1 -name "*.framework" -type d | while read fw; do
+          name=$(basename "$fw" .framework)
+          binary="$fw/$name"
+          [ -f "$binary" ] || continue
+          dsym_out="${DWARF_DSYM_FOLDER_PATH}/${name}.framework.dSYM"
+          [ -d "$dsym_out" ] && continue
+          echo "dsymutil: generating ${name}.framework.dSYM"
+          dsymutil "$binary" -o "$dsym_out"
+        done
+      BASH
+    end
+
+    runner_project.save
+  end
+end
