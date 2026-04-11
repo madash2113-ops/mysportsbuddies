@@ -126,47 +126,65 @@ post_install do |installer|
     end
 
     # ── Strip Simulator Slices ────────────────────────────────────────────────
-    # objective_c.framework (Dart FFI, v9.x) is built by Flutter's Dart
-    # toolchain as a universal binary that includes both an arm64-device slice
-    # and an arm64-iOS-Simulator slice (LC_BUILD_VERSION platform = 7).
-    # Apple rejects this during App Store Connect validation with error 91169:
-    # "executable references an unsupported platform in the arm64 slice."
-    # Solution: use `xcrun vtool` to remove the simulator build-version entry
-    # from every embedded framework binary, then re-sign so the code-signature
-    # remains valid for the archive.
+    # objective_c.framework (Dart FFI, v9.x) is compiled by Flutter's Dart
+    # toolchain with LC_BUILD_VERSION platform = IOSSIMULATOR (7).  Apple
+    # rejects this in archives with error 91169 (unsupported platform slice).
+    #
+    # Two cases exist in the wild:
+    #   A) Binary has BOTH iOS (2) + iOS Simulator (7) → remove simulator entry.
+    #   B) Binary has ONLY iOS Simulator (7)           → remove it AND inject
+    #      an iOS device entry so Apple can identify the platform (otherwise the
+    #      validator fails with "Couldn't find platform family" instead).
+    #
+    # Use update-or-create so that re-running pod install keeps the script fresh.
     strip_phase_name = 'Strip Simulator Slices'
-    existing_strip   = runner_target.shell_script_build_phases.find { |p| p.name == strip_phase_name }
+    strip_phase = runner_target.shell_script_build_phases.find { |p| p.name == strip_phase_name }
+    strip_phase ||= runner_target.new_shell_script_build_phase(strip_phase_name)
+    strip_phase.shell_script = <<~'BASH'
+      # Fix App Store Connect errors 91169 / "Couldn't find platform family" for
+      # objective_c.framework and any other Dart-FFI framework whose Mach-O
+      # binary carries an iOS Simulator LC_BUILD_VERSION (platform 7).
+      FRAMEWORKS_DIR="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks"
+      [ -d "$FRAMEWORKS_DIR" ] || exit 0
 
-    unless existing_strip
-      strip_phase = runner_target.new_shell_script_build_phase(strip_phase_name)
-      strip_phase.shell_script = <<~'BASH'
-        # Remove iOS Simulator platform entries from embedded framework binaries.
-        # Fixes App Store Connect error 91169 for objective_c.framework and any
-        # other Dart-FFI framework whose arm64 slice carries platform 7 (simulator).
-        FRAMEWORKS_DIR="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks"
-        [ -d "$FRAMEWORKS_DIR" ] || exit 0
+      # Deployment target + SDK version come from the Xcode environment.
+      MINOS="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}"
+      SDK=$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo "17.0")
 
-        find "$FRAMEWORKS_DIR" -maxdepth 1 -name "*.framework" -type d | while read fw; do
-          name=$(basename "$fw" .framework)
-          binary="$fw/$name"
-          [ -f "$binary" ] || continue
+      find "$FRAMEWORKS_DIR" -maxdepth 1 -name "*.framework" -type d | while read fw; do
+        name=$(basename "$fw" .framework)
+        binary="$fw/$name"
+        [ -f "$binary" ] || continue
 
-          # Platform 7 = PLATFORM_IOS_SIMULATOR — skip if not present
-          if ! xcrun vtool -show-build "$binary" 2>/dev/null | grep -q "IOSSIMULATOR"; then
-            continue
-          fi
+        # Skip if no simulator platform present.
+        xcrun vtool -show-build "$binary" 2>/dev/null | grep -q "IOSSIMULATOR" || continue
 
-          echo "Strip simulator slice: $name"
-          xcrun vtool -remove-build-version 7 -output "$binary" "$binary"
+        echo "Patching simulator platform in: $name"
+        tmp="${binary}.tmp_stripsim"
 
-          # Re-sign the stripped binary so Xcode's archive validator is satisfied.
-          if [ "${CODE_SIGNING_REQUIRED}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY}" ]; then
-            codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" \
-              --preserve-metadata=identifier,entitlements,flags "$binary"
-          fi
-        done
-      BASH
-    end
+        # Step 1 — remove the iOS Simulator build version (platform 7).
+        xcrun vtool -remove-build-version 7 -output "$tmp" "$binary"
+
+        # Step 2 — check whether an iOS device platform entry still exists.
+        # If vtool -show-build shows no "platform " lines, the binary had only
+        # a simulator entry and is now platform-less → inject the iOS one.
+        if xcrun vtool -show-build "$tmp" 2>/dev/null | grep -q "platform "; then
+          # Case A: iOS device platform was already present — keep it.
+          mv "$tmp" "$binary"
+        else
+          # Case B: binary was simulator-only — stamp it as iOS device.
+          echo "  Injecting iOS device build version (minos $MINOS sdk $SDK)"
+          xcrun vtool -set-build-version ios "$MINOS" "$SDK" -output "$binary" "$tmp"
+          rm -f "$tmp"
+        fi
+
+        # Re-sign the patched binary so Xcode's archive validator accepts it.
+        if [ "${CODE_SIGNING_REQUIRED}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY}" ]; then
+          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY}" \
+            --preserve-metadata=identifier,entitlements,flags "$binary"
+        fi
+      done
+    BASH
 
     # ── Generate Missing dSYMs ────────────────────────────────────────────────
     phase_name = 'Generate Missing dSYMs'
