@@ -236,6 +236,7 @@
 				D06F1B08EEDA30C9A9A04191 /* [CP] Embed Pods Frameworks */,
 				753138487202468809257780 /* [CP] Copy Pods Resources */,
 				4F94F2CBBF00542C01550343 /* Generate Missing dSYMs */,
+				0DB02A56F6CF0AF14BD75A6D /* Strip Simulator Slices */,
 			);
 			buildRules = (
 			);
@@ -313,6 +314,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		0DB02A56F6CF0AF14BD75A6D /* Strip Simulator Slices */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Strip Simulator Slices";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Remove iOS Simulator platform entries from embedded framework binaries.\n# Fixes App Store Connect error 91169 for objective_c.framework and any\n# other Dart-FFI framework whose arm64 slice carries platform 7 (simulator).\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks\"\n[ -d \"$FRAMEWORKS_DIR\" ] || exit 0\n\nfind \"$FRAMEWORKS_DIR\" -maxdepth 1 -name \"*.framework\" -type d | while read fw; do\n  name=$(basename \"$fw\" .framework)\n  binary=\"$fw/$name\"\n  [ -f \"$binary\" ] || continue\n\n  # Platform 7 = PLATFORM_IOS_SIMULATOR — skip if not present\n  if ! xcrun vtool -show-build \"$binary\" 2>/dev/null | grep -q \"IOSSIMULATOR\"; then\n    continue\n  fi\n\n  echo \"Strip simulator slice: $name\"\n  xcrun vtool -remove-build-version 7 -output \"$binary\" \"$binary\"\n\n  # Re-sign the stripped binary so Xcode's archive validator is satisfied.\n  if [ \"${CODE_SIGNING_REQUIRED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n    codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" \\\n      --preserve-metadata=identifier,entitlements,flags \"$binary\"\n  fi\ndone\n";
+		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
