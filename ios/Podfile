@@ -173,8 +173,19 @@ post_install do |installer|
           mv "$tmp" "$binary"
         else
           # Case B: binary was simulator-only — stamp it as iOS device.
-          echo "  Injecting iOS device build version (minos $MINOS sdk $SDK)"
-          xcrun vtool -set-build-version ios "$MINOS" "$SDK" -output "$binary" "$tmp"
+          #
+          # IMPORTANT: Apple error 90208 fires when the minos in LC_BUILD_VERSION
+          # differs from MinimumOSVersion in the framework's Info.plist.
+          # Use the framework's own Info.plist value as the authoritative minos.
+          fw_plist="$fw/Info.plist"
+          if [ -f "$fw_plist" ]; then
+            fw_minos=$(/usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" \
+                         "$fw_plist" 2>/dev/null || echo "$MINOS")
+          else
+            fw_minos="$MINOS"
+          fi
+          echo "  Injecting iOS device build version (minos $fw_minos sdk $SDK)"
+          xcrun vtool -set-build-version ios "$fw_minos" "$SDK" -output "$binary" "$tmp"
           rm -f "$tmp"
         fi
 
