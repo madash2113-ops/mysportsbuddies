@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk '{print $2,$3}')",
+      "Read(//Users/avinashkumarmaddini/**)",
+      "Bash([ -e \"$ARCHIVE/$item\" ])",
+      "Bash(cp -R '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/__TRACKED_VAR__' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/__TRACKED_VAR__)",
+      "Bash(flutter pub:*)",
+      "Bash(cp /Users/avinashkumarmaddini/Downloads/mysportsbuddies-main/lib/main.dart /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/main.dart)",
+      "Bash(cp -R /Users/avinashkumarmaddini/Downloads/mysportsbuddies-main/lib/controllers /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/controllers)",
+      "Bash(flutter run:*)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(grep --line-buffered -v \"^$\")",
+      "Bash(cp -R '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/Runner.xcodeproj' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner.xcodeproj)",
+      "Bash(cp -R '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/RunnerTests' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/RunnerTests)",
+      "Bash(cp '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/Podfile' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Podfile)",
+      "Bash(cp '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/Podfile.lock' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Podfile.lock)",
+      "Bash(cp -R '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/Pods' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Pods)",
+      "Bash(cp '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/Flutter/Debug.xcconfig' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Flutter/Debug.xcconfig)",
+      "Bash(cp '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/Flutter/Release.xcconfig' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Flutter/Release.xcconfig)",
+      "Bash(cp '/Users/avinashkumarmaddini/iCloud Drive \\(Archive\\)/Desktop/MyProject/mysportsbuddies/ios/Flutter/AppFrameworkInfo.plist' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Flutter/AppFrameworkInfo.plist)",
+      "Bash(pod install:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit -m ':*)"
+    ]
+  }
+}
