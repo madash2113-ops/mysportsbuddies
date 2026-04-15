@@ -1341,11 +1341,12 @@ class _HomeTabState extends State<_HomeTab> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: _kPageH),
             child: Container(
-              height: 58,
               decoration: BoxDecoration(
                 color: cardBg,
-                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white10),
               ),
+              padding: const EdgeInsets.all(4),
               child: Row(
                 children: [
                   _ToggleTab(
@@ -1413,10 +1414,10 @@ class _ToggleTab extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(4),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: active ? primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderRadius: BorderRadius.circular(10),
             boxShadow: active
                 ? [BoxShadow(
                     color: primary.withValues(alpha: 0.35),
@@ -1428,7 +1429,7 @@ class _ToggleTab extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon,
-                  size: 20,
+                  size: 22,
                   color: active
                       ? AppC.onPrimary(context)
                       : AppC.hint(context)),

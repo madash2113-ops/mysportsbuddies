@@ -352,6 +352,7 @@ class TournamentService extends ChangeNotifier {
     String?                   bannerUrl,
     ScoringType               scoringType = ScoringType.standard,
     int                       bestOf = 3,
+    int                       pointsToWin = 21,
     int                       winPoints = 3,
     int                       drawPoints = 1,
     int                       lossPoints = 0,
@@ -389,6 +390,7 @@ class TournamentService extends ChangeNotifier {
       bannerUrl:        bannerUrl,
       scoringType:      scoringType,
       bestOf:           bestOf,
+      pointsToWin:      pointsToWin,
       winPoints:        winPoints,
       drawPoints:       drawPoints,
       lossPoints:       lossPoints,
@@ -592,6 +594,10 @@ class TournamentService extends ChangeNotifier {
         await _generateRoundRobin(tournamentId, teams, matchesRef);
       case TournamentFormat.leagueKnockout:
         await _generateLeagueKnockout(tournamentId, teams, matchesRef);
+      case TournamentFormat.league:
+        await _generateRoundRobin(tournamentId, teams, matchesRef);
+      case TournamentFormat.custom:
+        await _generateRoundRobin(tournamentId, teams, matchesRef);
     }
 
     // Mark bracket as generated
@@ -854,6 +860,7 @@ class TournamentService extends ChangeNotifier {
     String?                   rules,
     ScoringType               scoringType = ScoringType.standard,
     int                       bestOf = 3,
+    int                       pointsToWin = 21,
     int                       winPoints = 3,
     int                       drawPoints = 1,
     int                       lossPoints = 0,
@@ -874,6 +881,7 @@ class TournamentService extends ChangeNotifier {
       'rules':         rules,
       'scoringType':   scoringType.name,
       'bestOf':        bestOf,
+      'pointsToWin':   pointsToWin,
       'winPoints':     winPoints,
       'drawPoints':    drawPoints,
       'lossPoints':    lossPoints,
@@ -933,6 +941,57 @@ class TournamentService extends ChangeNotifier {
     await loadDetail(tournamentId);
   }
 
+  // ── Delete tournament entirely ───────────────────────────────────────────
+
+  Future<void> deleteTournament(String tournamentId) async {
+    final ref = _db.collection(_col).doc(tournamentId);
+
+    Future<void> deleteCollection(String sub) async {
+      QuerySnapshot snap;
+      do {
+        snap = await ref.collection(sub).limit(200).get();
+        if (snap.docs.isEmpty) break;
+        final batch = _db.batch();
+        for (final d in snap.docs) { batch.delete(d.reference); }
+        await batch.commit();
+      } while (snap.docs.length == 200);
+    }
+
+    // Delete all subcollections first
+    await deleteCollection('teams');
+    await deleteCollection('matches');
+    await deleteCollection('groups');
+    await deleteCollection('venues');
+    await deleteCollection('admins');
+    await deleteCollection('squad');
+
+    // Delete flat enrollments referencing this tournament
+    final enrSnap = await _db
+        .collection('enrollments')
+        .where('tournamentId', isEqualTo: tournamentId)
+        .get();
+    if (enrSnap.docs.isNotEmpty) {
+      final batch = _db.batch();
+      for (final d in enrSnap.docs) { batch.delete(d.reference); }
+      await batch.commit();
+    }
+
+    // Delete the tournament document itself
+    await ref.delete();
+
+    // Clear local caches
+    _tournaments.removeWhere((t) => t.id == tournamentId);
+    _teams.remove(tournamentId);
+    _matches.remove(tournamentId);
+    _groups.remove(tournamentId);
+    _venues.remove(tournamentId);
+    _admins.remove(tournamentId);
+    _myTeamMap.remove(tournamentId);
+    _myEnrolledIds.remove(tournamentId);
+
+    notifyListeners();
+  }
+
   // ── Clear matches only (preserves teams) ────────────────────────────────
 
   Future<void> clearMatchesOnly(String tournamentId) async {
@@ -949,6 +1008,66 @@ class TournamentService extends ChangeNotifier {
     await ref.update({'bracketGenerated': false});
     _matches.remove(tournamentId);
     await loadDetail(tournamentId);
+  }
+
+  // ── Seed dummy teams (dev / testing only) ───────────────────────────────
+
+  Future<void> seedDummyTeams(String tournamentId, {int count = 27}) async {
+    final teamNames = [
+      'Thunder Bolts', 'Iron Eagles', 'Storm Riders', 'Neon Hawks',
+      'Dark Wolves', 'Blaze FC', 'Arctic Foxes', 'Shadow Panthers',
+      'Royal Strikers', 'Fire Dragons', 'Silver Sharks', 'Cobra Kings',
+      'Phantom Squad', 'Golden Lions', 'Red Falcons', 'Night Owls',
+      'Blue Bullets', 'Desert Ravens', 'Titan Warriors', 'Rapid Rockets',
+      'Cyber Wolves', 'Steel Jaguars', 'Volt Tigers', 'Solar Bears',
+      'Crimson Hawks', 'Frost Giants', 'Jade Serpents',
+    ];
+
+    final captains = [
+      'Arjun Sharma', 'Rahul Mehta', 'Priya Patel', 'Karan Singh',
+      'Ananya Gupta', 'Vikram Nair', 'Sneha Joshi', 'Rohit Kumar',
+      'Pooja Reddy', 'Aditya Verma', 'Meera Iyer', 'Suresh Pillai',
+      'Divya Menon', 'Nikhil Das', 'Kavya Rao', 'Amit Bose',
+      'Ritika Shah', 'Sandeep Tiwari', 'Lakshmi Nair', 'Gaurav Jain',
+      'Swati Mishra', 'Harish Yadav', 'Nisha Kapoor', 'Rajesh Pandey',
+      'Deepa Srinivas', 'Mohit Aggarwal', 'Alka Dubey',
+    ];
+
+    final phones = List.generate(27, (i) => '9${(800000000 + i * 1111111) % 1000000000}'.padLeft(10, '9'));
+
+    final teamsRef = _db.collection(_col).doc(tournamentId).collection('teams');
+    final existing = await teamsRef.get();
+    final existingCount = existing.docs.length;
+
+    final batch = _db.batch();
+    for (int i = 0; i < count; i++) {
+      final ref = teamsRef.doc();
+      final seed = existingCount + i + 1;
+      final team = TournamentTeam(
+        id:               ref.id,
+        tournamentId:     tournamentId,
+        teamName:         teamNames[i % teamNames.length],
+        captainName:      captains[i % captains.length],
+        captainPhone:     phones[i % phones.length],
+        captainUserId:    '',
+        viceCaptainName:  '',
+        viceCaptainUserId: '',
+        players:          [],
+        playerUserIds:    [],
+        enrolledBy:       'dummy_seed',
+        enrolledAt:       DateTime.now(),
+        paymentConfirmed: true,
+        seed:             seed,
+      );
+      batch.set(ref, team.toMap());
+    }
+
+    await batch.commit();
+    await _db.collection(_col).doc(tournamentId).update({
+      'registeredTeams': FieldValue.increment(count),
+    });
+    await loadDetail(tournamentId);
+    notifyListeners();
   }
 
   // ── Remove team ──────────────────────────────────────────────────────────
@@ -1647,6 +1766,22 @@ class TournamentService extends ChangeNotifier {
       String tournamentId, String matchId, Map<String, dynamic> data) async {
     await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
       'scorecardData': data,
+    });
+    await loadDetail(tournamentId);
+  }
+
+  /// Updates score + scorecard data live (mid-match, no winner set yet).
+  Future<void> updateLiveScore(
+      String tournamentId,
+      String matchId,
+      int    scoreA,
+      int    scoreB,
+      Map<String, dynamic> scorecardData,
+  ) async {
+    await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
+      'scoreA':        scoreA,
+      'scoreB':        scoreB,
+      'scorecardData': scorecardData,
     });
     await loadDetail(tournamentId);
   }

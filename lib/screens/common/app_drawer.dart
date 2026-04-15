@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeed
 import 'package:provider/provider.dart';
 import '../../controllers/profile_controller.dart';
 import '../../services/admin_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../admin/admin_panel_screen.dart';
 import '../home/scheduled_matches_screen.dart';
@@ -308,6 +309,22 @@ class _AppDrawerState extends State<AppDrawer> {
                 ),
               ),
 
+              // ── Logout ───────────────────────────────────────────
+              const Divider(color: Colors.white12, height: 1),
+              ListTile(
+                dense: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                leading: const Icon(Icons.logout,
+                    color: Colors.redAccent, size: 21),
+                title: const Text('Sign Out',
+                    style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
+                onTap: () => _confirmSignOut(context),
+              ),
+
               // ── Footer ────────────────────────────────────────────
               const Padding(
                 padding: EdgeInsets.only(bottom: 16),
@@ -320,6 +337,39 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
         );
       },
+    );
+  }
+
+  void _confirmSignOut(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Sign Out',
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w700)),
+        content: const Text('Are you sure you want to sign out?',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // close dialog
+              Navigator.pop(context); // close drawer
+              await AuthService().signOut();
+              if (context.mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                    context, '/login', (_) => false);
+              }
+            },
+            child: const Text('Sign Out',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
     );
   }
 

@@ -24,7 +24,14 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
   void initState() {
     super.initState();
     final uid = UserService().userId ?? '';
-    TournamentService().loadTournaments();
+    TournamentService().loadTournaments().then((_) {
+      // Pre-load match detail for ongoing tournaments so live scores show on cards
+      for (final t in TournamentService().tournaments) {
+        if (t.status == TournamentStatus.ongoing) {
+          TournamentService().loadDetail(t.id);
+        }
+      }
+    });
     TournamentService().loadMyEnrollments(uid);
   }
 
@@ -1186,8 +1193,46 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
     with SingleTickerProviderStateMixin {
   bool   _loading = true;
   String _query   = '';
+  String _sport   = 'All';
+  String _format  = 'All';
   final  _searchCtrl = TextEditingController();
   late TabController _tabCtrl;
+
+  static const _formatOptions = [
+    ('All',            'All Formats'),
+    ('knockout',       'Knockout'),
+    ('roundRobin',     'Round Robin'),
+    ('leagueKnockout', 'League + KO'),
+  ];
+
+  static const _allSports = [
+    ('All',          '🏆'),
+    ('Cricket',      '🏏'),
+    ('Football',     '⚽'),
+    ('Basketball',   '🏀'),
+    ('Badminton',    '🏸'),
+    ('Tennis',       '🎾'),
+    ('Volleyball',   '🏐'),
+    ('Table Tennis', '🏓'),
+    ('Hockey',       '🏑'),
+    ('Boxing',       '🥊'),
+    ('Kabaddi',      '🤼'),
+    ('Throwball',    '🎯'),
+    ('Handball',     '🤾'),
+    ('Swimming',     '🏊'),
+    ('Cycling',      '🚴'),
+    ('Rugby',        '🏉'),
+    ('Golf',         '⛳'),
+    ('Squash',       '🎾'),
+    ('Wrestling',    '🤼'),
+    ('Athletics',    '🏃'),
+    ('Archery',      '🏹'),
+    ('Other',        '🎯'),
+  ];
+
+  static final _sportEmoji = {
+    for (final (name, emoji) in _allSports) name: emoji,
+  };
 
   @override
   void initState() {
@@ -1211,15 +1256,24 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
     if (mounted) setState(() => _loading = false);
   }
 
-  List<Tournament> _applyQuery(List<Tournament> list) {
-    if (_query.isEmpty) return list;
-    final q = _query.toLowerCase();
-    return list
-        .where((t) =>
-            t.name.toLowerCase().contains(q) ||
-            t.sport.toLowerCase().contains(q) ||
-            t.location.toLowerCase().contains(q))
-        .toList();
+  List<Tournament> _applyFilters(List<Tournament> list) {
+    var result = list;
+    if (_sport != 'All') {
+      result = result.where((t) => t.sport == _sport).toList();
+    }
+    if (_format != 'All') {
+      result = result.where((t) => t.format.name == _format).toList();
+    }
+    if (_query.isNotEmpty) {
+      final q = _query.toLowerCase();
+      result = result
+          .where((t) =>
+              t.name.toLowerCase().contains(q) ||
+              t.sport.toLowerCase().contains(q) ||
+              t.location.toLowerCase().contains(q))
+          .toList();
+    }
+    return result;
   }
 
   @override
@@ -1234,7 +1288,7 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
             style: TextStyle(
                 color: Colors.white, fontWeight: FontWeight.w700)),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(104),
+          preferredSize: Size.fromHeight(_sport != 'All' ? 208 : 156),
           child: Column(
             children: [
               // ── Search bar ──────────────────────────────────────────────
@@ -1271,6 +1325,147 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                   ),
                 ),
               ),
+              // ── Sport dropdown ──────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: GestureDetector(
+                  onTap: () async {
+                    final picked = await showDialog<String>(
+                      context: context,
+                      builder: (_) => _SportPickerDialog(
+                        selected: _sport,
+                        sports: _allSports,
+                        emojis: _sportEmoji,
+                      ),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _sport  = picked;
+                        _format = 'All';
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _sport != 'All'
+                          ? AppColors.primary.withValues(alpha: 0.12)
+                          : const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _sport != 'All'
+                            ? AppColors.primary
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(_sportEmoji[_sport] ?? '🎯',
+                            style: const TextStyle(fontSize: 16)),
+                        const SizedBox(width: 8),
+                        Text(
+                          _sport == 'All' ? 'All Sports' : _sport,
+                          style: TextStyle(
+                            color: _sport != 'All'
+                                ? AppColors.primary
+                                : Colors.white60,
+                            fontSize: 13,
+                            fontWeight: _sport != 'All'
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            color: _sport != 'All'
+                                ? AppColors.primary
+                                : Colors.white38,
+                            size: 20),
+                        if (_sport != 'All') ...[
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => setState(() {
+                              _sport  = 'All';
+                              _format = 'All';
+                            }),
+                            child: const Icon(Icons.close,
+                                color: AppColors.primary, size: 16),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // ── Format dropdown (only when sport selected) ──────────────
+              if (_sport != 'All')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: GestureDetector(
+                    onTap: () async {
+                      final picked = await showDialog<String>(
+                        context: context,
+                        builder: (_) => _FormatPickerDialog(
+                          selected: _format,
+                          options:  _formatOptions,
+                        ),
+                      );
+                      if (picked != null) setState(() => _format = picked);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _format != 'All'
+                            ? AppColors.primary.withValues(alpha: 0.12)
+                            : const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _format != 'All'
+                              ? AppColors.primary
+                              : Colors.white12,
+                        ),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.filter_list_rounded,
+                            color: Colors.white38, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _format == 'All'
+                              ? 'All Formats'
+                              : _formatOptions
+                                  .firstWhere((o) => o.$1 == _format)
+                                  .$2,
+                          style: TextStyle(
+                            color: _format != 'All'
+                                ? AppColors.primary
+                                : Colors.white60,
+                            fontSize: 13,
+                            fontWeight: _format != 'All'
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            color: _format != 'All'
+                                ? AppColors.primary
+                                : Colors.white38,
+                            size: 20),
+                        if (_format != 'All') ...[
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () =>
+                                setState(() => _format = 'All'),
+                            child: const Icon(Icons.close,
+                                color: AppColors.primary, size: 16),
+                          ),
+                        ],
+                      ]),
+                    ),
+                  ),
+                ),
               // ── Tabs ────────────────────────────────────────────────────
               TabBar(
                 controller: _tabCtrl,
@@ -1304,13 +1499,13 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                         t.createdBy == uid)
                     .toList();
 
-                final upcoming = _applyQuery(allMine
+                final upcoming = _applyFilters(allMine
                     .where((t) => t.status == TournamentStatus.open)
                     .toList());
-                final current = _applyQuery(allMine
+                final current = _applyFilters(allMine
                     .where((t) => t.status == TournamentStatus.ongoing)
                     .toList());
-                final past = _applyQuery(allMine
+                final past = _applyFilters(allMine
                     .where((t) =>
                         t.status == TournamentStatus.completed ||
                         t.status == TournamentStatus.cancelled)
@@ -1892,7 +2087,7 @@ class _FixtureCard extends StatelessWidget {
 
 // ── Shared Tournament card ───────────────────────────────────────────────────
 
-class _TournamentCard extends StatelessWidget {
+class _TournamentCard extends StatefulWidget {
   final Tournament   tournament;
   final VoidCallback onTap;
   final String?      teamBadge; // shown in Registered view
@@ -1904,6 +2099,20 @@ class _TournamentCard extends StatelessWidget {
     this.teamBadge,
     this.isHost = false,
   });
+
+  @override
+  State<_TournamentCard> createState() => _TournamentCardState();
+}
+
+class _TournamentCardState extends State<_TournamentCard> {
+  @override
+  void initState() {
+    super.initState();
+    // Load matches for ongoing tournaments so live score can be shown
+    if (widget.tournament.status == TournamentStatus.ongoing) {
+      TournamentService().loadDetail(widget.tournament.id);
+    }
+  }
 
   // Per-sport asset images for the banner
   static const _bannerImages = <String, String>{
@@ -1932,6 +2141,8 @@ class _TournamentCard extends StatelessWidget {
       case TournamentFormat.knockout:       return 'Knockout';
       case TournamentFormat.roundRobin:     return 'Round Robin';
       case TournamentFormat.leagueKnockout: return 'League+KO';
+      case TournamentFormat.league:         return 'League';
+      case TournamentFormat.custom:         return 'Custom';
     }
   }
 
@@ -1949,6 +2160,18 @@ class _TournamentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tournament = widget.tournament;
+    final onTap      = widget.onTap;
+    final teamBadge  = widget.teamBadge;
+    final isHost     = widget.isHost;
+
+    // Live match for ongoing tournaments
+    final liveMatch = tournament.status == TournamentStatus.ongoing
+        ? TournamentService().matchesFor(tournament.id)
+            .where((m) => m.isLive)
+            .firstOrNull
+        : null;
+
     final gradList   = _gradients[tournament.sport] ??
         [const Color(0xFF1A237E), const Color(0xFF283593)];
     final bannerPath = _bannerImages[tournament.sport];
@@ -1960,6 +2183,8 @@ class _TournamentCard extends StatelessWidget {
         (tournament.maxTeams == 0 ||
             tournament.registeredTeams < tournament.maxTeams);
     final (statusColor, statusLabel) = _statusStyle(tournament.status);
+    final isMyTournament = isHost ||
+        tournament.createdBy == (UserService().userId ?? '');
 
     return GestureDetector(
       onTap: onTap,
@@ -1968,6 +2193,10 @@ class _TournamentCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF161616),
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.09),
+            width: 1.0,
+          ),
           boxShadow: [
             BoxShadow(
               color: gradList[0].withValues(alpha: 0.25),
@@ -2271,6 +2500,32 @@ class _TournamentCard extends StatelessWidget {
                                   fontWeight: FontWeight.w700)),
                         ),
                       const SizedBox(width: 6),
+                      if (isMyTournament) ...[
+                        TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => LeagueEntryScreen(
+                                  existingTournament: tournament),
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.blue.withValues(alpha: 0.12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 4),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('Edit',
+                              style: TextStyle(
+                                  color: Colors.blue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       TextButton(
                         onPressed: onTap,
                         style: TextButton.styleFrom(
@@ -2291,6 +2546,95 @@ class _TournamentCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  // ── Status strip ─────────────────────────────────────
+                  if (tournament.status != TournamentStatus.open) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+                      ),
+                      child: Row(children: [
+                        if (tournament.status == TournamentStatus.ongoing)
+                          Container(
+                            width: 7, height: 7,
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                              boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.6), blurRadius: 4)],
+                            ),
+                          ),
+                        Text(
+                          tournament.status == TournamentStatus.ongoing
+                              ? 'Tournament is Live'
+                              : tournament.status == TournamentStatus.completed
+                                  ? 'Tournament Ended'
+                                  : 'Tournament Cancelled',
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ],
+
+                  // ── Live match score strip ────────────────────────────
+                  if (liveMatch != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            liveMatch.teamAName ?? 'Team A',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${liveMatch.scoreA ?? 0}  –  ${liveMatch.scoreB ?? 0}',
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            liveMatch.teamBName ?? 'Team B',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ],
                 ],
               ),
             ),

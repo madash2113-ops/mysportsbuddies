@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../controllers/profile_controller.dart';
-import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../../design/colors.dart';
 import '../premium/premium_screen.dart';
@@ -389,33 +388,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            // ── Account ─────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _Section(
-                label: 'Account',
-                icon: Icons.manage_accounts_outlined,
-                isDark: isDark,
-                textCol: textCol,
-                subCol: subCol,
-                cardBg: cardBg,
-                divCol: divCol,
-                primary: primary,
-                children: [
-                  _NavTile(
-                    title: 'Sign Out',
-                    subtitle: 'You can sign back in anytime',
-                    icon: Icons.logout,
-                    textCol: Colors.redAccent,
-                    subCol: subCol,
-                    primary: Colors.redAccent,
-                    onTap: () => _confirmSignOut(context, primary),
-                  ),
-                ],
-              ),
-            ),
-
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
@@ -448,39 +420,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {
       return 'Unknown';
     }
-  }
-
-  void _confirmSignOut(BuildContext context, Color primary) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor:
-            Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF1A1A1A)
-                : Colors.white,
-        title: const Text('Sign Out',
-            style: TextStyle(fontWeight: FontWeight.w700)),
-        content: const Text('Are you sure you want to sign out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await AuthService().signOut();
-              if (context.mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/login', (_) => false);
-              }
-            },
-            child: const Text('Sign Out',
-                style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
-    );
   }
 
   SnackBar _snack(String msg, Color color) => SnackBar(

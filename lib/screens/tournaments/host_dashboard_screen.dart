@@ -76,8 +76,8 @@ class HostDashboardScreen extends StatelessWidget {
                 crossAxisSpacing: 12,
                 childAspectRatio: 1.3,
                 children: [
-                  // Edit tournament (host only, open status)
-                  if (isHost && t.status == TournamentStatus.open)
+                  // Edit tournament (host only — all statuses)
+                  if (isHost)
                     _DashCard(
                       icon:  Icons.edit_outlined,
                       label: 'Edit Tournament',
@@ -197,6 +197,43 @@ class HostDashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                GestureDetector(
+                  onTap: () => _confirmDelete(context, t.name),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.7)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.delete_forever_outlined, color: Colors.red, size: 22),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Delete Tournament',
+                                  style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700)),
+                              SizedBox(height: 2),
+                              Text('Permanently deletes this tournament and all its data. Cannot be undone.',
+                                  style: TextStyle(
+                                      color: Colors.white38, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: Colors.red, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
               ],
 
               const SizedBox(height: 80),
@@ -204,6 +241,46 @@ class HostDashboardScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _confirmDelete(BuildContext context, String tournamentName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Text('Delete Tournament',
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+        content: Text(
+          'This will permanently delete "$tournamentName" and ALL its teams, matches, groups and data.\n\nThis cannot be undone.',
+          style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await TournamentService().deleteTournament(tournamentId);
+                if (context.mounted) {
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'),
+                        backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -348,7 +425,7 @@ class _StatusCardState extends State<_StatusCard> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.toString()), backgroundColor: Colors.red));
+          content: Text(e.toString()), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -356,9 +433,27 @@ class _StatusCardState extends State<_StatusCard> {
 
   @override
   Widget build(BuildContext context) {
-    final t      = widget.tournament;
-    final teams  = TournamentService().teamsFor(widget.tournamentId);
-    final status = t.status;
+    final t       = widget.tournament;
+    final teams   = TournamentService().teamsFor(widget.tournamentId);
+    final status  = t.status;
+    final now     = DateTime.now();
+    final start   = t.startDate;
+
+    // Date helpers
+    final todayOnly   = DateTime(now.year, now.month, now.day);
+    final startOnly   = DateTime(start.year, start.month, start.day);
+    final isFuture    = startOnly.isAfter(todayOnly);
+    final isToday     = startOnly == todayOnly;
+    final isPast      = startOnly.isBefore(todayOnly);
+    final daysUntil   = startOnly.difference(todayOnly).inDays;
+    final dateArrived = isToday || isPast; // start date has come
+
+    // Date changed to future while status is ongoing → prompt to reset
+    final shouldSuggestReset =
+        isFuture && status == TournamentStatus.ongoing;
+
+    String _fmtDate(DateTime d) =>
+        '${d.day}/${d.month}/${d.year}';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -368,30 +463,156 @@ class _StatusCardState extends State<_StatusCard> {
         border: Border.all(color: Colors.white12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+        // ── Current status row ──────────────────────────────────────
         Row(children: [
-          const Text('Current Status: ',
+          const Text('Status: ',
               style: TextStyle(color: Colors.white54, fontSize: 13)),
           _StatusChip(status),
+          const Spacer(),
+          // Start date pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: dateArrived
+                  ? Colors.orange.withValues(alpha: 0.15)
+                  : Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: dateArrived
+                    ? Colors.orange.withValues(alpha: 0.5)
+                    : Colors.white12,
+              ),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(
+                dateArrived
+                    ? Icons.event_available_outlined
+                    : Icons.calendar_today_outlined,
+                size: 11,
+                color: dateArrived ? Colors.orange : Colors.white38,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isFuture
+                    ? 'Starts ${_fmtDate(start)}  ($daysUntil day${daysUntil == 1 ? '' : 's'})'
+                    : isToday
+                        ? 'Starts today!'
+                        : 'Started ${_fmtDate(start)}',
+                style: TextStyle(
+                  color: dateArrived ? Colors.orange : Colors.white38,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ]),
+          ),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+
+        // ── Date-aware prompt banner ──────────────────────────────────
+        if (shouldSuggestReset) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.4)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.info_outline_rounded,
+                  color: Colors.blue, size: 16),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Start date moved to future — reset status to Open for new registrations?',
+                  style: TextStyle(
+                      color: Colors.blue, fontSize: 12, height: 1.4),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        if (status == TournamentStatus.open && dateArrived && teams.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.flag_outlined, color: Colors.green, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isToday
+                      ? 'Tournament starts today! ${teams.length} team${teams.length == 1 ? '' : 's'} registered.'
+                      : 'Start date passed. ${teams.length} team${teams.length == 1 ? '' : 's'} registered. Ready to begin?',
+                  style: const TextStyle(
+                      color: Colors.green, fontSize: 12, height: 1.4),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── Action buttons ────────────────────────────────────────────
         if (_updating)
-          const Center(child: SizedBox(width: 20, height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2)))
+          const Center(child: SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
         else
           Wrap(spacing: 8, runSpacing: 8, children: [
-            if (status == TournamentStatus.open && teams.length >= 2)
+
+            // Reset to open when date moved to future
+            if (shouldSuggestReset)
+              _ActionBtn(
+                label: 'Reset to Open',
+                color: Colors.blue,
+                onTap: () => _setStatus(TournamentStatus.open),
+              ),
+
+            // Start Tournament: show when open + date arrived + has teams
+            if (status == TournamentStatus.open && dateArrived && teams.length >= 2)
               _ActionBtn(
                 label: 'Start Tournament',
                 color: Colors.green,
                 onTap: () => _setStatus(TournamentStatus.ongoing),
               ),
+
+            // Allow early start when open + date is future (optional override)
+            if (status == TournamentStatus.open && isFuture && teams.length >= 2)
+              _ActionBtn(
+                label: 'Start Early',
+                color: Colors.orange,
+                onTap: () => _setStatus(TournamentStatus.ongoing),
+                outlined: true,
+              ),
+
             if (status == TournamentStatus.ongoing)
               _ActionBtn(
                 label: 'Mark Completed',
                 color: Colors.blue,
                 onTap: () => _setStatus(TournamentStatus.completed),
               ),
-            if (status != TournamentStatus.cancelled)
+
+            // Reopen from completed/cancelled if date changed to future
+            if ((status == TournamentStatus.completed ||
+                    status == TournamentStatus.cancelled) &&
+                isFuture)
+              _ActionBtn(
+                label: 'Reopen Registration',
+                color: Colors.green,
+                onTap: () => _setStatus(TournamentStatus.open),
+                outlined: true,
+              ),
+
+            if (status != TournamentStatus.cancelled &&
+                status != TournamentStatus.completed)
               _ActionBtn(
                 label: 'Cancel',
                 color: Colors.red,

@@ -12,6 +12,11 @@
 /// Set to true during development — removes ALL premium gates.
 const bool kDevMode = true;
 
+/// Google AI Studio API key — used for AI banner generation (Gemini 2.0 Flash).
+/// Get yours free at https://aistudio.google.com/app/apikey
+/// Leave empty to disable the "Generate with AI" banner feature.
+const String kGeminiApiKey = 'AIzaSyBiY1S-S5TO_mXoTL5f1H0vVfUcjaHeyH0';
+
 /// Firebase UIDs that always get full premium access in production.
 /// Add your own UID here once you have email/Google auth set up.
 const List<String> kOwnerUserIds = [

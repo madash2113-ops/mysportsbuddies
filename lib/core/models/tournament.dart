@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // ── Enums ──────────────────────────────────────────────────────────────────
 
 enum TournamentStatus  { open, ongoing, completed, cancelled }
-enum TournamentFormat  { knockout, roundRobin, leagueKnockout }
+enum TournamentFormat  { knockout, roundRobin, leagueKnockout, league, custom }
 enum ScheduleMode      { auto, manual }
 enum TournamentMatchResult { pending, teamAWin, teamBWin, draw, bye }
 
@@ -57,10 +57,13 @@ class Tournament {
   final int              groupCount;       // number of groups (0 = no groups)
   final ScoringType      scoringType;      // how scores are counted
   final int              bestOf;           // sets count for bestOfSets (3, 5, 7)
+  final int              pointsToWin;      // points needed to win one game/set
   final int              winPoints;        // points for a win (points mode)
   final int              drawPoints;       // points for a draw (points mode)
   final int              lossPoints;       // points for a loss (points mode)
   final String?          customScoringLabel; // host-defined label (custom mode)
+  final bool             sameScoreAllRounds; // if false, per-round scoring overrides apply
+  final Map<String, dynamic>? roundScoringConfig; // per-round config when sameScoreAllRounds=false
 
   const Tournament({
     required this.id,
@@ -90,10 +93,13 @@ class Tournament {
     this.groupCount = 0,
     this.scoringType = ScoringType.standard,
     this.bestOf = 3,
+    this.pointsToWin = 21,
     this.winPoints = 3,
     this.drawPoints = 1,
     this.lossPoints = 0,
     this.customScoringLabel,
+    this.sameScoreAllRounds = true,
+    this.roundScoringConfig,
   });
 
   double get totalFee => entryFee + serviceFee;
@@ -125,10 +131,13 @@ class Tournament {
     'groupCount':       groupCount,
     'scoringType':      scoringType.name,
     'bestOf':           bestOf,
+    'pointsToWin':      pointsToWin,
     'winPoints':        winPoints,
     'drawPoints':       drawPoints,
     'lossPoints':       lossPoints,
-    'customScoringLabel': customScoringLabel,
+    'customScoringLabel':    customScoringLabel,
+    'sameScoreAllRounds':    sameScoreAllRounds,
+    'roundScoringConfig':    roundScoringConfig,
   };
 
   static Tournament fromFirestore(DocumentSnapshot doc) =>
@@ -170,11 +179,16 @@ class Tournament {
     scoringType:      ScoringType.values.firstWhere(
                         (e) => e.name == m['scoringType'],
                         orElse: () => ScoringType.standard),
-    bestOf:           (m['bestOf'] as num?)?.toInt() ?? 3,
-    winPoints:        (m['winPoints'] as num?)?.toInt() ?? 3,
+    bestOf:           (m['bestOf']       as num?)?.toInt() ?? 3,
+    pointsToWin:      (m['pointsToWin']  as num?)?.toInt() ?? 21,
+    winPoints:        (m['winPoints']    as num?)?.toInt() ?? 3,
     drawPoints:       (m['drawPoints'] as num?)?.toInt() ?? 1,
     lossPoints:       (m['lossPoints'] as num?)?.toInt() ?? 0,
-    customScoringLabel: m['customScoringLabel'] as String?,
+    customScoringLabel:    m['customScoringLabel']    as String?,
+    sameScoreAllRounds:    m['sameScoreAllRounds']    as bool? ?? true,
+    roundScoringConfig:    m['roundScoringConfig'] != null
+                             ? Map<String, dynamic>.from(m['roundScoringConfig'] as Map)
+                             : null,
   );
 
   Tournament copyWith({
@@ -201,10 +215,13 @@ class Tournament {
     int? groupCount,
     ScoringType? scoringType,
     int? bestOf,
+    int? pointsToWin,
     int? winPoints,
     int? drawPoints,
     int? lossPoints,
     String? customScoringLabel,
+    bool? sameScoreAllRounds,
+    Map<String, dynamic>? roundScoringConfig,
   }) => Tournament(
     id:               id,
     name:             name             ?? this.name,
@@ -233,10 +250,13 @@ class Tournament {
     groupCount:       groupCount       ?? this.groupCount,
     scoringType:      scoringType      ?? this.scoringType,
     bestOf:           bestOf           ?? this.bestOf,
+    pointsToWin:      pointsToWin      ?? this.pointsToWin,
     winPoints:        winPoints        ?? this.winPoints,
     drawPoints:       drawPoints       ?? this.drawPoints,
     lossPoints:       lossPoints       ?? this.lossPoints,
-    customScoringLabel: customScoringLabel ?? this.customScoringLabel,
+    customScoringLabel:    customScoringLabel    ?? this.customScoringLabel,
+    sameScoreAllRounds:    sameScoreAllRounds    ?? this.sameScoreAllRounds,
+    roundScoringConfig:    roundScoringConfig    ?? this.roundScoringConfig,
   );
 }
 
