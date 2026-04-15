@@ -47,11 +47,13 @@ post_install do |installer|
       config.build_settings['ARCHS[sdk=iphonesimulator*]'] = 'arm64'
       config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
 
-      # Force dSYM generation for ALL configurations (Debug, Profile, Release).
-      # objective_c.framework (Dart FFI) defaults to plain DWARF which omits
-      # the .dSYM bundle, failing App Store archive validation with UUID error.
-      config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
-      config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+      # dSYM generation is only needed for Release/Profile (App Store archive).
+      # Enabling it on Debug causes slow rebuilds because Xcode runs dsymutil
+      # on every pod framework on every build.
+      if config.name != 'Debug'
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+        config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+      end
 
       # Enable permission_handler macros for location + notification
       if target.name == 'permission_handler_apple'
@@ -144,6 +146,15 @@ post_install do |installer|
       # Fix App Store Connect errors 91169 / "Couldn't find platform family" for
       # objective_c.framework and any other Dart-FFI framework whose Mach-O
       # binary carries an iOS Simulator LC_BUILD_VERSION (platform 7).
+      #
+      # IMPORTANT: only strip simulator slices for device/archive builds.
+      # Simulator debug builds legitimately contain simulator-platform frameworks
+      # and stripping them causes dyld to fail loading (Library not loaded crash).
+      if [ "${PLATFORM_NAME}" = "iphonesimulator" ]; then
+        echo "Strip Simulator Slices: skipping (simulator build)"
+        exit 0
+      fi
+
       FRAMEWORKS_DIR="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks"
       [ -d "$FRAMEWORKS_DIR" ] || exit 0
 
