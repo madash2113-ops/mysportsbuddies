@@ -6,6 +6,7 @@ import '../../design/spacing.dart';
 import '../../services/scoreboard_service.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../scoreboard/match_report_screen.dart';
+import '../../widgets/match_vs_banner.dart';
 
 class MyMatchesScreen extends StatefulWidget {
   const MyMatchesScreen({super.key});
@@ -143,21 +144,6 @@ class _MatchCard extends StatelessWidget {
   final LiveMatch match;
   const _MatchCard({required this.match});
 
-  Color get _statusColor {
-    switch (match.status) {
-      case MatchStatus.live:      return AppColors.primary;
-      case MatchStatus.completed: return Colors.green;
-      case MatchStatus.paused:    return Colors.amber;
-    }
-  }
-
-  String get _statusLabel {
-    switch (match.status) {
-      case MatchStatus.live:      return '● LIVE';
-      case MatchStatus.completed: return '✓ FT';
-      case MatchStatus.paused:    return '⏸ Paused';
-    }
-  }
 
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
@@ -204,132 +190,56 @@ class _MatchCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: isLive
-                    ? AppColors.primary.withValues(alpha: 0.08)
-                    : Colors.white.withValues(alpha: 0.03),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _statusColor.withValues(alpha: 0.5)),
-                    ),
-                    child: Text(
-                      _statusLabel,
-                      style: TextStyle(
-                          color: _statusColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Flexible(
-                    child: Text(
-                      match.sportDisplayName,
-                      style: const TextStyle(color: Colors.white60, fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (match.format.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        '• ${match.format}',
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
-                  Text(
-                    _timeAgo(match.createdAt),
-                    style: const TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
-                ],
+            // ── VS Banner ─────────────────────────────────────────────────────
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: MatchVsBanner(
+                teamA:    match.teamA,
+                teamB:    match.teamB,
+                label:    match.format.isNotEmpty ? match.format : match.sportDisplayName,
+                sport:    match.sportDisplayName,
+                isLive:   isLive,
+                isPlayed: isDone,
+                isMyMatch: false,
               ),
             ),
 
-            // Body
+            // ── Score + footer ────────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
-                children: [
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+              child: Row(children: [
+                if (match.venue.isNotEmpty) ...[
+                  const Icon(Icons.location_on_outlined,
+                      color: Colors.white38, size: 11),
+                  const SizedBox(width: 3),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          match.teamA,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'vs',
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              fontSize: 11),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          match.teamB,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (match.venue.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on_outlined,
-                                  color: Colors.white38, size: 12),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  match.venue,
-                                  style: const TextStyle(
-                                      color: Colors.white38, fontSize: 12),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
+                    child: Text(match.venue,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 11),
+                        overflow: TextOverflow.ellipsis),
                   ),
-                  const SizedBox(width: 12),
-                  _ScoreWidget(match: match),
-                ],
-              ),
+                ] else
+                  const Spacer(),
+                Text(_timeAgo(match.createdAt),
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 11)),
+              ]),
             ),
 
-            // Footer
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
-              child: Text(
-                isDone ? 'Tap to view report →' : 'Tap to score →',
-                style: TextStyle(
-                  color: isLive ? AppColors.primary : Colors.white38,
-                  fontSize: 11,
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+              child: Row(children: [
+                Expanded(child: _ScoreWidget(match: match)),
+                const SizedBox(width: 10),
+                Text(
+                  isDone ? 'View report →' : 'Score →',
+                  style: TextStyle(
+                    color: isLive ? AppColors.primary : Colors.white38,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
+              ]),
             ),
           ],
         ),

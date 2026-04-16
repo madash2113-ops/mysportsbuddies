@@ -1571,6 +1571,7 @@ class _FootballControls extends StatelessWidget {
     final f = match.football!;
     if (f.isFullTime) return const SizedBox.shrink();
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (svc.canUndo(match.id)) _undoBtn(svc, match.id),
       // Timer
       Row(children: [
         _ctrlBtn(
@@ -1910,6 +1911,7 @@ class _BasketballControls extends StatelessWidget {
     final b = match.basketball!;
     if (b.isMatchOver) return const SizedBox.shrink();
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (svc.canUndo(match.id)) _undoBtn(svc, match.id),
       // Timer row
       Row(children: [
         _ctrlBtn(b.timer.isRunning ? '\u23f8 Pause' : '\u25b6 Start',
@@ -2120,8 +2122,7 @@ class _RallyBoard extends StatelessWidget {
         ]),
       ),
       const SizedBox(height: AppSpacing.sm),
-      Text('Set ${r.currentSetNum} · ${isTennis ? 'Games' : 'Points'}',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+      _RallySetStatus(r: r, teamA: match.teamA, teamB: match.teamB, isTennis: isTennis),
       // Server indicator
       const SizedBox(height: AppSpacing.sm),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -2164,6 +2165,76 @@ class _RallyBoard extends StatelessWidget {
 // RALLY CONTROLS
 // ════════════════════════════════════════════════════════════════════════════
 
+/// Shows DEUCE / ADVANTAGE / GAME POINT badge or the plain set label.
+class _RallySetStatus extends StatelessWidget {
+  final RallyScore r;
+  final String teamA;
+  final String teamB;
+  final bool isTennis;
+  const _RallySetStatus({
+    required this.r,
+    required this.teamA,
+    required this.teamB,
+    required this.isTennis,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final status = r.currentSetStatus;
+
+    if (status == null) {
+      return Text(
+        'Set ${r.currentSetNum} · ${isTennis ? 'Games' : 'Points'}',
+        style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+      );
+    }
+
+    String label;
+    Color color;
+
+    switch (status) {
+      case 'deuce':
+        label = 'DEUCE';
+        color = Colors.orange;
+      case 'advantageA':
+        label = 'ADVANTAGE  $teamA';
+        color = Colors.amber;
+      case 'advantageB':
+        label = 'ADVANTAGE  $teamB';
+        color = Colors.amber;
+      case 'gamePointA':
+        label = 'GAME POINT  $teamA';
+        color = Colors.greenAccent;
+      case 'gamePointB':
+        label = 'GAME POINT  $teamB';
+        color = Colors.greenAccent;
+      default:
+        label = 'Set ${r.currentSetNum} · Points';
+        color = AppColors.textMuted;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+
 class _RallyControls extends StatelessWidget {
   final LiveMatch match;
   final ScoreboardService svc;
@@ -2174,6 +2245,20 @@ class _RallyControls extends StatelessWidget {
     final r = match.rally!;
     if (r.isMatchOver) return const SizedBox.shrink();
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (svc.canUndo(match.id))
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => svc.undo(match.id),
+            icon: const Icon(Icons.undo, size: 15, color: Colors.white60),
+            label: const Text('Undo last point',
+                style: TextStyle(color: Colors.white60, fontSize: 12)),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
       Row(children: [
         _pointBtn(match.teamA, AppColors.primary,
             () => svc.rallyPoint(match.id, 'A')),
@@ -2361,6 +2446,7 @@ class _HockeyControls extends StatelessWidget {
     if (h.isMatchOver) return const SizedBox.shrink();
     final periodWord = h.totalPeriods == 3 ? 'Period' : 'Quarter';
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (svc.canUndo(match.id)) _undoBtn(svc, match.id),
       Row(children: [
         _btn(h.timer.isRunning ? '\u23f8 Pause' : '\u25b6 Start',
             AppColors.primary, () => svc.hockeyToggleTimer(match.id)),
@@ -2645,6 +2731,7 @@ class _BoxingControls extends StatelessWidget {
     final c = match.combat!;
     if (c.isMatchOver) return const SizedBox.shrink();
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (svc.canUndo(match.id)) _undoBtn(svc, match.id),
       Row(children: [
         _btn(c.timer.isRunning ? '\u23f8 Pause' : '\u25b6 Start',
             AppColors.primary, () => svc.boxingToggleTimer(match.id)),
@@ -2894,12 +2981,15 @@ class _EsportsControls extends StatelessWidget {
         ),
       );
     }
-    return Row(children: [
-      _btn('Round Won \u2014 ${match.teamA}', AppColors.primary,
-          () => svc.esportsRoundWon(match.id, 'A')),
-      const SizedBox(width: 12),
-      _btn('Round Won \u2014 ${match.teamB}', Colors.blue,
-          () => svc.esportsRoundWon(match.id, 'B')),
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (svc.canUndo(match.id)) _undoBtn(svc, match.id),
+      Row(children: [
+        _btn('Round Won \u2014 ${match.teamA}', AppColors.primary,
+            () => svc.esportsRoundWon(match.id, 'A')),
+        const SizedBox(width: 12),
+        _btn('Round Won \u2014 ${match.teamB}', Colors.blue,
+            () => svc.esportsRoundWon(match.id, 'B')),
+      ]),
     ]);
   }
 
@@ -3019,6 +3109,15 @@ class _GenericBoard extends StatelessWidget {
                 style: const TextStyle(
                     color: AppColors.textMuted, fontSize: 12)),
           ],
+          // Deuce / Match Point badge
+          if (!g.isMatchOver && g.currentStatus != null) ...[
+            const SizedBox(height: 8),
+            _GenericStatusBadge(
+              status: g.currentStatus!,
+              teamA: match.teamA,
+              teamB: match.teamB,
+            ),
+          ],
           // Winner banner
           if (g.isMatchOver) ...[
             const SizedBox(height: 8),
@@ -3087,22 +3186,63 @@ class _GenericBoard extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// GENERIC STATUS BADGE — DEUCE / MATCH POINT
+// ════════════════════════════════════════════════════════════════════════════
+
+class _GenericStatusBadge extends StatelessWidget {
+  final String status;   // 'deuce' | 'matchPointA' | 'matchPointB'
+  final String teamA;
+  final String teamB;
+  const _GenericStatusBadge({
+    required this.status,
+    required this.teamA,
+    required this.teamB,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    late final Color   bg;
+    late final Color   border;
+    late final Color   fg;
+    late final String  label;
+
+    if (status == 'deuce') {
+      bg     = Colors.orange.withValues(alpha: 0.18);
+      border = Colors.orange.withValues(alpha: 0.55);
+      fg     = Colors.orange;
+      label  = 'DEUCE';
+    } else {
+      final team = status == 'matchPointA' ? teamA : teamB;
+      bg     = Colors.green.withValues(alpha: 0.18);
+      border = Colors.green.withValues(alpha: 0.55);
+      fg     = Colors.green;
+      label  = 'MATCH POINT · $team';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      decoration: BoxDecoration(
+        color:        bg,
+        borderRadius: BorderRadius.circular(8),
+        border:       Border.all(color: border),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color:       fg,
+          fontSize:    12,
+          fontWeight:  FontWeight.w800,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // GENERIC CONTROLS
 // ════════════════════════════════════════════════════════════════════════════
 
-/// Identifies sports where only +1 / -1 scoring is sensible
-/// (golf: stroke count, snooker: frames, darts: legs).
-bool _isCountSport(MatchSport sport) {
-  switch (sport) {
-    case MatchSport.golf:
-    case MatchSport.snooker:
-    case MatchSport.darts:
-    case MatchSport.curling:
-      return true;
-    default:
-      return false;
-  }
-}
 
 class _GenericControls extends StatelessWidget {
   final LiveMatch match;
@@ -3116,72 +3256,20 @@ class _GenericControls extends StatelessWidget {
     final g = match.genericScore!;
     if (g.isMatchOver) return const SizedBox.shrink();
 
-    final isCount = _isCountSport(match.sport);
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Note label
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Text(
-            'Tap score to record: ${match.sportDisplayName}',
-            style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 11,
-                fontStyle: FontStyle.italic),
-            textAlign: TextAlign.center,
-          ),
-        ),
-
-        if (isCount) ...[
-          // Count-based sports: +1 / -1 for each team
-          Row(children: [
-            _teamLabel(match.teamA),
-            _smallBtn('+1', AppColors.primary,
-                () => svc.genericAddPoints(match.id, 'A', 1)),
-            const SizedBox(width: 4),
-            _smallBtn('-1', Colors.grey,
-                () => svc.genericAddPoints(match.id, 'A', -1,
-                    note: '-1')),
-          ]),
-          const SizedBox(height: 4),
-          Row(children: [
-            _teamLabel(match.teamB),
-            _smallBtn('+1', Colors.blue,
-                () => svc.genericAddPoints(match.id, 'B', 1)),
-            const SizedBox(width: 4),
-            _smallBtn('-1', Colors.grey,
-                () => svc.genericAddPoints(match.id, 'B', -1,
-                    note: '-1')),
-          ]),
-        ] else ...[
-          // General: +1 / +2 / +3 / +5 / +7 for Team A
-          Row(children: [
-            _teamLabel(match.teamA),
-            ...[1, 2, 3, 5, 7].map((pts) => Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: _ptBtn('+$pts', AppColors.primary,
-                      () => svc.genericAddPoints(match.id, 'A', pts,
-                          note: '+$pts')),
-                )),
-          ]),
-          const SizedBox(height: 4),
-          // General: +1 / +2 / +3 / +5 / +7 for Team B
-          Row(children: [
-            _teamLabel(match.teamB),
-            ...[1, 2, 3, 5, 7].map((pts) => Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: _ptBtn('+$pts', Colors.blue,
-                      () => svc.genericAddPoints(match.id, 'B', pts,
-                          note: '+$pts')),
-                )),
-          ]),
-        ],
-
+        if (svc.canUndo(match.id)) _undoBtn(svc, match.id),
+        // Two large tap boxes — one per team, +1 per tap
+        Row(children: [
+          _scoreBox(match.teamA, AppColors.primary,
+              () => svc.genericAddPoints(match.id, 'A', 1)),
+          const SizedBox(width: 12),
+          _scoreBox(match.teamB, Colors.blue,
+              () => svc.genericAddPoints(match.id, 'B', 1)),
+        ]),
         const SizedBox(height: AppSpacing.sm),
-
-        // Timer + end match row
+        // Timer + end match
         Row(children: [
           _ctrlBtn(
             g.timer.isRunning ? '\u23f8 Pause Timer' : '\u25b6 Start Timer',
@@ -3189,64 +3277,33 @@ class _GenericControls extends StatelessWidget {
             onTap: () => svc.genericToggleTimer(match.id),
           ),
           const SizedBox(width: 8),
-          _ctrlBtn(
-            'End Match',
-            color: Colors.grey,
-            onTap: () => _confirmEnd(context),
-          ),
+          _ctrlBtn('End Match', color: Colors.grey,
+              onTap: () => _confirmEnd(context)),
         ]),
       ],
     );
   }
 
-  Widget _teamLabel(String name) => SizedBox(
-        width: 60,
-        child: Text(
-          name,
-          style: const TextStyle(
-              color: AppColors.textMuted, fontSize: 11),
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
-        ),
-      );
-
-  Widget _ptBtn(String label, Color color, VoidCallback onTap) => Expanded(
+  Widget _scoreBox(String team, Color color, VoidCallback onTap) => Expanded(
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(vertical: 20),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color.withValues(alpha: 0.3)),
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: 0.4)),
             ),
             child: Center(
-              child: Text(label,
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ),
-      );
-
-  Widget _smallBtn(String label, Color color, VoidCallback onTap) => Expanded(
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color.withValues(alpha: 0.3)),
-            ),
-            child: Center(
-              child: Text(label,
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold)),
+              child: Text(
+                '+ Point\n$team',
+                style: TextStyle(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+              ),
             ),
           ),
         ),
@@ -3309,6 +3366,21 @@ class _GenericControls extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════════════════
 // SHARED HELPERS
 // ════════════════════════════════════════════════════════════════════════════
+
+/// Undo button shown at the top-right of any scoring controls panel.
+Widget _undoBtn(ScoreboardService svc, String matchId) => Align(
+      alignment: Alignment.centerRight,
+      child: TextButton.icon(
+        onPressed: () => svc.undo(matchId),
+        icon: const Icon(Icons.undo, size: 15, color: Colors.white60),
+        label: const Text('Undo',
+            style: TextStyle(color: Colors.white60, fontSize: 12)),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
 
 Widget _card({Widget? child, String? label}) => Container(
       width: double.infinity,

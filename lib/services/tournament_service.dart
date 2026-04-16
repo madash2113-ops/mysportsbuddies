@@ -1090,6 +1090,89 @@ class TournamentService extends ChangeNotifier {
     await loadDetail(tournamentId);
   }
 
+  // ── Reset match result ──────────────────────────────────────────────────
+
+  /// Wipes score + result for a single match back to pending state.
+  /// Also undoes the team stats that were applied when the result was first set.
+  /// The caller (UI layer) is responsible for removing the live scoreboard doc
+  /// via ScoreboardService to avoid a circular dependency.
+  Future<void> resetMatchResult({
+    required String tournamentId,
+    required String matchId,
+  }) async {
+    final match = matchesFor(tournamentId).where((m) => m.id == matchId).firstOrNull;
+    if (match == null || !match.isPlayed) return;
+
+    final t = _tournaments.where((t) => t.id == tournamentId).firstOrNull;
+
+    // 1. Undo RR/League stats for this match
+    if (t != null &&
+        (t.format == TournamentFormat.roundRobin ||
+         t.format == TournamentFormat.leagueKnockout)) {
+      await _undoRRStats(tournamentId, match, t);
+    }
+
+    // 2. Reset match document to pending state
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches')
+        .doc(matchId)
+        .update({
+      'scoreA':     FieldValue.delete(),
+      'scoreB':     FieldValue.delete(),
+      'winnerId':   FieldValue.delete(),
+      'winnerName': FieldValue.delete(),
+      'result':     TournamentMatchResult.pending.name,
+    });
+
+    // 3. Refresh in-memory cache and notify UI
+    await loadDetail(tournamentId);
+  }
+
+  /// Reverses the stats that were written by [_updateRRStats] for [match].
+  Future<void> _undoRRStats(
+    String tournamentId,
+    TournamentMatch match,
+    Tournament t,
+  ) async {
+    if (match.teamAId == null || match.teamBId == null) return;
+
+    final wPts = t.winPoints  > 0 ? t.winPoints  : 3;
+    final dPts = t.drawPoints > 0 ? t.drawPoints : 1;
+    final lPts = t.lossPoints;
+
+    final Map<String, dynamic> updA = {'played': FieldValue.increment(-1)};
+    final Map<String, dynamic> updB = {'played': FieldValue.increment(-1)};
+
+    switch (match.result) {
+      case TournamentMatchResult.teamAWin:
+        updA['wins']   = FieldValue.increment(-1);
+        updA['points'] = FieldValue.increment(-wPts);
+        updB['losses'] = FieldValue.increment(-1);
+        if (lPts != 0) updB['points'] = FieldValue.increment(-lPts);
+      case TournamentMatchResult.teamBWin:
+        updB['wins']   = FieldValue.increment(-1);
+        updB['points'] = FieldValue.increment(-wPts);
+        updA['losses'] = FieldValue.increment(-1);
+        if (lPts != 0) updA['points'] = FieldValue.increment(-lPts);
+      case TournamentMatchResult.draw:
+        updA['draws']  = FieldValue.increment(-1);
+        updA['points'] = FieldValue.increment(-dPts);
+        updB['draws']  = FieldValue.increment(-1);
+        updB['points'] = FieldValue.increment(-dPts);
+      case TournamentMatchResult.pending:
+      case TournamentMatchResult.bye:
+        return; // nothing to undo
+    }
+
+    final teamsRef = _db.collection(_col).doc(tournamentId).collection('teams');
+    await Future.wait([
+      teamsRef.doc(match.teamAId!).update(updA),
+      teamsRef.doc(match.teamBId!).update(updB),
+    ]);
+  }
+
   // ── Update match result ─────────────────────────────────────────────────
 
   Future<void> updateMatchResult({

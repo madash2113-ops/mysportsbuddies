@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
+import '../../services/scoreboard_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../community/user_profile_screen.dart';
@@ -12,6 +13,7 @@ import 'bracket_widget.dart';
 import 'enroll_team_sheet.dart';
 import 'host_dashboard_screen.dart';
 import 'match_detail_screen.dart';
+import '../../widgets/match_vs_banner.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TournamentDetailScreen — 6-tab fixed, all users
@@ -63,37 +65,57 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     );
   }
 
-  // ── Result entry sheet (with deuce logic) ────────────────────────────────
+  // ── Reset match result ───────────────────────────────────────────────────
 
-  void _showResultSheet(TournamentMatch m) {
-    if (m.teamAId == null || m.teamBId == null) {
-      _snack('Both teams must be set before entering a result.', Colors.orange);
-      return;
-    }
-    final t = _t;
-    showModalBottomSheet(
+  void _resetMatch(TournamentMatch m) {
+    showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DeuceResultSheet(
-        match:        m,
-        tournament:   t!,
-        onSave: (sA, sB) async {
-          final winnerId   = sA > sB ? m.teamAId! : m.teamBId!;
-          final winnerName = sA > sB ? m.teamAName! : m.teamBName!;
-          await TournamentService().updateMatchResult(
-            tournamentId: widget.tournamentId,
-            matchId:      m.id,
-            scoreA:       sA,
-            scoreB:       sB,
-            winnerId:     winnerId,
-            winnerName:   winnerName,
-          );
-          _snack('Result saved!');
-        },
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Reset Score?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        content: Text(
+          'This will reset ${m.teamAName ?? "Team A"} vs '
+          '${m.teamBName ?? "Team B"} back to 0 – 0 and remove the result.\n\n'
+          'Points table will also be adjusted.',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed != true || !mounted) return;
+      try {
+        // Remove the live scoreboard so the scorer can start fresh
+        final scoreboardId = 'tourn_${widget.tournamentId}_${m.id}';
+        ScoreboardService().removeMatch(scoreboardId);
+
+        await TournamentService().resetMatchResult(
+          tournamentId: widget.tournamentId,
+          matchId:      m.id,
+        );
+        if (mounted) _snack('Match reset to 0 – 0');
+      } catch (e) {
+        if (mounted) _snack('Reset failed: $e', Colors.red);
+      }
+    });
   }
+
+  // ── Result entry sheet (with deuce logic) ────────────────────────────────
 
   // ── Generate schedule ─────────────────────────────────────────────────────
 
@@ -230,12 +252,15 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
             ],
             body: TabBarView(
               controller: _tabs,
+              // Disable swipe-to-switch-tabs so InteractiveViewer (bracket)
+              // owns all horizontal gestures. Users navigate tabs by tapping.
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 _MatchesTab(
                   tournamentId: tid,
                   tournament:   t,
                   canManage:    canManage,
-                  onResult:     _showResultSheet,
+                  onReset:      _resetMatch,
                   onGenerate:   canManage ? _generateSchedule : null,
                   generating:   _generatingSchedule,
                 ),
@@ -445,7 +470,7 @@ class _MatchesTab extends StatelessWidget {
   final String          tournamentId;
   final Tournament      tournament;
   final bool            canManage;
-  final void Function(TournamentMatch) onResult;
+  final void Function(TournamentMatch) onReset;
   final VoidCallback?   onGenerate;
   final bool            generating;
 
@@ -453,7 +478,7 @@ class _MatchesTab extends StatelessWidget {
     required this.tournamentId,
     required this.tournament,
     required this.canManage,
-    required this.onResult,
+    required this.onReset,
     required this.onGenerate,
     required this.generating,
   });
@@ -505,13 +530,13 @@ class _MatchesTab extends StatelessWidget {
         ),
         Expanded(child: TabBarView(children: [
           _MatchList(matches: upcoming, myTeamId: myTeam?.id,
-              canManage: canManage, onResult: onResult,
+              canManage: canManage, onReset: onReset,
               teams: svc.teamsFor(tournamentId), sport: tournament.sport),
           _MatchList(matches: [...recent].reversed.toList(), myTeamId: myTeam?.id,
-              canManage: canManage, onResult: onResult,
+              canManage: canManage, onReset: onReset,
               teams: svc.teamsFor(tournamentId), sport: tournament.sport),
           _MatchList(matches: matches, myTeamId: myTeam?.id,
-              canManage: canManage, onResult: onResult,
+              canManage: canManage, onReset: onReset,
               teams: svc.teamsFor(tournamentId), sport: tournament.sport),
         ])),
       ]),
@@ -663,7 +688,7 @@ class _MatchList extends StatelessWidget {
   final List<TournamentMatch>          matches;
   final String?                        myTeamId;
   final bool                           canManage;
-  final void Function(TournamentMatch) onResult;
+  final void Function(TournamentMatch) onReset;
   final List<TournamentTeam>           teams;
   final String                         sport;
 
@@ -671,7 +696,7 @@ class _MatchList extends StatelessWidget {
     required this.matches,
     required this.myTeamId,
     required this.canManage,
-    required this.onResult,
+    required this.onReset,
     required this.teams,
     required this.sport,
   });
@@ -731,7 +756,7 @@ class _MatchList extends StatelessWidget {
             teamBPhotoUrl:  m.teamBId != null ? photoMap[m.teamBId] : null,
             displayNameA:   displayA,
             displayNameB:   displayB,
-            onResult:       () => onResult(m),
+            onReset:        () => onReset(m),
             onTap:          () => Navigator.push(context, MaterialPageRoute(
                 builder: (_) => MatchDetailScreen(
                     tournamentId: m.tournamentId, matchId: m.id))),
@@ -786,8 +811,8 @@ class _CricbuzzMatchCard extends StatelessWidget {
   final String?                    teamBPhotoUrl;
   final String                     displayNameA;
   final String                     displayNameB;
-  final VoidCallback               onResult;
   final VoidCallback               onTap;
+  final VoidCallback?              onReset;
 
   const _CricbuzzMatchCard({
     required this.match,
@@ -796,10 +821,10 @@ class _CricbuzzMatchCard extends StatelessWidget {
     required this.sport,
     required this.displayNameA,
     required this.displayNameB,
-    required this.onResult,
     required this.onTap,
     this.teamAPhotoUrl,
     this.teamBPhotoUrl,
+    this.onReset,
   });
 
   @override
@@ -869,30 +894,23 @@ class _CricbuzzMatchCard extends StatelessWidget {
                 style: const TextStyle(color: Colors.white38, fontSize: 11),
                 overflow: TextOverflow.ellipsis,
               )),
-              if (canManage && !m.isBye)
+              // Reset button — admin/host only, only when match has a result
+              if (canManage && !m.isBye && m.isPlayed && onReset != null)
                 GestureDetector(
-                  onTap: onResult,
+                  onTap: onReset,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: m.isPlayed
-                          ? Colors.white12
-                          : AppColors.primary.withAlpha(30),
+                      color: Colors.red.withAlpha(25),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: m.isPlayed
-                            ? Colors.white24
-                            : AppColors.primary.withAlpha(80),
-                      ),
+                      border: Border.all(color: Colors.red.withAlpha(70)),
                     ),
-                    child: Text(
-                      m.isPlayed ? 'Edit Result' : 'Enter Result',
-                      style: TextStyle(
-                        color: m.isPlayed ? Colors.white54 : AppColors.primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.restart_alt_rounded, color: Colors.redAccent, size: 12),
+                      SizedBox(width: 4),
+                      Text('Reset', style: TextStyle(
+                        color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                    ]),
                   ),
                 ),
             ]),
@@ -1018,7 +1036,11 @@ class _TableTab extends StatelessWidget {
             ],
           ),
         ),
-        Expanded(child: TabBarView(children: [
+        Expanded(child: TabBarView(
+          // Disable swipe-to-switch so InteractiveViewer in BracketWidget
+          // can own horizontal gestures without fighting the TabBarView.
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
           _PointsTableView(
               tournamentId: tournamentId, tournament: tournament),
           _isKnockoutStyle
@@ -3207,15 +3229,9 @@ class _MatchVsBanner extends StatelessWidget {
       width: double.infinity,
       child: Stack(clipBehavior: Clip.hardEdge, children: [
 
-        // ── Background: procedural banner ──
+        // ── Background: fixed app-theme banner ──
         Positioned.fill(
-          child: CustomPaint(
-            painter: TournamentBannerPainter(
-              tournamentId:   tournamentId,
-              sport:          sport,
-              tournamentName: '',
-            ),
-          ),
+          child: CustomPaint(painter: MatchCardBannerPainter()),
         ),
 
         // ── Live overlay tint ──
@@ -3293,7 +3309,6 @@ class _MatchVsBanner extends StatelessWidget {
                             name:     teamA,
                             photoUrl: teamAPhotoUrl,
                             diameter: photoD,
-                            flip:     false,
                           ),
                           const SizedBox(height: 5),
                           Text(teamA,
@@ -3357,7 +3372,6 @@ class _MatchVsBanner extends StatelessWidget {
                             name:     teamB,
                             photoUrl: teamBPhotoUrl,
                             diameter: photoD,
-                            flip:     true,
                           ),
                           const SizedBox(height: 5),
                           Text(teamB,
@@ -3388,12 +3402,10 @@ class _PlayerSilhouette extends StatelessWidget {
   final String  name;
   final String? photoUrl;
   final double  diameter;
-  final bool    flip;
 
   const _PlayerSilhouette({
     required this.name,
     required this.diameter,
-    required this.flip,
     this.photoUrl,
   });
 
@@ -3419,27 +3431,20 @@ class _PlayerSilhouette extends StatelessWidget {
             ),
           );
 
-    return Transform(
-      alignment: Alignment.center,
-      transform: flip
-          ? (Matrix4.identity()
-              ..setEntry(0, 0, -1.0))
-          : Matrix4.identity(),
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-              color: Colors.white.withValues(alpha: 0.2), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 12,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: avatar,
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+            color: Colors.white.withValues(alpha: 0.2), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
       ),
+      child: avatar,
     );
   }
 }

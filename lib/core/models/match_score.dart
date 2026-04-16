@@ -157,6 +157,12 @@ class LiveMatch {
   /// Stats from tournament matches go to Career stats; others go to Regular.
   bool isTournamentMatch;
 
+  /// Set when started from a tournament — lets the service sync results back.
+  String? tournamentId;
+  String? tournamentMatchId;
+  String? teamAId;   // Firestore team ID for Team A
+  String? teamBId;   // Firestore team ID for Team B
+
   // Sport-specific score objects — exactly one is non-null
   CricketScore? cricket;
   FootballScore? football;
@@ -182,6 +188,10 @@ class LiveMatch {
     List<String>? teamBPlayerUserIds,
     this.createdByUserId = '',
     this.isTournamentMatch = false,
+    this.tournamentId,
+    this.tournamentMatchId,
+    this.teamAId,
+    this.teamBId,
     this.cricket,
     this.football,
     this.basketball,
@@ -292,6 +302,10 @@ class LiveMatch {
         'teamBPlayerUserIds': teamBPlayerUserIds,
         'createdByUserId': createdByUserId,
         'isTournamentMatch': isTournamentMatch,
+        if (tournamentId != null) 'tournamentId': tournamentId!,
+        if (tournamentMatchId != null) 'tournamentMatchId': tournamentMatchId!,
+        if (teamAId != null) 'teamAId': teamAId!,
+        if (teamBId != null) 'teamBId': teamBId!,
         if (cricket != null) 'cricket': cricket!.toFirestore(),
         if (football != null) 'football': football!.toMap(),
         if (basketball != null) 'basketball': basketball!.toMap(),
@@ -326,6 +340,10 @@ class LiveMatch {
       teamBPlayerUserIds: List<String>.from(m['teamBPlayerUserIds'] as List? ?? []),
       createdByUserId: m['createdByUserId'] as String? ?? '',
       isTournamentMatch: m['isTournamentMatch'] as bool? ?? false,
+      tournamentId: m['tournamentId'] as String?,
+      tournamentMatchId: m['tournamentMatchId'] as String?,
+      teamAId: m['teamAId'] as String?,
+      teamBId: m['teamBId'] as String?,
       cricket: m['cricket'] != null
           ? CricketScore.fromFirestore(m['cricket'] as Map<String, dynamic>)
           : null,
@@ -870,6 +888,28 @@ class FootballScore {
         .toList();
     return s;
   }
+
+  Map<String, dynamic> captureSnapshot() => {
+    'teamAGoals': teamAGoals, 'teamBGoals': teamBGoals,
+    'teamAYellow': teamAYellow, 'teamBYellow': teamBYellow,
+    'teamARed': teamARed, 'teamBRed': teamBRed,
+    'htA': htA, 'htB': htB,
+    'events': events.map((e) => e.toMap()).toList(),
+  };
+
+  void restoreSnapshot(Map<String, dynamic> s) {
+    teamAGoals  = s['teamAGoals']  as int? ?? 0;
+    teamBGoals  = s['teamBGoals']  as int? ?? 0;
+    teamAYellow = s['teamAYellow'] as int? ?? 0;
+    teamBYellow = s['teamBYellow'] as int? ?? 0;
+    teamARed    = s['teamARed']    as int? ?? 0;
+    teamBRed    = s['teamBRed']    as int? ?? 0;
+    htA         = s['htA']         as int? ?? 0;
+    htB         = s['htB']         as int? ?? 0;
+    events = (s['events'] as List? ?? [])
+        .map((e) => FootballEvent.fromMap(e as Map<String, dynamic>))
+        .toList();
+  }
 }
 
 // ============================================================
@@ -939,6 +979,27 @@ class BasketballScore {
     if (m['timer'] != null) s.timer.restoreFrom(m['timer'] as Map<String, dynamic>);
     return s;
   }
+
+  Map<String, dynamic> captureSnapshot() => {
+    'teamAQtr': List<int>.from(teamAQtr),
+    'teamBQtr': List<int>.from(teamBQtr),
+    'currentQuarter': currentQuarter,
+    'teamAFouls': teamAFouls, 'teamBFouls': teamBFouls,
+    'teamATimeouts': teamATimeouts, 'teamBTimeouts': teamBTimeouts,
+    'isMatchOver': isMatchOver, 'matchResult': matchResult,
+  };
+
+  void restoreSnapshot(Map<String, dynamic> s) {
+    teamAQtr       = List<int>.from(s['teamAQtr'] as List? ?? [0]);
+    teamBQtr       = List<int>.from(s['teamBQtr'] as List? ?? [0]);
+    currentQuarter = s['currentQuarter'] as int?    ?? 1;
+    teamAFouls     = s['teamAFouls']     as int?    ?? 0;
+    teamBFouls     = s['teamBFouls']     as int?    ?? 0;
+    teamATimeouts  = s['teamATimeouts']  as int?    ?? 5;
+    teamBTimeouts  = s['teamBTimeouts']  as int?    ?? 5;
+    isMatchOver    = s['isMatchOver']    as bool?   ?? false;
+    matchResult    = s['matchResult']    as String? ?? '';
+  }
 }
 
 // ============================================================
@@ -1005,6 +1066,26 @@ class RallyScore {
       sets.length == setsToWin * 2 - 1 && lastSetPoints != null;
   int get effectiveTarget => isFinalSet ? lastSetPoints! : pointsToWin;
 
+  /// Returns 'deuce', 'advantageA', 'advantageB', 'gamePointA', 'gamePointB', or null.
+  String? get currentSetStatus {
+    if (isTennis || currentSet.isComplete || isMatchOver) return null;
+    final a = currentSet.scoreA;
+    final b = currentSet.scoreB;
+    final target = effectiveTarget;
+
+    if (winByTwo && a >= target - 1 && b >= target - 1) {
+      if (a == b) return 'deuce';
+      return a > b ? 'advantageA' : 'advantageB';
+    }
+
+    // Game point: one more point wins the set for that team
+    final aNextWins = (a + 1 >= target) && (!winByTwo || (a + 1) - b >= 2);
+    final bNextWins = (b + 1 >= target) && (!winByTwo || (b + 1) - a >= 2);
+    if (aNextWins) return 'gamePointA';
+    if (bNextWins) return 'gamePointB';
+    return null;
+  }
+
   static const _tpts = ['0', '15', '30', '40'];
 
   String get tennisPtsAStr {
@@ -1060,6 +1141,33 @@ class RallyScore {
           .toList();
     }
     return s;
+  }
+
+  Map<String, dynamic> captureSnapshot() => {
+    'setsWonA': setsWonA, 'setsWonB': setsWonB,
+    'isMatchOver': isMatchOver, 'matchWinner': matchWinner,
+    'serverIsA': serverIsA,
+    'tennisPtsA': tennisPtsA, 'tennisPtsB': tennisPtsB,
+    'gamesWonA': gamesWonA, 'gamesWonB': gamesWonB,
+    'sets': sets.map((s) => s.toMap()).toList(),
+  };
+
+  void restoreSnapshot(Map<String, dynamic> s) {
+    setsWonA    = s['setsWonA']    as int?    ?? 0;
+    setsWonB    = s['setsWonB']    as int?    ?? 0;
+    isMatchOver = s['isMatchOver'] as bool?   ?? false;
+    matchWinner = s['matchWinner'] as String? ?? '';
+    serverIsA   = s['serverIsA']   as bool?   ?? true;
+    tennisPtsA  = s['tennisPtsA']  as int?    ?? 0;
+    tennisPtsB  = s['tennisPtsB']  as int?    ?? 0;
+    gamesWonA   = s['gamesWonA']   as int?    ?? 0;
+    gamesWonB   = s['gamesWonB']   as int?    ?? 0;
+    final rawSets = s['sets'] as List?;
+    if (rawSets != null) {
+      sets = rawSets
+          .map((st) => RallySet.fromMap(st as Map<String, dynamic>))
+          .toList();
+    }
   }
 }
 
@@ -1169,6 +1277,40 @@ class HockeyScore {
         .toList();
     return s;
   }
+
+  Map<String, dynamic> captureSnapshot() => {
+    'teamAGoals': teamAGoals, 'teamBGoals': teamBGoals,
+    'teamAQtrGoals': List<int>.from(teamAQtrGoals),
+    'teamBQtrGoals': List<int>.from(teamBQtrGoals),
+    'currentQuarter': currentQuarter,
+    'teamAPenaltyCorners': teamAPenaltyCorners,
+    'teamBPenaltyCorners': teamBPenaltyCorners,
+    'teamAGreenCards': teamAGreenCards, 'teamBGreenCards': teamBGreenCards,
+    'teamAYellowCards': teamAYellowCards, 'teamBYellowCards': teamBYellowCards,
+    'teamARedCards': teamARedCards, 'teamBRedCards': teamBRedCards,
+    'isMatchOver': isMatchOver,
+    'events': events.map((e) => e.toMap()).toList(),
+  };
+
+  void restoreSnapshot(Map<String, dynamic> s) {
+    teamAGoals           = s['teamAGoals']           as int? ?? 0;
+    teamBGoals           = s['teamBGoals']           as int? ?? 0;
+    teamAQtrGoals        = List<int>.from(s['teamAQtrGoals'] as List? ?? [0, 0, 0, 0]);
+    teamBQtrGoals        = List<int>.from(s['teamBQtrGoals'] as List? ?? [0, 0, 0, 0]);
+    currentQuarter       = s['currentQuarter']       as int? ?? 1;
+    teamAPenaltyCorners  = s['teamAPenaltyCorners']  as int? ?? 0;
+    teamBPenaltyCorners  = s['teamBPenaltyCorners']  as int? ?? 0;
+    teamAGreenCards      = s['teamAGreenCards']      as int? ?? 0;
+    teamBGreenCards      = s['teamBGreenCards']      as int? ?? 0;
+    teamAYellowCards     = s['teamAYellowCards']     as int? ?? 0;
+    teamBYellowCards     = s['teamBYellowCards']     as int? ?? 0;
+    teamARedCards        = s['teamARedCards']        as int? ?? 0;
+    teamBRedCards        = s['teamBRedCards']        as int? ?? 0;
+    isMatchOver          = s['isMatchOver']          as bool? ?? false;
+    events = (s['events'] as List? ?? [])
+        .map((e) => HockeyEvent.fromMap(e as Map<String, dynamic>))
+        .toList();
+  }
 }
 
 // ============================================================
@@ -1265,6 +1407,25 @@ class CombatScore {
     }
     return s;
   }
+
+  Map<String, dynamic> captureSnapshot() => {
+    'currentRound': currentRound,
+    'isMatchOver': isMatchOver, 'result': result, 'winner': winner,
+    'rounds': rounds.map((r) => r.toMap()).toList(),
+  };
+
+  void restoreSnapshot(Map<String, dynamic> s) {
+    currentRound = s['currentRound'] as int?    ?? 1;
+    isMatchOver  = s['isMatchOver']  as bool?   ?? false;
+    result       = s['result']       as String? ?? '';
+    winner       = s['winner']       as String? ?? '';
+    final rawRounds = s['rounds'] as List?;
+    if (rawRounds != null) {
+      rounds = rawRounds
+          .map((r) => CombatRound.fromMap(r as Map<String, dynamic>))
+          .toList();
+    }
+  }
 }
 
 // ============================================================
@@ -1306,6 +1467,24 @@ class EsportsScore {
     s.roundHistory = List<String>.from(m['roundHistory'] as List? ?? []);
     return s;
   }
+
+  Map<String, dynamic> captureSnapshot() => {
+    'teamARounds': teamARounds, 'teamBRounds': teamBRounds,
+    'currentRound': currentRound,
+    'isHalfTime': isHalfTime, 'isMatchOver': isMatchOver,
+    'matchWinner': matchWinner,
+    'roundHistory': List<String>.from(roundHistory),
+  };
+
+  void restoreSnapshot(Map<String, dynamic> s) {
+    teamARounds  = s['teamARounds']  as int?    ?? 0;
+    teamBRounds  = s['teamBRounds']  as int?    ?? 0;
+    currentRound = s['currentRound'] as int?    ?? 1;
+    isHalfTime   = s['isHalfTime']   as bool?   ?? false;
+    isMatchOver  = s['isMatchOver']  as bool?   ?? false;
+    matchWinner  = s['matchWinner']  as String? ?? '';
+    roundHistory = List<String>.from(s['roundHistory'] as List? ?? []);
+  }
 }
 
 // ============================================================
@@ -1344,19 +1523,38 @@ class GenericScore {
   String winner = '';  // 'A', 'B', or 'Draw'
   String currentPeriod = '1';
   final GameTimer timer = GameTimer();
+  /// First to reach this score wins. 0 = no automatic limit (manual end only).
+  final int pointsToWin;
 
-  GenericScore();
+  GenericScore({this.pointsToWin = 0});
+
+  /// Returns 'deuce', 'matchPointA', 'matchPointB', or null.
+  String? get currentStatus {
+    if (pointsToWin <= 0 || isMatchOver) return null;
+    final a      = teamAScore;
+    final b      = teamBScore;
+    final target = pointsToWin;
+    final inDeuce = a >= target - 1 && b >= target - 1;
+    if (!inDeuce) {
+      if (a + 1 >= target) return 'matchPointA';
+      if (b + 1 >= target) return 'matchPointB';
+      return null;
+    }
+    if (a == b) return 'deuce';
+    return a > b ? 'matchPointA' : 'matchPointB';
+  }
 
   Map<String, dynamic> toMap() => {
         'teamAScore': teamAScore, 'teamBScore': teamBScore,
         'isMatchOver': isMatchOver, 'winner': winner,
         'currentPeriod': currentPeriod,
+        'pointsToWin': pointsToWin,
         'timer': timer.toMap(),
         'events': events.map((e) => e.toMap()).toList(),
       };
 
   factory GenericScore.fromMap(Map<String, dynamic> m) {
-    final s = GenericScore();
+    final s = GenericScore(pointsToWin: m['pointsToWin'] as int? ?? 0);
     s.teamAScore = m['teamAScore'] as int? ?? 0;
     s.teamBScore = m['teamBScore'] as int? ?? 0;
     s.isMatchOver = m['isMatchOver'] as bool? ?? false;
@@ -1367,6 +1565,25 @@ class GenericScore {
         .map((e) => GenericEvent.fromMap(e as Map<String, dynamic>))
         .toList();
     return s;
+  }
+
+  Map<String, dynamic> captureSnapshot() => {
+    'teamAScore': teamAScore, 'teamBScore': teamBScore,
+    'isMatchOver': isMatchOver, 'winner': winner,
+    'currentPeriod': currentPeriod,
+    'pointsToWin': pointsToWin,
+    'events': events.map((e) => e.toMap()).toList(),
+  };
+
+  void restoreSnapshot(Map<String, dynamic> s) {
+    teamAScore    = s['teamAScore']    as int?    ?? 0;
+    teamBScore    = s['teamBScore']    as int?    ?? 0;
+    isMatchOver   = s['isMatchOver']   as bool?   ?? false;
+    winner        = s['winner']        as String? ?? '';
+    currentPeriod = s['currentPeriod'] as String? ?? '1';
+    events = (s['events'] as List? ?? [])
+        .map((e) => GenericEvent.fromMap(e as Map<String, dynamic>))
+        .toList();
   }
 }
 

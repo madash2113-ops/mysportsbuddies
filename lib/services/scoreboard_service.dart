@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../core/models/match_score.dart';
 import 'notification_service.dart';
 import 'stats_service.dart';
+import 'tournament_service.dart';
 import 'user_service.dart';
 
 /// Singleton ChangeNotifier — source of truth for all live scoreboards.
@@ -84,15 +85,45 @@ class ScoreboardService extends ChangeNotifier {
     if (stack.length > 20) stack.removeAt(0);
   }
 
+  void _pushRallyUndo(String matchId, RallyScore score) {
+    _undoStacks.putIfAbsent(matchId, () => []);
+    final stack = _undoStacks[matchId]!;
+    stack.add(score.captureSnapshot());
+    if (stack.length > 20) stack.removeAt(0);
+  }
+
+  void _pushUndoFor(String matchId, LiveMatch m) {
+    _undoStacks.putIfAbsent(matchId, () => []);
+    final stack = _undoStacks[matchId]!;
+    Map<String, dynamic>? snap;
+    if (m.football    != null) snap = m.football!.captureSnapshot();
+    if (m.basketball  != null) snap = m.basketball!.captureSnapshot();
+    if (m.hockey      != null) snap = m.hockey!.captureSnapshot();
+    if (m.combat      != null) snap = m.combat!.captureSnapshot();
+    if (m.esports     != null) snap = m.esports!.captureSnapshot();
+    if (m.genericScore != null) snap = m.genericScore!.captureSnapshot();
+    if (snap == null) return;
+    stack.add(snap);
+    if (stack.length > 20) stack.removeAt(0);
+  }
+
   bool canUndo(String matchId) =>
       (_undoStacks[matchId]?.isNotEmpty) ?? false;
 
   void undo(String matchId) {
     final m = byId(matchId);
-    if (m?.cricket == null) return;
+    if (m == null) return;
     final stack = _undoStacks[matchId];
     if (stack == null || stack.isEmpty) return;
-    m!.cricket!.restoreSnapshot(stack.removeLast());
+    final snap = stack.removeLast();
+    if (m.rally        != null) m.rally!.restoreSnapshot(snap);
+    else if (m.cricket != null) m.cricket!.restoreSnapshot(snap);
+    else if (m.football    != null) m.football!.restoreSnapshot(snap);
+    else if (m.basketball  != null) m.basketball!.restoreSnapshot(snap);
+    else if (m.hockey      != null) m.hockey!.restoreSnapshot(snap);
+    else if (m.combat      != null) m.combat!.restoreSnapshot(snap);
+    else if (m.esports     != null) m.esports!.restoreSnapshot(snap);
+    else if (m.genericScore != null) m.genericScore!.restoreSnapshot(snap);
     _persist(m);
     notifyListeners();
   }
@@ -121,6 +152,15 @@ class ScoreboardService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeMatch(String id) {
+    _matches.removeWhere((m) => m.id == id);
+    _undoStacks.remove(id);
+    _db.collection(_col).doc(id).delete().catchError(
+      (dynamic e) => debugPrint('Firestore delete error: $e'),
+    );
+    notifyListeners();
+  }
+
   void endMatch(String id, String result) {
     final m = byId(id);
     if (m == null) return;
@@ -138,9 +178,80 @@ class ScoreboardService extends ChangeNotifier {
     m.genericScore?.isMatchOver = true;
     m.genericScore?.timer.pause();
     _persist(m);
-    StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch); // write player stats async
+    StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch);
+    _syncResultToTournament(m);
     _notifyMatchPlayers(m, result);
     notifyListeners();
+  }
+
+  // ── Sync live result back to TournamentService ───────────────────────────
+
+  /// Called whenever a tournament scoreboard reaches MatchStatus.completed.
+  /// Reads the final score from whichever sport sub-object is active and
+  /// calls TournamentService.updateMatchResult() so that:
+  ///   • Points table / standings is updated
+  ///   • Bracket / knockout advancement fires
+  ///   • League+KO group winners are seeded into the knockout stage
+  void _syncResultToTournament(LiveMatch m) {
+    final tid  = m.tournamentId;
+    final tmid = m.tournamentMatchId;
+    if (tid == null || tmid == null) {
+      debugPrint('[scoreboard] _syncResultToTournament: no tournamentId/matchId stored — skipping');
+      return;
+    }
+
+    // Extract final scores — no cache lookup needed
+    int sA = 0, sB = 0;
+    if (m.rally != null) {
+      sA = m.rally!.setsWonA;
+      sB = m.rally!.setsWonB;
+    } else if (m.football != null) {
+      sA = m.football!.teamAGoals;
+      sB = m.football!.teamBGoals;
+    } else if (m.basketball != null) {
+      sA = m.basketball!.teamATotal;
+      sB = m.basketball!.teamBTotal;
+    } else if (m.hockey != null) {
+      sA = m.hockey!.teamAGoals;
+      sB = m.hockey!.teamBGoals;
+    } else if (m.combat != null) {
+      sA = m.combat!.winner == 'A' ? 1 : 0;
+      sB = m.combat!.winner == 'B' ? 1 : 0;
+    } else if (m.esports != null) {
+      sA = m.esports!.teamARounds;
+      sB = m.esports!.teamBRounds;
+    } else if (m.genericScore != null) {
+      sA = m.genericScore!.teamAScore;
+      sB = m.genericScore!.teamBScore;
+    } else if (m.cricket != null) {
+      final cr = m.cricket!;
+      if (cr.innings.isNotEmpty) sA = cr.innings[0].runs;
+      if (cr.innings.length > 1) sB = cr.innings[1].runs;
+    }
+
+    // Use team IDs stored directly on the LiveMatch (set by _buildLiveMatchFromTournament)
+    final String winnerId;
+    final String winnerName;
+    if (sA > sB) {
+      winnerId   = m.teamAId ?? '';
+      winnerName = m.teamA;
+    } else if (sB > sA) {
+      winnerId   = m.teamBId ?? '';
+      winnerName = m.teamB;
+    } else {
+      winnerId   = '';
+      winnerName = 'Draw';
+    }
+
+    debugPrint('[scoreboard] syncing result → tournament $tid match $tmid  $sA-$sB  winner=$winnerName');
+    TournamentService().updateMatchResult(
+      tournamentId: tid,
+      matchId:      tmid,
+      scoreA:       sA,
+      scoreB:       sB,
+      winnerId:     winnerId,
+      winnerName:   winnerName,
+    ).catchError((dynamic e) => debugPrint('[scoreboard] sync to tournament FAILED: $e'));
   }
 
   /// Notify all tagged players that a match they were in has ended.
@@ -496,7 +607,8 @@ class ScoreboardService extends ChangeNotifier {
       {bool isOwnGoal = false, bool isPenalty = false}) {
     final m = byId(id);
     if (m?.football == null) return;
-    final f = m!.football!;
+    _pushUndoFor(id, m!);
+    final f = m.football!;
     final scoringTeam = isOwnGoal ? (team == 'A' ? 'B' : 'A') : team;
     if (scoringTeam == 'A') {
       f.teamAGoals++;
@@ -516,7 +628,8 @@ class ScoreboardService extends ChangeNotifier {
   void footballCard(String id, String team, String player, String cardType) {
     final m = byId(id);
     if (m?.football == null) return;
-    final f = m!.football!;
+    _pushUndoFor(id, m!);
+    final f = m.football!;
     if (cardType == 'yellow') {
       if (team == 'A') {
         f.teamAYellow++;
@@ -591,7 +704,8 @@ class ScoreboardService extends ChangeNotifier {
   void basketballPoints(String id, String team, int pts) {
     final m = byId(id);
     if (m?.basketball == null) return;
-    final b = m!.basketball!;
+    _pushUndoFor(id, m!);
+    final b = m.basketball!;
     final qi = b.currentQuarter - 1;
     if (team == 'A') {
       b.teamAQtr[qi] += pts;
@@ -605,12 +719,14 @@ class ScoreboardService extends ChangeNotifier {
   void basketballFoul(String id, String team) {
     final m = byId(id);
     if (m?.basketball == null) return;
+    final mb = m!;
+    _pushUndoFor(id, mb);
     if (team == 'A') {
-      m!.basketball!.teamAFouls++;
+      mb.basketball!.teamAFouls++;
     } else {
-      m!.basketball!.teamBFouls++;
+      mb.basketball!.teamBFouls++;
     }
-    _persist(m);
+    _persist(mb);
     notifyListeners();
   }
 
@@ -678,6 +794,7 @@ class ScoreboardService extends ChangeNotifier {
     if (m?.rally == null) return;
     final r = m!.rally!;
     if (r.isMatchOver) return;
+    _pushRallyUndo(id, r);
 
     if (r.isTennis) {
       _tennisPt(r, team, m);
@@ -779,6 +896,8 @@ class ScoreboardService extends ChangeNotifier {
       r.isMatchOver = true;
       r.matchWinner = r.setsWonA >= r.setsToWin ? 'A' : 'B';
       m.status = MatchStatus.completed;
+      StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch);
+      _syncResultToTournament(m);
     }
   }
 
@@ -797,7 +916,8 @@ class ScoreboardService extends ChangeNotifier {
   void hockeyGoal(String id, String team, String player) {
     final m = byId(id);
     if (m?.hockey == null) return;
-    final h = m!.hockey!;
+    _pushUndoFor(id, m!);
+    final h = m.hockey!;
     final qi = h.currentQuarter - 1;
     if (team == 'A') {
       h.teamAGoals++;
@@ -832,7 +952,8 @@ class ScoreboardService extends ChangeNotifier {
   void hockeyCard(String id, String team, String player, String cardType) {
     final m = byId(id);
     if (m?.hockey == null) return;
-    final h = m!.hockey!;
+    _pushUndoFor(id, m!);
+    final h = m.hockey!;
     if (cardType == 'green') {
       if (team == 'A') { h.teamAGreenCards++; } else { h.teamBGreenCards++; }
     } else if (cardType == 'yellow') {
@@ -892,7 +1013,8 @@ class ScoreboardService extends ChangeNotifier {
   void boxingKnockdown(String id, String team) {
     final m = byId(id);
     if (m?.combat == null) return;
-    final r = m!.combat!.currentRoundData;
+    _pushUndoFor(id, m!);
+    final r = m.combat!.currentRoundData;
     if (team == 'A') {
       r.knockdownsA++;
     } else {
@@ -906,7 +1028,8 @@ class ScoreboardService extends ChangeNotifier {
       {required List<int?> judgesA, required List<int?> judgesB}) {
     final m = byId(id);
     if (m?.combat == null) return;
-    final c = m!.combat!;
+    _pushUndoFor(id, m!);
+    final c = m.combat!;
     c.timer.pause();
     c.timer.reset();
     final r = c.currentRoundData;
@@ -961,7 +1084,8 @@ class ScoreboardService extends ChangeNotifier {
   void esportsRoundWon(String id, String team) {
     final m = byId(id);
     if (m?.esports == null) return;
-    final e = m!.esports!;
+    _pushUndoFor(id, m!);
+    final e = m.esports!;
     if (e.isMatchOver) return;
     if (team == 'A') {
       e.teamARounds++;
@@ -976,6 +1100,8 @@ class ScoreboardService extends ChangeNotifier {
       e.isMatchOver = true;
       e.matchWinner = e.teamARounds >= e.roundsToWin ? 'A' : 'B';
       m.status = MatchStatus.completed;
+      StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch);
+      _syncResultToTournament(m);
     }
     _persist(m);
     notifyListeners();
@@ -997,7 +1123,8 @@ class ScoreboardService extends ChangeNotifier {
   void genericAddPoints(String id, String team, int pts, {String note = ''}) {
     final m = byId(id);
     if (m?.genericScore == null) return;
-    final g = m!.genericScore!;
+    _pushUndoFor(id, m!);
+    final g = m.genericScore!;
     if (g.isMatchOver) return;
     if (team == 'A') {
       g.teamAScore += pts;
@@ -1010,6 +1137,24 @@ class ScoreboardService extends ChangeNotifier {
       note: note.isEmpty ? '+$pts' : note,
       timeStr: '${g.timer.elapsed.inMinutes}\'',
     ));
+    // Auto-end with deuce support: when both reach target-1, need 2-point lead
+    if (g.pointsToWin > 0 && !g.isMatchOver) {
+      final a      = g.teamAScore;
+      final b      = g.teamBScore;
+      final target = g.pointsToWin;
+      final inDeuce = a >= target - 1 && b >= target - 1;
+      if (inDeuce) {
+        if (a - b >= 2)      { g.isMatchOver = true; g.winner = 'A'; m.status = MatchStatus.completed; }
+        else if (b - a >= 2) { g.isMatchOver = true; g.winner = 'B'; m.status = MatchStatus.completed; }
+      } else {
+        if (a >= target)      { g.isMatchOver = true; g.winner = 'A'; m.status = MatchStatus.completed; }
+        else if (b >= target) { g.isMatchOver = true; g.winner = 'B'; m.status = MatchStatus.completed; }
+      }
+      if (g.isMatchOver) {
+        StatsService().updateFromMatch(m, isCareer: m.isTournamentMatch);
+        _syncResultToTournament(m);
+      }
+    }
     _persist(m);
     notifyListeners();
   }

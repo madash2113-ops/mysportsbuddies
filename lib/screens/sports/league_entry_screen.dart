@@ -1215,7 +1215,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           ],
         ],
 
-        // Standard score — points to win config
+        // Standard score — points to win (shown for all sports)
         if (_scoringType == ScoringType.standard) ...[
           const SizedBox(height: 12),
           const Text('Points to win', style: TextStyle(color: Colors.white70, fontSize: 13)),
@@ -1224,7 +1224,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final n in [11, 15, 21, 25])
+              for (final n in [11, 16, 21])
                 GestureDetector(
                   onTap: () => setState(() => _pointsToWin = n),
                   child: _PresetChip(label: '$n', selected: _pointsToWin == n),
@@ -1375,38 +1375,40 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
 
   /// Smart default scoring type based on sport family.
   ScoringType _defaultScoringType(String sport) {
-    const rallySports = {
+    const setSports = {
       'Badminton', 'Tennis', 'Table Tennis', 'Volleyball',
       'Squash', 'Padel', 'Beach Volleyball',
     };
-    const leagueSports = {
-      'Football', 'Cricket', 'Rugby', 'Hockey', 'Handball',
+    const fieldSports = {
+      'Football', 'Rugby', 'Hockey', 'Handball',
       'Throwball', 'Futsal', 'Kabaddi', 'Lacrosse',
     };
-    if (rallySports.contains(sport)) return ScoringType.bestOfSets;
-    if (leagueSports.contains(sport)) return ScoringType.points;
+    if (setSports.contains(sport))   return ScoringType.bestOfSets;
+    if (fieldSports.contains(sport)) return ScoringType.points;
+    // Cricket, Baseball, Basketball, etc. — standard score by default
     return ScoringType.standard;
   }
 
   /// Only show scoring types that make sense for the selected sport.
   List<ScoringType> _relevantScoringTypes(String sport) {
-    // Sets/rally sports: Best of Sets is the natural choice; Points System makes no sense per-match
-    const setsSports = {
+    // Rally/racket sports: Best of Sets is primary; standard is secondary option
+    const setSports = {
       'Badminton', 'Tennis', 'Table Tennis', 'Volleyball',
       'Squash', 'Padel', 'Beach Volleyball',
     };
-    // Team/league sports: Points System is relevant; Best of Sets is not
-    const leagueSports = {
-      'Football', 'Cricket', 'Rugby', 'Hockey', 'Handball',
+    // Innings/run-based sports: only standard score makes sense (no sets, no standings points per match)
+    const inningsSports = {
+      'Cricket', 'Baseball', 'Softball',
+    };
+    // Team/field sports where a points-system (Win/Draw/Loss) is also valid for standings
+    const fieldSports = {
+      'Football', 'Rugby', 'Hockey', 'Handball',
       'Throwball', 'Futsal', 'Kabaddi', 'Lacrosse',
     };
-    if (setsSports.contains(sport)) {
-      return [ScoringType.bestOfSets, ScoringType.standard];
-    }
-    if (leagueSports.contains(sport)) {
-      return [ScoringType.standard, ScoringType.points];
-    }
-    // Basketball, Baseball, Swimming, Athletics, etc. — score-based only
+    if (setSports.contains(sport))    return [ScoringType.bestOfSets, ScoringType.standard];
+    if (inningsSports.contains(sport)) return [ScoringType.standard];
+    if (fieldSports.contains(sport))  return [ScoringType.standard, ScoringType.points];
+    // Basketball, Athletics, Swimming, etc. — score-based only
     return [ScoringType.standard];
   }
 
@@ -1644,10 +1646,11 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
 // ── Round score data holder ───────────────────────────────────────────────────
 
 class _RoundScore {
-  ScoringType scoringType   = ScoringType.bestOfSets;
-  int         bestOf        = 3;
-  int         pointsToWin   = 21;
-  final customCtrl          = TextEditingController();
+  ScoringType scoringType         = ScoringType.bestOfSets;
+  int         bestOf              = 3;    // -1 = custom
+  int         pointsToWin        = 21;   // -1 = custom
+  final bestOfCustomCtrl          = TextEditingController();
+  final pointsToWinCustomCtrl     = TextEditingController();
 }
 
 // ── Per-round scoring card ────────────────────────────────────────────────────
@@ -1799,39 +1802,83 @@ class _RoundScoringCardState extends State<_RoundScoringCard> {
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
-                      children: [3, 5, 7].map((n) {
-                        final sel = d.bestOf == n;
-                        return GestureDetector(
+                      runSpacing: 6,
+                      children: [
+                        ...[3, 5, 7].map((n) {
+                          final sel = d.bestOf == n;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() => d.bestOf = n);
+                              widget.onChanged();
+                            },
+                            child: _PresetChip(label: '$n', selected: sel),
+                          );
+                        }),
+                        GestureDetector(
                           onTap: () {
-                            setState(() => d.bestOf = n);
+                            setState(() {
+                              d.bestOf = -1;
+                              d.bestOfCustomCtrl.clear();
+                            });
                             widget.onChanged();
                           },
                           child: _PresetChip(
-                              label: '$n', selected: sel, isCustom: false),
-                        );
-                      }).toList(),
+                              label: 'Custom',
+                              selected: d.bestOf == -1,
+                              isCustom: true),
+                        ),
+                      ],
                     ),
+                    if (d.bestOf == -1) ...[
+                      const SizedBox(height: 8),
+                      _CustomNumberField(
+                        controller: d.bestOfCustomCtrl,
+                        hint: 'Enter number of sets (e.g. 9)',
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     const Text('Points to win a set',
                         style: TextStyle(color: Colors.white54, fontSize: 12)),
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
-                      children: [11, 15, 21, 25].map((n) {
-                        final sel = d.pointsToWin == n;
-                        return GestureDetector(
+                      runSpacing: 6,
+                      children: [
+                        ...[11, 15, 21, 25].map((n) {
+                          final sel = d.pointsToWin == n;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() => d.pointsToWin = n);
+                              widget.onChanged();
+                            },
+                            child: _PresetChip(label: '$n', selected: sel),
+                          );
+                        }),
+                        GestureDetector(
                           onTap: () {
-                            setState(() => d.pointsToWin = n);
+                            setState(() {
+                              d.pointsToWin = -1;
+                              d.pointsToWinCustomCtrl.clear();
+                            });
                             widget.onChanged();
                           },
                           child: _PresetChip(
-                              label: '$n', selected: sel, isCustom: false),
-                        );
-                      }).toList(),
+                              label: 'Custom',
+                              selected: d.pointsToWin == -1,
+                              isCustom: true),
+                        ),
+                      ],
                     ),
+                    if (d.pointsToWin == -1) ...[
+                      const SizedBox(height: 8),
+                      _CustomNumberField(
+                        controller: d.pointsToWinCustomCtrl,
+                        hint: 'Enter points to win a set (e.g. 30)',
+                      ),
+                    ],
                   ],
 
-                  // Points to win (for standard)
+                  // Standard score — points / goals to win (with Custom option)
                   if (d.scoringType == ScoringType.standard) ...[
                     const SizedBox(height: 12),
                     const Text('Points / Goals to win',
@@ -1839,28 +1886,44 @@ class _RoundScoringCardState extends State<_RoundScoringCard> {
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
-                      children: [1, 2, 3, 5].map((n) {
-                        final sel = d.pointsToWin == n;
-                        return GestureDetector(
+                      runSpacing: 6,
+                      children: [
+                        ...[1, 2, 3, 5].map((n) {
+                          final sel = d.pointsToWin == n;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() => d.pointsToWin = n);
+                              widget.onChanged();
+                            },
+                            child: _PresetChip(label: '$n', selected: sel),
+                          );
+                        }),
+                        GestureDetector(
                           onTap: () {
-                            setState(() => d.pointsToWin = n);
+                            setState(() {
+                              d.pointsToWin = -1;
+                              d.pointsToWinCustomCtrl.clear();
+                            });
                             widget.onChanged();
                           },
                           child: _PresetChip(
-                              label: '$n', selected: sel, isCustom: false),
-                        );
-                      }).toList(),
+                              label: 'Custom',
+                              selected: d.pointsToWin == -1,
+                              isCustom: true),
+                        ),
+                      ],
                     ),
+                    if (d.pointsToWin == -1) ...[
+                      const SizedBox(height: 8),
+                      _CustomNumberField(
+                        controller: d.pointsToWinCustomCtrl,
+                        hint: 'Enter target score (e.g. 10)',
+                      ),
+                    ],
                   ],
 
-                  // Custom label (for points type)
-                  if (d.scoringType == ScoringType.points) ...[
-                    const SizedBox(height: 12),
-                    _CustomNumberField(
-                      controller: d.customCtrl,
-                      hint: 'e.g. Win=3, Draw=1 notes',
-                    ),
-                  ],
+                  // Points system — no extra field needed (Win/Draw/Loss values
+                  // are set in the main scoring config).
                 ],
               ),
             ),

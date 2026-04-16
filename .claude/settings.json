@@ -75,7 +75,10 @@
       "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies status)",
       "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies log --oneline -5)",
       "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies add lib/core/models/tournament.dart lib/core/config/app_config.dart lib/screens/common/app_drawer.dart lib/screens/home/home_screen.dart lib/screens/settings/settings_screen.dart lib/screens/sports/league_entry_screen.dart lib/screens/tournaments/host_dashboard_screen.dart lib/screens/tournaments/match_detail_screen.dart lib/screens/tournaments/tournament_detail_screen.dart lib/screens/tournaments/tournaments_list_screen.dart lib/services/tournament_service.dart lib/widgets/date_range_picker_sheet.dart lib/widgets/sports_chatbot_overlay.dart lib/widgets/tournament_format_picker.dart web/index.html)",
-      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies commit -m ' *)"
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies commit -m ' *)",
+      "Bash(dart analyze *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(grep -n \"forecast\\\\|prediction\\\\|odds\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/*.dart)"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",

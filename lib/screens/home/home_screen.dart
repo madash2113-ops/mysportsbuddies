@@ -96,6 +96,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // 0 = Home (default), 1 = Tournaments, 2 = Feed, 3 = Profile
   int _bottomNavIndex = 0;
 
+  // Active scoring session restored from SharedPreferences.
+  // Non-null means the user left a tournament scoring session mid-way.
+  Map<String, String>? _activeScoring;
+
   @override
   void initState() {
     super.initState();
@@ -116,7 +120,48 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
       _requestInitialPermissions();
+      _checkActiveScoring();
     });
+  }
+
+  // Checks SharedPreferences for an interrupted scoring session and surfaces
+  // the resume banner if one is found.
+  Future<void> _checkActiveScoring() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw   = prefs.getString('active_tournament_scoring');
+    if (raw == null || !mounted) return;
+    try {
+      final data = Map<String, String>.from(
+          (jsonDecode(raw) as Map).map((k, v) => MapEntry(k as String, v as String)));
+      setState(() => _activeScoring = data);
+    } catch (_) {
+      // Malformed entry — discard it
+      await prefs.remove('active_tournament_scoring');
+    }
+  }
+
+  Future<void> _resumeScoring() async {
+    final session = _activeScoring;
+    if (session == null) return;
+    final scoreboardId = session['scoreboardId'] ?? '';
+    if (scoreboardId.isEmpty) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LiveScoreboardScreen(
+          matchId:  scoreboardId,
+          isScorer: true,
+        ),
+      ),
+    );
+    // Re-check after returning — session may have been cleared inside scoring.
+    await _checkActiveScoring();
+  }
+
+  Future<void> _dismissResumeBanner() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('active_tournament_scoring');
+    if (mounted) setState(() => _activeScoring = null);
   }
 
   Future<void> _requestInitialPermissions() async {
@@ -184,9 +229,20 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppC.bg(context),
       drawer: const AppDrawer(),
       appBar: _buildAppBar(context),
-      body: IndexedStack(
-        index: _bottomNavIndex,
-        children: pages,
+      body: Column(
+        children: [
+          if (_activeScoring != null)
+            _ResumeScoringBanner(
+              onResume:  _resumeScoring,
+              onDismiss: _dismissResumeBanner,
+            ),
+          Expanded(
+            child: IndexedStack(
+              index: _bottomNavIndex,
+              children: pages,
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
@@ -2804,6 +2860,83 @@ class BannerImage extends StatelessWidget {
         image: DecorationImage(
           image: AssetImage(imagePath),
           fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Resume Scoring Banner ─────────────────────────────────────────────────────
+// Shown at the top of HomeScreen when an active scoring session is detected in
+// SharedPreferences (e.g. after an app restart or navigating away mid-match).
+
+class _ResumeScoringBanner extends StatelessWidget {
+  final VoidCallback onResume;
+  final VoidCallback onDismiss;
+
+  const _ResumeScoringBanner({
+    required this.onResume,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primary.withAlpha(220),
+              AppColors.primary.withAlpha(180),
+            ],
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.edit_note_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Scoring in progress',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'Tap Resume to continue scoring your match.',
+                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.white.withAlpha(30),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: onResume,
+              child: const Text('Resume',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: onDismiss,
+              child: const Icon(Icons.close_rounded,
+                  color: Colors.white70, size: 18),
+            ),
+          ],
         ),
       ),
     );

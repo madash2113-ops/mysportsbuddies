@@ -9,6 +9,7 @@ import 'live_scoreboard_screen.dart';
 import 'match_report_screen.dart';
 import 'match_setup_screen.dart';
 import 'scoreboard_screen.dart';
+import '../../widgets/match_vs_banner.dart';
 
 /// Shows live / completed matches. If [sportName] is null, shows all sports.
 /// All viewers subscribe to ScoreboardService so the list stays live.
@@ -283,51 +284,18 @@ class _MatchCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: isLive
-                    ? AppColors.primary.withValues(alpha: 0.08)
-                    : AppColors.textPrimary.withValues(alpha: 0.03),
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(14)),
+            // ── VS Banner ─────────────────────────────────────────────
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              child: MatchVsBanner(
+                teamA:     match.teamA,
+                teamB:     match.teamB,
+                label:     match.format.isNotEmpty ? match.format : match.sportDisplayName,
+                sport:     match.sportDisplayName,
+                isLive:    isLive,
+                isPlayed:  isDone,
+                isMyMatch: false,
               ),
-              child: Row(children: [
-                // Status badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isLive
-                        ? AppColors.primary.withValues(alpha: 0.15)
-                        : AppColors.textMuted.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(
-                      color: isLive
-                          ? AppColors.primary.withValues(alpha: 0.5)
-                          : AppColors.textMuted.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    isLive ? '● LIVE' : isDone ? '✓ FT' : '⏸',
-                    style: TextStyle(
-                      color: isLive ? AppColors.primary : AppColors.textMuted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(match.format,
-                    style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 12)),
-                const Spacer(),
-                Text(_timeAgo(match.createdAt),
-                    style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 11)),
-              ]),
             ),
 
             // ── Score ─────────────────────────────────────────────────
@@ -337,29 +305,12 @@ class _MatchCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Teams + score
+                  // Score display + time
                   Row(children: [
-                    Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(match.teamA,
-                                style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis),
-                            Text(match.teamB,
-                                style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis),
-                          ]),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    // Score display
-                    _sportScore(match),
+                    Expanded(child: _sportScore(match)),
+                    Text(_timeAgo(match.createdAt),
+                        style: const TextStyle(
+                            color: AppColors.textMuted, fontSize: 11)),
                   ]),
 
                   // ── Cricket extra info ─────────────────────────────

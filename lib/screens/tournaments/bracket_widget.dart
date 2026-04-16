@@ -4,11 +4,20 @@ import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
 import '../../services/tournament_service.dart';
 
+// ── Bracket layout constants (file-level so _MatchCard can access them) ──────
+const double _kCardW   = 164;
+const double _kCardH   = 72;
+const double _kHGap    = 48;
+const double _kSlotMin = 16;
+
 /// Visual knockout bracket tree + round-robin points table.
-class BracketWidget extends StatelessWidget {
-  final String           tournamentId;
+///
+/// Uses a raw [Listener]-based pan/zoom so that neither [NestedScrollView]
+/// nor [TabBarView] can steal pointer events through the gesture arena.
+class BracketWidget extends StatefulWidget {
+  final String              tournamentId;
   final List<TournamentRound> rounds;
-  final bool             isHost;
+  final bool                isHost;
 
   const BracketWidget({
     super.key,
@@ -17,45 +26,114 @@ class BracketWidget extends StatelessWidget {
     required this.isHost,
   });
 
-  static const double _cardW   = 164;
-  static const double _cardH   = 72;
-  static const double _hGap    = 48;  // horizontal gap between rounds
-  static const double _slotMin = 16;  // minimum vertical padding per slot
+  @override
+  State<BracketWidget> createState() => _BracketWidgetState();
+}
 
+class _BracketWidgetState extends State<BracketWidget> {
+  static const double _minScale = 0.2;
+  static const double _maxScale = 3.0;
+
+  // ── Transform state ────────────────────────────────────────────────────────
+  double _scale  = 1.0;
+  Offset _offset = Offset.zero;
+
+  // ── Per-pointer tracking (enables pinch-to-zoom) ───────────────────────────
+  final Map<int, Offset> _ptrs = {};
+
+  // Snapshot at the start of each gesture (reset whenever pointer count changes)
+  double _scaleSnap   = 1.0;
+  Offset _offsetSnap  = Offset.zero;
+  Offset _focalSnap   = Offset.zero;
+  double _spanSnap    = 0;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  Offset _centroid() {
+    if (_ptrs.isEmpty) return Offset.zero;
+    Offset s = Offset.zero;
+    for (final p in _ptrs.values) s += p;
+    return s / _ptrs.length.toDouble();
+  }
+
+  double _currentSpan() {
+    if (_ptrs.length < 2) return 0;
+    final ps = _ptrs.values.toList();
+    return (ps[0] - ps[1]).distance;
+  }
+
+  /// Save a snapshot of the current state so subsequent moves are relative to it.
+  void _snapshot() {
+    _scaleSnap  = _scale;
+    _offsetSnap = _offset;
+    _focalSnap  = _centroid();
+    _spanSnap   = _currentSpan();
+  }
+
+  // ── Pointer handlers (bypass gesture arena) ────────────────────────────────
+  void _onPointerDown(PointerDownEvent e) {
+    _ptrs[e.pointer] = e.localPosition;
+    _snapshot();
+  }
+
+  void _onPointerMove(PointerMoveEvent e) {
+    _ptrs[e.pointer] = e.localPosition;
+    final focal = _centroid();
+    final span  = _currentSpan();
+
+    setState(() {
+      if (_ptrs.length >= 2 && _spanSnap > 0) {
+        // ── Pinch-to-zoom + pan ──────────────────────────────────────────
+        final rawScale = _scaleSnap * span / _spanSnap;
+        _scale  = rawScale.clamp(_minScale, _maxScale);
+        _offset = _offsetSnap + (focal - _focalSnap);
+      } else {
+        // ── Single-finger pan ────────────────────────────────────────────
+        _offset = _offsetSnap + (focal - _focalSnap);
+      }
+    });
+  }
+
+  void _onPointerUp(PointerUpEvent e) {
+    _ptrs.remove(e.pointer);
+    _snapshot(); // re-anchor remaining fingers
+  }
+
+  void _onPointerCancel(PointerCancelEvent e) {
+    _ptrs.remove(e.pointer);
+    _snapshot();
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    if (rounds.isEmpty) {
+    if (widget.rounds.isEmpty) {
       return const Center(
         child: Text('No bracket generated yet.',
             style: TextStyle(color: Colors.white38)),
       );
     }
 
-    // Max matches in first round determines total height
-    final maxMatches = rounds.first.matches.length;
-    final slotH      = _cardH + _slotMin * 2;
+    final maxMatches = widget.rounds.first.matches.length;
+    final slotH      = _kCardH + _kSlotMin * 2;
     final totalH     = maxMatches * slotH;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    final bracketContent = Padding(
       padding: const EdgeInsets.all(16),
       child: SizedBox(
         height: totalH,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: rounds.map((round) {
+          children: widget.rounds.map((round) {
             final matchCount = round.matches.length;
             final roundSlotH = totalH / matchCount;
-
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: _cardW,
+                  width: _kCardW,
                   height: totalH,
                   child: Column(
                     children: [
-                      // Round label
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
@@ -68,20 +146,19 @@ class BracketWidget extends StatelessWidget {
                           textAlign: TextAlign.center,
                         ),
                       ),
-                      // Match cards with vertical centering
                       Expanded(
                         child: Stack(
                           children: List.generate(matchCount, (i) {
-                            final topPad = i * roundSlotH +
-                                (roundSlotH - _cardH) / 2;
+                            final topPad =
+                                i * roundSlotH + (roundSlotH - _kCardH) / 2;
                             return Positioned(
-                              top: topPad,
-                              left: 0,
+                              top:   topPad,
+                              left:  0,
                               right: 0,
                               child: _MatchCard(
                                 match:        round.matches[i],
-                                isHost:       isHost,
-                                tournamentId: tournamentId,
+                                isHost:       widget.isHost,
+                                tournamentId: widget.tournamentId,
                               ),
                             );
                           }),
@@ -90,14 +167,13 @@ class BracketWidget extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Connector lines between rounds (not after last round)
-                if (round != rounds.last)
+                if (round != widget.rounds.last)
                   CustomPaint(
-                    size: Size(_hGap, totalH),
+                    size: Size(_kHGap, totalH),
                     painter: _ConnectorPainter(
                       matchCount: matchCount,
                       slotH:      roundSlotH,
-                      cardH:      _cardH,
+                      cardH:      _kCardH,
                     ),
                   ),
               ],
@@ -106,12 +182,40 @@ class BracketWidget extends StatelessWidget {
         ),
       ),
     );
+
+    // ClipRect keeps the bracket inside the tab body boundary.
+    // Listener captures ALL pointer events before any gesture recognizer sees
+    // them — so NestedScrollView and TabBarView cannot steal the drag.
+    return ClipRect(
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown:   _onPointerDown,
+        onPointerMove:   _onPointerMove,
+        onPointerUp:     _onPointerUp,
+        onPointerCancel: _onPointerCancel,
+        child: OverflowBox(
+          alignment:  Alignment.topLeft,
+          maxWidth:   double.infinity,
+          maxHeight:  double.infinity,
+          child: Transform(
+            alignment: Alignment.topLeft,
+            transform: Matrix4.identity()
+              ..translate(_offset.dx, _offset.dy)
+              ..scale(_scale),
+            child: bracketContent,
+          ),
+        ),
+      ),
+    );
   }
 }
 
 // ── Match Card ─────────────────────────────────────────────────────────────
 
-class _MatchCard extends StatelessWidget {
+/// Uses [Listener] instead of [GestureDetector] so it never enters the gesture
+/// arena — this lets [InteractiveViewer] receive pan/scale events anywhere on
+/// the bracket, including directly over match cards.
+class _MatchCard extends StatefulWidget {
   final TournamentMatch match;
   final bool            isHost;
   final String          tournamentId;
@@ -123,16 +227,39 @@ class _MatchCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final isFinal = match.round >= 10; // just visual treatment
+  State<_MatchCard> createState() => _MatchCardState();
+}
 
-    return GestureDetector(
-      onTap: (isHost && !match.isPlayed && !match.isBye && !match.isTBD)
-          ? () => _showResultDialog(context)
-          : null,
+class _MatchCardState extends State<_MatchCard> {
+  Offset? _pointerDownPos;
+
+  bool get _tappable =>
+      widget.isHost &&
+      !widget.match.isPlayed &&
+      !widget.match.isBye &&
+      !widget.match.isTBD;
+
+  @override
+  Widget build(BuildContext context) {
+    final match   = widget.match;
+    final isFinal = match.round >= 10;
+
+    return Listener(
+      // Record where the finger went down
+      onPointerDown: (e) => _pointerDownPos = e.localPosition,
+      // On pointer-up: if it barely moved it's a tap, not a pan
+      onPointerUp: (e) {
+        final down = _pointerDownPos;
+        _pointerDownPos = null;
+        if (!_tappable || down == null) return;
+        if ((e.localPosition - down).distance < 10) {
+          _showResultDialog(context);
+        }
+      },
+      onPointerCancel: (_) => _pointerDownPos = null,
       child: Container(
-        width: BracketWidget._cardW,
-        height: BracketWidget._cardH,
+        width: _kCardW,
+        height: _kCardH,
         decoration: BoxDecoration(
           color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(10),
@@ -179,14 +306,14 @@ class _MatchCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ScoreRow(
-                teamName: match.teamAName ?? 'Team A',
+                teamName: widget.match.teamAName ?? 'Team A',
                 score:    scoreA,
                 onMinus:  () => setS(() { if (scoreA > 0) scoreA--; }),
                 onPlus:   () => setS(() => scoreA++),
               ),
               const SizedBox(height: 12),
               _ScoreRow(
-                teamName: match.teamBName ?? 'Team B',
+                teamName: widget.match.teamBName ?? 'Team B',
                 score:    scoreB,
                 onMinus:  () => setS(() { if (scoreB > 0) scoreB--; }),
                 onPlus:   () => setS(() => scoreB++),
@@ -205,13 +332,13 @@ class _MatchCard extends StatelessWidget {
                       ? Colors.white12 : AppColors.primary),
               onPressed: scoreA == scoreB ? null : () async {
                 final winnerId   = scoreA > scoreB
-                    ? match.teamAId   : match.teamBId;
+                    ? widget.match.teamAId   : widget.match.teamBId;
                 final winnerName = scoreA > scoreB
-                    ? match.teamAName : match.teamBName;
+                    ? widget.match.teamAName : widget.match.teamBName;
                 Navigator.pop(ctx);
                 await TournamentService().updateMatchResult(
-                  tournamentId: tournamentId,
-                  matchId:      match.id,
+                  tournamentId: widget.tournamentId,
+                  matchId:      widget.match.id,
                   scoreA:       scoreA,
                   scoreB:       scoreB,
                   winnerId:     winnerId   ?? '',

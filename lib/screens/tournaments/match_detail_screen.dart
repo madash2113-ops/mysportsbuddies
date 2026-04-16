@@ -1,9 +1,213 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../core/models/match_score.dart';
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
+import '../../services/scoreboard_service.dart';
 import '../../services/tournament_service.dart';
-import '../scoreboard/match_setup_screen.dart';
+import '../../services/user_service.dart';
+import '../scoreboard/live_scoreboard_screen.dart';
+
+// SharedPreferences key used to persist the active scoring session across
+// app restarts so the resume banner can reappear on the home screen.
+const _kActiveScoringKey = 'active_tournament_scoring';
+
+/// Top-level helper called by both [_MatchDetailScreenState] and
+/// [_WatchLiveTabState] to open the live scoreboard for a tournament match.
+///
+/// • Creates the [LiveMatch] from tournament config on first call.
+/// • Re-uses the same scoreboard if already created (deterministic ID).
+/// • Persists the active session to SharedPreferences for the resume banner.
+Future<void> _launchScoring(
+  BuildContext context,
+  String tournamentId,
+  String matchId,
+) async {
+  final tourn = TournamentService().tournaments
+      .where((t) => t.id == tournamentId)
+      .firstOrNull;
+  final match = TournamentService()
+      .matchesFor(tournamentId)
+      .where((m) => m.id == matchId)
+      .firstOrNull;
+  if (tourn == null || match == null) return;
+
+  final scoreboardId = 'tourn_${tournamentId}_$matchId';
+  final svc = context.read<ScoreboardService>();
+
+  // Recreate if: missing, wrong sport engine, or rally limits differ from tournament config
+  final expectedSport = sportFromName(tourn.sport);
+  final existing = svc.byId(scoreboardId);
+  bool needsRecreate = existing == null || existing.sport != expectedSport;
+  if (!needsRecreate && existing != null) {
+    // Force recreate if tournament linkage IDs are missing (old cached match)
+    if (existing.isTournamentMatch &&
+        (existing.tournamentId == null || existing.teamAId == null)) {
+      needsRecreate = true;
+    }
+    // Recreate if rally points limit differs from tournament config
+    if (!needsRecreate && existing.rally != null) {
+      final expectedPts = tourn.pointsToWin > 0
+          ? tourn.pointsToWin
+          : _defaultRallyPts(expectedSport);
+      if (existing.rally!.pointsToWin != expectedPts) needsRecreate = true;
+    }
+    // Recreate if generic points limit differs from tournament config
+    if (!needsRecreate && existing.genericScore != null) {
+      final expectedPts = tourn.pointsToWin > 0 ? tourn.pointsToWin : 0;
+      if (existing.genericScore!.pointsToWin != expectedPts) needsRecreate = true;
+    }
+  }
+  if (needsRecreate) {
+    if (existing != null) svc.removeMatch(scoreboardId);
+    svc.addMatch(_buildLiveMatchFromTournament(
+      id:    scoreboardId,
+      match: match,
+      tourn: tourn,
+    ));
+  }
+
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_kActiveScoringKey, jsonEncode({
+    'tournamentId': tournamentId,
+    'matchId':      matchId,
+    'scoreboardId': scoreboardId,
+  }));
+
+  if (context.mounted) {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LiveScoreboardScreen(
+          matchId:  scoreboardId,
+          isScorer: true,
+        ),
+      ),
+    );
+  }
+}
+
+int _defaultRallyPts(MatchSport sport) {
+  if (sport == MatchSport.tableTennis) return 11;
+  return 21;
+}
+
+/// Builds a [LiveMatch] from tournament data, using the tournament's
+/// [pointsToWin] and [bestOf] so limits are enforced in the scoreboard.
+LiveMatch _buildLiveMatchFromTournament({
+  required String           id,
+  required TournamentMatch  match,
+  required Tournament       tourn,
+}) {
+  final sport  = sportFromName(tourn.sport);
+  final teamA  = match.teamAName ?? 'Team A';
+  final teamB  = match.teamBName ?? 'Team B';
+  final venue  = match.venueName ?? tourn.location;
+  final bestOf = tourn.bestOf > 0 ? tourn.bestOf : 3;
+  final format = '${tourn.sport} · Best of $bestOf';
+  final myUid  = UserService().userId ?? '';
+  final now    = DateTime.now();
+  final tId    = tourn.id;
+  final tmId   = match.id;
+  final tAId   = match.teamAId;
+  final tBId   = match.teamBId;
+
+  switch (engineForSport(sport)) {
+    case SportEngine.rally:
+      final setsToWin   = (bestOf / 2).ceil();
+      final pointsToWin = tourn.pointsToWin > 0
+          ? tourn.pointsToWin
+          : _defaultRallyPts(sport);
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        rally: RallyScore(
+          pointsToWin:   pointsToWin,
+          setsToWin:     setsToWin,
+          winByTwo:      true,
+          maxPointCap:   sport == MatchSport.badminton ? 30 : null,
+          isTennis:      sport == MatchSport.tennis || sport == MatchSport.padel,
+          lastSetPoints: (sport == MatchSport.volleyball ||
+                          sport == MatchSport.beachVolleyball) ? 15 : null,
+        ),
+      );
+
+    case SportEngine.cricket:
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        cricket: CricketScore(
+          format: 'T20', totalOvers: 20, playersPerSide: 11,
+          teamA: teamA, teamB: teamB, teamABatFirst: true,
+        ),
+      );
+
+    case SportEngine.football:
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        football: FootballScore(matchDurationMin: 90),
+      );
+
+    case SportEngine.basketball:
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        basketball: BasketballScore(quarterMinutes: 10),
+      );
+
+    case SportEngine.hockey:
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        hockey: HockeyScore(),
+      );
+
+    case SportEngine.combat:
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        combat: CombatScore(totalRounds: 3, roundDurationMin: 3),
+      );
+
+    case SportEngine.esports:
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        esports: EsportsScore(),
+      );
+
+    case SportEngine.generic:
+      return LiveMatch(
+        id: id, sport: sport, teamA: teamA, teamB: teamB,
+        venue: venue, format: format, createdAt: now,
+        createdByUserId: myUid, isTournamentMatch: true,
+        tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        genericScore: GenericScore(
+          pointsToWin: tourn.pointsToWin > 0 ? tourn.pointsToWin : 0,
+        ),
+      );
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MatchDetailScreen — Info | Scorecard | Squads | Watch Live
 // ══════════════════════════════════════════════════════════════════════════════
@@ -41,8 +245,26 @@ class _MatchDetailScreenState extends State<MatchDetailScreen>
       .where((t) => t.id == widget.tournamentId)
       .firstOrNull;
 
+  /// Host or admin with score permission → full management.
   bool get _canManage => TournamentService().isHost(widget.tournamentId) ||
       TournamentService().canDo(widget.tournamentId, AdminPermission.updateScores);
+
+  /// Host, admin with score permission, OR the captain of either team in this
+  /// match — these users can open the scoring interface.
+  bool get _canScore {
+    if (_canManage) return true;
+    final uid = UserService().userId ?? '';
+    if (uid.isEmpty) return false;
+    final match = _match;
+    if (match == null) return false;
+    final teams = TournamentService().teamsFor(widget.tournamentId);
+    return teams.any((t) =>
+        t.captainUserId == uid &&
+        (t.id == match.teamAId || t.id == match.teamBId));
+  }
+
+  Future<void> _openScoring(BuildContext context) =>
+      _launchScoring(context, widget.tournamentId, widget.matchId);
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +294,28 @@ class _MatchDetailScreenState extends State<MatchDetailScreen>
                 style: const TextStyle(color: Colors.white,
                     fontSize: 16, fontWeight: FontWeight.w700)),
             centerTitle: true,
+            // ── Open Scoring button — top-right, visible to scorer roles ──
+            actions: [
+              if (_canScore && !match.isPlayed)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.primary.withAlpha(25),
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () => _openScoring(context),
+                    icon: const Icon(Icons.edit_note_rounded, size: 18),
+                    label: const Text('Score',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+            ],
             bottom: TabBar(
               controller: _tabs,
               indicatorColor: AppColors.primary,
@@ -96,8 +340,9 @@ class _MatchDetailScreenState extends State<MatchDetailScreen>
                 children: [
                   _InfoTab(match: match, tournament: tourn),
                   _ScorecardTab(match: match, tournament: tourn,
-                      canManage: _canManage, tournamentId: widget.tournamentId),
-                  _SquadsTab(match: match, tournamentId: widget.tournamentId),
+                      canManage: _canManage, canScore: _canScore,
+                      tournamentId: widget.tournamentId),
+                  _SquadsTab(match: match, tournamentId: widget.tournamentId, tournament: tourn),
                   _WatchLiveTab(match: match, canManage: _canManage,
                       tournamentId: widget.tournamentId),
                 ],
@@ -219,6 +464,8 @@ class _InfoTab extends StatelessWidget {
         _InfoRow(Icons.sports,                'Sport',      tournament.sport),
         if (match.venueName != null)
           _InfoRow(Icons.stadium_outlined,    'Venue',      match.venueName!),
+        if (tournament.location.isNotEmpty)
+          _InfoRow(Icons.location_on_outlined, 'Location',  tournament.location),
         if (match.scheduledAt != null)
           _InfoRow(Icons.schedule_outlined,   'Scheduled',
               _fmt(match.scheduledAt!)),
@@ -262,11 +509,13 @@ class _ScorecardTab extends StatefulWidget {
   final TournamentMatch match;
   final Tournament      tournament;
   final bool            canManage;
+  final bool            canScore;
   final String          tournamentId;
   const _ScorecardTab({
     required this.match,
     required this.tournament,
     required this.canManage,
+    required this.canScore,
     required this.tournamentId,
   });
 
@@ -312,8 +561,189 @@ class _ScorecardTabState extends State<_ScorecardTab> {
     }
   }
 
+  Future<void> _showEditScoreDialog(BuildContext context) async {
+    final m    = widget.match;
+    final ctrlA = TextEditingController(text: '${m.scoreA ?? 0}');
+    final ctrlB = TextEditingController(text: '${m.scoreB ?? 0}');
+    final teamA = m.teamAName ?? 'Team A';
+    final teamB = m.teamBName ?? 'Team B';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Edit Score',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+        content: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(teamA,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: ctrlA,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 28, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('–',
+                  style: TextStyle(
+                      fontSize: 28, fontWeight: FontWeight.bold)),
+            ),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(teamB,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: ctrlB,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 28, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final sA = int.tryParse(ctrlA.text.trim()) ?? (m.scoreA ?? 0);
+              final sB = int.tryParse(ctrlB.text.trim()) ?? (m.scoreB ?? 0);
+              Navigator.pop(ctx);
+              if (_saving) return;
+              setState(() => _saving = true);
+              try {
+                final winnerId   = sA > sB
+                    ? (m.teamAId ?? '')
+                    : sB > sA
+                        ? (m.teamBId ?? '')
+                        : '';
+                final winnerName = sA > sB
+                    ? (m.teamAName ?? '')
+                    : sB > sA
+                        ? (m.teamBName ?? '')
+                        : '';
+                await TournamentService().updateMatchResult(
+                  tournamentId: widget.tournamentId,
+                  matchId: widget.match.id,
+                  scoreA: sA,
+                  scoreB: sB,
+                  winnerId: winnerId,
+                  winnerName: winnerName,
+                );
+              } finally {
+                if (mounted) setState(() => _saving = false);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    ctrlA.dispose();
+    ctrlB.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final board = _buildBoard();
+    // If this scorer can open the live scoring interface, show a button above
+    // the read-only scorecard display.
+    if (widget.canScore && !widget.match.isPlayed) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () => _launchScoring(
+                    context, widget.tournamentId, widget.match.id),
+                icon: const Icon(Icons.edit_note_rounded, size: 20),
+                label: const Text('Open Scoring',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+          Expanded(child: board),
+        ],
+      );
+    }
+    // If admin/host is viewing a completed match, show "Edit Score" button.
+    if (widget.canManage && widget.match.isPlayed) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _saving ? null : () => _showEditScoreDialog(context),
+                icon: const Icon(Icons.edit_rounded, size: 20),
+                label: const Text('Edit Score',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+          Expanded(child: board),
+        ],
+      );
+    }
+    return board;
+  }
+
+  Widget _buildBoard() {
     if (_isRally)      return _RallyBoard(match: widget.match, tournament: widget.tournament, canManage: widget.canManage, onSave: _save, saving: _saving);
     if (_isTennis)     return _TennisBoard(match: widget.match, tournament: widget.tournament, canManage: widget.canManage, onSave: _save, saving: _saving);
     if (_isGoal)       return _GoalBoard(match: widget.match, tournament: widget.tournament, canManage: widget.canManage, onSave: _save, saving: _saving);
@@ -1144,7 +1574,8 @@ class _SetsLog extends StatelessWidget {
 class _SquadsTab extends StatefulWidget {
   final TournamentMatch match;
   final String          tournamentId;
-  const _SquadsTab({required this.match, required this.tournamentId});
+  final Tournament      tournament;
+  const _SquadsTab({required this.match, required this.tournamentId, required this.tournament});
 
   @override
   State<_SquadsTab> createState() => _SquadsTabState();
@@ -1180,6 +1611,21 @@ class _SquadsTabState extends State<_SquadsTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (widget.tournament.location.isNotEmpty) ...[
+          Row(children: [
+            const Icon(Icons.location_on_outlined, color: Colors.white38, size: 14),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                widget.tournament.location,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+        ],
         if (m.teamAName != null) ...[
           _SquadHeader(name: m.teamAName!),
           const SizedBox(height: 8),
@@ -1346,40 +1792,6 @@ class _WatchLiveTabState extends State<_WatchLiveTab> {
             ),
           ),
         ],
-        if (widget.canManage && !widget.match.isPlayed) ...[
-          const Text('Live Scoreboard',
-              style: TextStyle(color: Colors.white54,
-                  fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A2A1A),
-                side: const BorderSide(color: Colors.green),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              onPressed: () {
-                final tourn = TournamentService().tournaments
-                    .where((t) => t.id == widget.tournamentId)
-                    .firstOrNull;
-                final sport = tourn?.sport ?? 'Cricket';
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => MatchSetupScreen(
-                    sportName: sport,
-                    isTournamentMatch: true,
-                  ),
-                ));
-              },
-              icon: const Icon(Icons.scoreboard_outlined, color: Colors.green, size: 18),
-              label: const Text('Start Live Scoreboard',
-                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.w700)),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
         if (widget.canManage) ...[
           const Text('Set Stream URL',
               style: TextStyle(color: Colors.white54,
@@ -1467,3 +1879,6 @@ class _WatchLiveTabState extends State<_WatchLiveTab> {
     }
   }
 }
+
+// (TournamentScoringScreen removed — scoring now uses LiveScoreboardScreen
+//  directly via _launchScoring, which pre-fills it from tournament config.)
