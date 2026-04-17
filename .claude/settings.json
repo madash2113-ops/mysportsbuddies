@@ -78,13 +78,16 @@
       "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies commit -m ' *)",
       "Bash(dart analyze *)",
       "Bash(grep -v \"^$\")",
-      "Bash(grep -n \"forecast\\\\|prediction\\\\|odds\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/*.dart)"
+      "Bash(grep -n \"forecast\\\\|prediction\\\\|odds\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/*.dart)",
+      "Bash(du -sh ~/*)"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_website",
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_portal",
-      "/Users/avinashkumarmaddini/Library/Developer/Xcode/DerivedData"
+      "/Users/avinashkumarmaddini/Library/Developer/Xcode/DerivedData",
+      "/Users/avinashkumarmaddini/Library/Caches/Google",
+      "/Users/avinashkumarmaddini/Desktop"
     ]
   }
 }

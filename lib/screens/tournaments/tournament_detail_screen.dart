@@ -20,8 +20,18 @@ import '../../widgets/match_vs_banner.dart';
 // ══════════════════════════════════════════════════════════════════════════════
 
 class TournamentDetailScreen extends StatefulWidget {
-  final String tournamentId;
-  const TournamentDetailScreen({super.key, required this.tournamentId});
+  final String  tournamentId;
+  /// If set, `MatchDetailScreen` for this match is automatically pushed
+  /// on top of this screen after the first frame — so pressing back from
+  /// the match detail lands here rather than jumping straight to Home.
+  final String? openMatchId;
+  final int     openMatchTabIndex;
+  const TournamentDetailScreen({
+    super.key,
+    required this.tournamentId,
+    this.openMatchId,
+    this.openMatchTabIndex = 0,
+  });
 
   @override
   State<TournamentDetailScreen> createState() => _TournamentDetailScreenState();
@@ -37,6 +47,23 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   void initState() {
     super.initState();
     TournamentService().loadDetail(widget.tournamentId);
+    // If launched via Resume, auto-open the target match without animation
+    // so the back stack is: TournamentDetail → MatchDetail → LiveScoreboard.
+    if (widget.openMatchId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MatchDetailScreen(
+              tournamentId:    widget.tournamentId,
+              matchId:         widget.openMatchId!,
+              initialTabIndex: widget.openMatchTabIndex,
+            ),
+          ),
+        );
+      });
+    }
   }
 
   @override
@@ -552,6 +579,7 @@ class _EnrollBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(

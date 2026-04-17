@@ -537,10 +537,21 @@ class ScoreboardService extends ChangeNotifier {
   }
 
   /// Set up openers + opening bowler for the FIRST innings.
-  void cricketSetupOpeners(String id, String bat1, String bat2, String bowler) {
+  void cricketSetupOpeners(String id, String bat1, String bat2, String bowler,
+      {String? battingTeamName}) {
     final m = byId(id);
     if (m == null || m.cricket == null) return;
-    final inn = m.cricket!.currentInnings;
+    final cr = m.cricket!;
+    // Apply toss result: swap batting/bowling teams in the first innings if needed
+    if (battingTeamName != null &&
+        battingTeamName.isNotEmpty &&
+        battingTeamName != cr.innings[0].battingTeam) {
+      cr.innings[0].battingTeam =
+          battingTeamName == m.teamA ? m.teamA : m.teamB;
+      cr.innings[0].bowlingTeam =
+          battingTeamName == m.teamA ? m.teamB : m.teamA;
+    }
+    final inn = cr.currentInnings;
     if (inn.batsmen.isNotEmpty) return; // already set up
     inn.batsmen.addAll([
       CricketBatsman(name: bat1.trim(), order: 1, isStriker: true,

@@ -547,8 +547,8 @@ class FowEntry {
 
 class CricketInnings {
   final int inningsNum;
-  final String battingTeam;
-  final String bowlingTeam;
+  String battingTeam;
+  String bowlingTeam;
   int runs = 0;
   int wickets = 0;
   int completedOvers = 0;

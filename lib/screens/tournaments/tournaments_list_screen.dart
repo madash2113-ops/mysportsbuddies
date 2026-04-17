@@ -2183,9 +2183,6 @@ class _TournamentCardState extends State<_TournamentCard> {
         (tournament.maxTeams == 0 ||
             tournament.registeredTeams < tournament.maxTeams);
     final (statusColor, statusLabel) = _statusStyle(tournament.status);
-    final isMyTournament = isHost ||
-        tournament.createdBy == (UserService().userId ?? '');
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2256,15 +2253,18 @@ class _TournamentCardState extends State<_TournamentCard> {
                         ),
                       ),
                     ),
-                  // dark gradient overlay at bottom for readability
+                  // dark gradient overlay — stronger at the bottom so the
+                  // white tournament name is always readable over any image
                   Positioned.fill(
-                    child: Container(
+                    child: DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
                             Colors.transparent,
                             Colors.black.withValues(alpha: 0.55),
+                            Colors.black,
                           ],
+                          stops: const [0.0, 0.35, 1.0],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
@@ -2302,15 +2302,19 @@ class _TournamentCardState extends State<_TournamentCard> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.35),
+                                color: tournament.entryFee == 0
+                                    ? Colors.green.withValues(alpha: 0.75)
+                                    : AppColors.primary.withValues(alpha: 0.75),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                tournament.sport,
+                                tournament.entryFee == 0
+                                    ? 'Free'
+                                    : '₹${tournament.totalFee.toInt()}',
                                 style: const TextStyle(
-                                    color: Colors.white70,
+                                    color: Colors.white,
                                     fontSize: 10,
-                                    fontWeight: FontWeight.w600),
+                                    fontWeight: FontWeight.w700),
                               ),
                             ),
                             const Spacer(),
@@ -2329,7 +2333,7 @@ class _TournamentCardState extends State<_TournamentCard> {
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800)),
                               )
-                            else
+                            else if (tournament.status != TournamentStatus.open)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 3),
@@ -2374,7 +2378,7 @@ class _TournamentCardState extends State<_TournamentCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Date range row
+                  // Date range row + teams count on the right
                   Row(
                     children: [
                       const Icon(Icons.calendar_today_outlined,
@@ -2393,6 +2397,13 @@ class _TournamentCardState extends State<_TournamentCard> {
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 12)),
                       ],
+                      const Spacer(),
+                      const Icon(Icons.groups_outlined,
+                          size: 13, color: Colors.white38),
+                      const SizedBox(width: 4),
+                      Text(maxStr,
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 12)),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -2440,114 +2451,37 @@ class _TournamentCardState extends State<_TournamentCard> {
 
                   const SizedBox(height: 10),
 
-                  // Teams + fee + action buttons
-                  Row(
-                    children: [
-                      const Icon(Icons.groups_outlined,
-                          size: 13, color: Colors.white38),
-                      const SizedBox(width: 4),
-                      Text(maxStr,
-                          style: const TextStyle(
-                              color: Colors.white54, fontSize: 12)),
-                      const Spacer(),
-                      // Fee chip
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: tournament.entryFee == 0
-                              ? Colors.green.withValues(alpha: 0.12)
-                              : AppColors.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
+                  // Full-width Register button
+                  if (canReg && teamBadge == null && !isHost) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => EnrollTeamSheet.show(
+                          context,
+                          tournamentId:   tournament.id,
+                          entryFee:       tournament.entryFee,
+                          serviceFee:     tournament.serviceFee,
+                          playersPerTeam: tournament.playersPerTeam,
+                          sport:          tournament.sport,
                         ),
-                        child: Text(
-                          tournament.entryFee == 0
-                              ? 'Free'
-                              : '₹${tournament.totalFee.toInt()}',
-                          style: TextStyle(
-                              color: tournament.entryFee == 0
-                                  ? Colors.green
-                                  : AppColors.primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Register button
-                      if (canReg && teamBadge == null && !isHost)
-                        TextButton(
-                          onPressed: () => EnrollTeamSheet.show(
-                            context,
-                            tournamentId:   tournament.id,
-                            entryFee:       tournament.entryFee,
-                            serviceFee:     tournament.serviceFee,
-                            playersPerTeam: tournament.playersPerTeam,
-                            sport:          tournament.sport,
-                          ),
-                          style: TextButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('Register',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                      const SizedBox(width: 6),
-                      if (isMyTournament) ...[
-                        TextButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => LeagueEntryScreen(
-                                  existingTournament: tournament),
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            backgroundColor: Colors.blue.withValues(alpha: 0.12),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 4),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('Edit',
-                              style: TextStyle(
-                                  color: Colors.blue,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      TextButton(
-                        onPressed: onTap,
                         style: TextButton.styleFrom(
-                          backgroundColor:
-                              AppColors.primary.withValues(alpha: 0.12),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 4),
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              borderRadius: BorderRadius.circular(10)),
                         ),
-                        child: const Text('View',
+                        child: const Text('Register',
                             style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 12,
+                                color: Colors.white,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700)),
                       ),
-                    ],
-                  ),
-                  // ── Status strip ─────────────────────────────────────
-                  if (tournament.status != TournamentStatus.open) ...[
+                    ),
+                  ],
+                  // ── Status strip (ongoing skipped — LIVE badge already shown) ──
+                  if (tournament.status != TournamentStatus.open &&
+                      tournament.status != TournamentStatus.ongoing) ...[
                     const SizedBox(height: 8),
                     Container(
                       width: double.infinity,

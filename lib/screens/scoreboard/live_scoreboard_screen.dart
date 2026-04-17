@@ -1184,15 +1184,17 @@ class _CricketControls extends StatelessWidget {
   /// Dialog: enter both openers + opening bowler (mandatory before scoring).
   void _promptOpeners(BuildContext context) {
     final inn = match.cricket!.currentInnings;
-    final isBattingTeamA = inn.battingTeam == match.teamA;
-    final battingRoster =
-        isBattingTeamA ? match.teamAPlayers : match.teamBPlayers;
-    final bowlingRoster =
-        isBattingTeamA ? match.teamBPlayers : match.teamAPlayers;
-    final hasRoster = battingRoster.isNotEmpty;
 
-    final b1Ctrl = TextEditingController();
-    final b2Ctrl = TextEditingController();
+    // Toss state — defaults to whatever the match was created with
+    String selectedBatTeam = inn.battingTeam;
+
+    List<String> _battingRoster(String batTeam) =>
+        batTeam == match.teamA ? match.teamAPlayers : match.teamBPlayers;
+    List<String> _bowlingRoster(String batTeam) =>
+        batTeam == match.teamA ? match.teamBPlayers : match.teamAPlayers;
+
+    final b1Ctrl   = TextEditingController();
+    final b2Ctrl   = TextEditingController();
     final bowlCtrl = TextEditingController();
     String? bat1, bat2, bowler;
 
@@ -1200,52 +1202,94 @@ class _CricketControls extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (dCtx) => StatefulBuilder(
-        builder: (dCtx, setS) => AlertDialog(
-          backgroundColor: AppColors.card,
-          title: const Text('Setup Openers & Bowler',
-              style: TextStyle(color: Colors.white)),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            if (hasRoster) ...[
-              _dialogDropdown(
-                  'Striker (Opener 1) *', battingRoster, bat1,
-                  (v) => setS(() {
-                        bat1 = v;
-                        if (bat2 == v) bat2 = null;
-                      })),
-              const SizedBox(height: 10),
-              _dialogDropdown(
-                  'Non-Striker (Opener 2) *',
-                  battingRoster.where((p) => p != bat1).toList(),
-                  bat2,
-                  (v) => setS(() => bat2 = v)),
-              const SizedBox(height: 10),
-              _dialogDropdown('Opening Bowler *', bowlingRoster, bowler,
-                  (v) => setS(() => bowler = v)),
-            ] else ...[
-              _dialogField('Striker (Opener 1) *', b1Ctrl),
-              const SizedBox(height: 10),
-              _dialogField('Non-Striker (Opener 2) *', b2Ctrl),
-              const SizedBox(height: 10),
-              _dialogField('Opening Bowler *', bowlCtrl),
-            ],
-          ]),
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                final b1 = hasRoster ? (bat1 ?? '') : b1Ctrl.text.trim();
-                final b2 = hasRoster ? (bat2 ?? '') : b2Ctrl.text.trim();
-                final bwl =
-                    hasRoster ? (bowler ?? '') : bowlCtrl.text.trim();
-                if (b1.isEmpty || b2.isEmpty || bwl.isEmpty) return;
-                Navigator.pop(context);
-                svc.cricketSetupOpeners(match.id, b1, b2, bwl);
-              },
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Start'),
+        builder: (dCtx, setS) {
+          final battingRoster = _battingRoster(selectedBatTeam);
+          final bowlingRoster = _bowlingRoster(selectedBatTeam);
+          final hasRoster     = battingRoster.isNotEmpty;
+          return AlertDialog(
+            backgroundColor: AppColors.card,
+            title: const Text('Toss & Openers',
+                style: TextStyle(color: Colors.white)),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                // ── Toss: who bats first? ────────────────────────────────
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Who bats first?',
+                      style: TextStyle(
+                          color: Colors.white70, fontSize: 12)),
+                ),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(
+                    child: _TossChip(
+                      label: match.teamA,
+                      selected: selectedBatTeam == match.teamA,
+                      onTap: () => setS(() {
+                        selectedBatTeam = match.teamA;
+                        bat1 = bat2 = bowler = null;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _TossChip(
+                      label: match.teamB,
+                      selected: selectedBatTeam == match.teamB,
+                      onTap: () => setS(() {
+                        selectedBatTeam = match.teamB;
+                        bat1 = bat2 = bowler = null;
+                      }),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 14),
+                const Divider(color: Colors.white12),
+                const SizedBox(height: 10),
+                // ── Openers & bowler ─────────────────────────────────────
+                if (hasRoster) ...[
+                  _dialogDropdown(
+                      'Striker (Opener 1) *', battingRoster, bat1,
+                      (v) => setS(() {
+                            bat1 = v;
+                            if (bat2 == v) bat2 = null;
+                          })),
+                  const SizedBox(height: 10),
+                  _dialogDropdown(
+                      'Non-Striker (Opener 2) *',
+                      battingRoster.where((p) => p != bat1).toList(),
+                      bat2,
+                      (v) => setS(() => bat2 = v)),
+                  const SizedBox(height: 10),
+                  _dialogDropdown('Opening Bowler *', bowlingRoster, bowler,
+                      (v) => setS(() => bowler = v)),
+                ] else ...[
+                  _dialogField('Striker (Opener 1) *', b1Ctrl),
+                  const SizedBox(height: 10),
+                  _dialogField('Non-Striker (Opener 2) *', b2Ctrl),
+                  const SizedBox(height: 10),
+                  _dialogField('Opening Bowler *', bowlCtrl),
+                ],
+              ]),
             ),
-          ],
-        ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  final b1  = hasRoster ? (bat1  ?? '') : b1Ctrl.text.trim();
+                  final b2  = hasRoster ? (bat2  ?? '') : b2Ctrl.text.trim();
+                  final bwl = hasRoster ? (bowler ?? '') : bowlCtrl.text.trim();
+                  if (b1.isEmpty || b2.isEmpty || bwl.isEmpty) return;
+                  Navigator.pop(context);
+                  svc.cricketSetupOpeners(match.id, b1, b2, bwl,
+                      battingTeamName: selectedBatTeam);
+                },
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary),
+                child: const Text('Start'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1424,6 +1468,45 @@ class _CricketControls extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// Toss selector chip used in the cricket opener dialog
+class _TossChip extends StatelessWidget {
+  final String       label;
+  final bool         selected;
+  final VoidCallback onTap;
+  const _TossChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.85)
+              : Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? AppColors.primary : Colors.white24,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white54,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
     );
   }
 }

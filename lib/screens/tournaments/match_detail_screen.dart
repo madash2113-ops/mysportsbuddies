@@ -139,13 +139,21 @@ LiveMatch _buildLiveMatchFromTournament({
       );
 
     case SportEngine.cricket:
+      // Pull registered player lists from enrolled teams so the opener/
+      // bowler/wicket dialogs show dropdowns instead of free-text fields.
+      final allTeams   = TournamentService().teamsFor(tId);
+      final teamAObj   = allTeams.where((t) => t.id == tAId).firstOrNull;
+      final teamBObj   = allTeams.where((t) => t.id == tBId).firstOrNull;
+      final perSide    = tourn.playersPerTeam > 0 ? tourn.playersPerTeam : 11;
       return LiveMatch(
         id: id, sport: sport, teamA: teamA, teamB: teamB,
         venue: venue, format: format, createdAt: now,
         createdByUserId: myUid, isTournamentMatch: true,
         tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
+        teamAPlayers: teamAObj?.players ?? [],
+        teamBPlayers: teamBObj?.players ?? [],
         cricket: CricketScore(
-          format: 'T20', totalOvers: 20, playersPerSide: 11,
+          format: 'T20', totalOvers: 20, playersPerSide: perSide,
           teamA: teamA, teamB: teamB, teamABatFirst: true,
         ),
       );
@@ -183,7 +191,10 @@ LiveMatch _buildLiveMatchFromTournament({
         venue: venue, format: format, createdAt: now,
         createdByUserId: myUid, isTournamentMatch: true,
         tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
-        combat: CombatScore(totalRounds: 3, roundDurationMin: 3),
+        combat: CombatScore(
+          totalRounds:     tourn.bestOf > 0 ? tourn.bestOf : 3,
+          roundDurationMin: 3,
+        ),
       );
 
     case SportEngine.esports:
@@ -192,7 +203,9 @@ LiveMatch _buildLiveMatchFromTournament({
         venue: venue, format: format, createdAt: now,
         createdByUserId: myUid, isTournamentMatch: true,
         tournamentId: tId, tournamentMatchId: tmId, teamAId: tAId, teamBId: tBId,
-        esports: EsportsScore(),
+        esports: EsportsScore(
+          roundsToWin: tourn.bestOf > 0 ? tourn.bestOf : 13,
+        ),
       );
 
     case SportEngine.generic:
@@ -215,10 +228,12 @@ LiveMatch _buildLiveMatchFromTournament({
 class MatchDetailScreen extends StatefulWidget {
   final String tournamentId;
   final String matchId;
+  final int    initialTabIndex;
   const MatchDetailScreen({
     super.key,
     required this.tournamentId,
     required this.matchId,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -227,7 +242,8 @@ class MatchDetailScreen extends StatefulWidget {
 
 class _MatchDetailScreenState extends State<MatchDetailScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 4, vsync: this);
+  late final TabController _tabs = TabController(
+      length: 4, vsync: this, initialIndex: widget.initialTabIndex);
 
   @override
   void dispose() {

@@ -22,6 +22,7 @@ import '../scoreboard/live_matches_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../sports/all_sports_screen.dart';
+import '../tournaments/tournament_detail_screen.dart';
 import '../tournaments/tournaments_list_screen.dart';
 import '../common/app_drawer.dart';
 import '../games/create_game_screen.dart';
@@ -143,14 +144,19 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _resumeScoring() async {
     final session = _activeScoring;
     if (session == null) return;
-    final scoreboardId = session['scoreboardId'] ?? '';
-    if (scoreboardId.isEmpty) return;
+    final tournamentId = session['tournamentId'] ?? '';
+    final matchId      = session['matchId']      ?? '';
+    if (tournamentId.isEmpty || matchId.isEmpty) return;
+    // Push TournamentDetailScreen which immediately auto-pushes MatchDetailScreen
+    // (Scorecard tab) on the first frame — giving the correct back stack:
+    //   Home → Tournament Detail → Match Detail → Live Scoreboard
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => LiveScoreboardScreen(
-          matchId:  scoreboardId,
-          isScorer: true,
+        builder: (_) => TournamentDetailScreen(
+          tournamentId:     tournamentId,
+          openMatchId:      matchId,
+          openMatchTabIndex: 1, // Scorecard tab
         ),
       ),
     );
@@ -218,7 +224,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const _HomeTab(),
+      _HomeTab(
+        activeScoring: _activeScoring,
+        onResume:      _resumeScoring,
+        onDismiss:     _dismissResumeBanner,
+      ),
       const TournamentsListScreen(),
       const CommunityFeedScreen(),
       const LiveMatchesScreen(showBackButton: false),
@@ -229,20 +239,9 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppC.bg(context),
       drawer: const AppDrawer(),
       appBar: _buildAppBar(context),
-      body: Column(
-        children: [
-          if (_activeScoring != null)
-            _ResumeScoringBanner(
-              onResume:  _resumeScoring,
-              onDismiss: _dismissResumeBanner,
-            ),
-          Expanded(
-            child: IndexedStack(
-              index: _bottomNavIndex,
-              children: pages,
-            ),
-          ),
-        ],
+      body: IndexedStack(
+        index: _bottomNavIndex,
+        children: pages,
       ),
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
@@ -1293,7 +1292,10 @@ class _InfoChip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HomeTab extends StatefulWidget {
-  const _HomeTab();
+  final Map<String, String>? activeScoring;
+  final VoidCallback?         onResume;
+  final VoidCallback?         onDismiss;
+  const _HomeTab({this.activeScoring, this.onResume, this.onDismiss});
 
   @override
   State<_HomeTab> createState() => _HomeTabState();
@@ -1425,7 +1427,11 @@ class _HomeTabState extends State<_HomeTab> {
           ),
 
           // ── Context banners (live / tournament / next game) ─────────────
-          if (_showSports) const _ContextBanners(),
+          if (_showSports) _ContextBanners(
+            activeScoring: widget.activeScoring,
+            onResume:      widget.onResume,
+            onDismiss:     widget.onDismiss,
+          ),
 
           const SizedBox(height: AppSpacing.md),
 
@@ -2335,33 +2341,54 @@ class _BannerSliderState extends State<BannerSlider> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ContextBanners extends StatelessWidget {
-  const _ContextBanners();
+  final Map<String, String>? activeScoring;
+  final VoidCallback?         onResume;
+  final VoidCallback?         onDismiss;
+  const _ContextBanners({this.activeScoring, this.onResume, this.onDismiss});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Live scoreboard banner — only shown when the current user is the active scorer
+        // Live scoreboard banner — shown for active live match, or saved session fallback
         Consumer<ScoreboardService>(
           builder: (context, svc, _) {
             final uid  = UserService().userId;
             final live = svc.all.where((m) =>
                 m.status == MatchStatus.live &&
                 m.createdByUserId == uid).toList();
-            if (live.isEmpty) return const SizedBox.shrink();
-            final m = live.first;
-            final score = _liveScore(m);
-            return _BannerRow(
-              color: Colors.red,
-              leading: const _PulseDot(color: Colors.red),
-              label: '${m.teamA} vs ${m.teamB}',
-              detail: score,
-              actionLabel: 'Resume',
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) =>
-                      LiveScoreboardScreen(matchId: m.id, isScorer: true))),
-            );
+
+            // Prefer a live match already in memory
+            if (live.isNotEmpty) {
+              final m = live.first;
+              final score = _liveScore(m);
+              return _BannerRow(
+                color: Colors.red,
+                leading: const _PulseDot(color: Colors.red),
+                label: '${m.teamA} vs ${m.teamB}',
+                detail: score,
+                actionLabel: 'Resume',
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) =>
+                        LiveScoreboardScreen(matchId: m.id, isScorer: true))),
+              );
+            }
+
+            // Fallback: saved scoring session from SharedPreferences
+            if (activeScoring != null && onResume != null) {
+              return _BannerRow(
+                color: Colors.red,
+                leading: const _PulseDot(color: Colors.red),
+                label: 'Live Match',
+                detail: 'Scoring in progress',
+                actionLabel: 'Resume',
+                onTap: onResume!,
+                onDismiss: onDismiss,
+              );
+            }
+
+            return const SizedBox.shrink();
           },
         ),
         // Next game banner
@@ -2421,11 +2448,12 @@ class _ContextBanners extends StatelessWidget {
 // Single-line banner row
 class _BannerRow extends StatelessWidget {
   final Color      color;
-  final Widget     leading;
-  final String     label;
-  final String     detail;
-  final String     actionLabel;
+  final Widget      leading;
+  final String      label;
+  final String      detail;
+  final String      actionLabel;
   final VoidCallback onTap;
+  final VoidCallback? onDismiss;
 
   const _BannerRow({
     required this.color,
@@ -2434,6 +2462,7 @@ class _BannerRow extends StatelessWidget {
     required this.detail,
     required this.actionLabel,
     required this.onTap,
+    this.onDismiss,
   });
 
   @override
@@ -2478,6 +2507,14 @@ class _BannerRow extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w700)),
             ),
+            if (onDismiss != null) ...[
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: onDismiss,
+                child: Icon(Icons.close_rounded,
+                    size: 16, color: AppC.text(context).withValues(alpha: 0.5)),
+              ),
+            ],
           ],
         ),
       ),
@@ -2866,79 +2903,3 @@ class BannerImage extends StatelessWidget {
   }
 }
 
-// ── Resume Scoring Banner ─────────────────────────────────────────────────────
-// Shown at the top of HomeScreen when an active scoring session is detected in
-// SharedPreferences (e.g. after an app restart or navigating away mid-match).
-
-class _ResumeScoringBanner extends StatelessWidget {
-  final VoidCallback onResume;
-  final VoidCallback onDismiss;
-
-  const _ResumeScoringBanner({
-    required this.onResume,
-    required this.onDismiss,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primary.withAlpha(220),
-              AppColors.primary.withAlpha(180),
-            ],
-          ),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.edit_note_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Scoring in progress',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    'Tap Resume to continue scoring your match.',
-                    style: TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.white.withAlpha(30),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: onResume,
-              child: const Text('Resume',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-            ),
-            const SizedBox(width: 6),
-            GestureDetector(
-              onTap: onDismiss,
-              child: const Icon(Icons.close_rounded,
-                  color: Colors.white70, size: 18),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
