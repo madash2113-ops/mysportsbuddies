@@ -23,6 +23,7 @@ class AuthService extends ChangeNotifier {
   String? _verificationId;
   int?    _resendToken;
   String? _pendingPhone; // stored so OTP screen can show "sent to <number>"
+  bool    _googleSignInInitialized = false;
 
   bool    get loading      => _loading;
   String? get error        => _error;
@@ -175,22 +176,15 @@ class AuthService extends ChangeNotifier {
   Future<bool> signInWithGoogle() async {
     _setLoading(true);
     try {
-      GoogleSignInAccount? googleUser;
-      try {
-        googleUser = await GoogleSignIn().signIn();
-      } catch (_) {
-        _setLoading(false);
-        return false;
+      if (!_googleSignInInitialized) {
+        await GoogleSignIn.instance.initialize();
+        _googleSignInInitialized = true;
       }
-      if (googleUser == null) {
-        // User cancelled the picker
-        _setLoading(false);
-        return false;
-      }
-      final googleAuth = await googleUser.authentication;
+      final GoogleSignInAccount googleUser =
+          await GoogleSignIn.instance.authenticate();
+      final googleAuth = googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken:     googleAuth.idToken,
+        idToken: googleAuth.idToken,
       );
       final result = await _auth.signInWithCredential(credential);
       await _postAuth(
@@ -215,7 +209,9 @@ class AuthService extends ChangeNotifier {
   // ── Sign Out ───────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
-    try { await GoogleSignIn().signOut(); } catch (_) {}
+    try {
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {}
     await _auth.signOut();
     // Re-initialise UserService which will fall back to anonymous auth
     await UserService().init();
