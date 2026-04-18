@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "793247401031",
+    "firebase_url": "https://mysportsbuddies-4d077-default-rtdb.firebaseio.com",
+    "project_id": "mysportsbuddies-4d077",
+    "storage_bucket": "mysportsbuddies-4d077.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:793247401031:android:95e8ba7d0d35ef68645d62",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "793247401031-outb32irumi8v1r6ok63rleg3h8bb5pn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.flutter_application_1",
+            "certificate_hash": "98bffa0925d2770675cbc8b2859d7a93354fe7f9"
+          }
+        },
+        {
+          "client_id": "793247401031-ecdmjijrogu99pq4lk9noikt7ch0renv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCV6wjivEXJ23ZGfsOD-Q6BbAzPVbOpqVM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "793247401031-ecdmjijrogu99pq4lk9noikt7ch0renv.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "793247401031-1q1469jbafasvst6v8kchpgod0bi66j8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterApplication1"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
