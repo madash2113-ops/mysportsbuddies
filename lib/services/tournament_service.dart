@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/models/tournament.dart';
+import 'analytics_service.dart';
 import 'notification_service.dart';
 import 'user_service.dart';
 
@@ -407,6 +408,13 @@ class TournamentService extends ChangeNotifier {
     );
 
     await ref.set(tournament.toMap());
+    AnalyticsService().logEvent(AnalyticsEvents.tournamentCreated, parameters: {
+      'sport':         sport,
+      'format':        format.name,
+      'is_private':    isPrivate,
+      'max_teams':     maxTeams,
+      'has_entry_fee': entryFee > 0,
+    });
 
     // Store the location as the primary venue in the venues subcollection
     if (location.trim().isNotEmpty) {
@@ -519,6 +527,10 @@ class TournamentService extends ChangeNotifier {
     });
 
     await batch.commit(); // throws on any permission error — nothing is written
+    AnalyticsService().logEvent(AnalyticsEvents.tournamentJoined, parameters: {
+      'sport':         tourn.sport,
+      'has_entry_fee': tourn.entryFee > 0,
+    });
 
     // Refresh local cache only after successful commit
     await loadDetail(tournamentId);

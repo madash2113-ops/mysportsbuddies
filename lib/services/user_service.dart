@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/models/user_profile.dart';
 import '../core/config/app_config.dart';
+import 'analytics_service.dart';
 
 /// Manages profile persistence using Firestore (text) and Firebase Storage (image).
 ///
@@ -302,6 +303,17 @@ class UserService extends ChangeNotifier {
     _startProfileListener(uid); // real-time updates for this user
     _initialized = true;
     notifyListeners();
+
+    // Set analytics user properties so every subsequent event is segmented
+    final p = _profile;
+    if (p != null) {
+      AnalyticsService().setUserProperties(
+        role: p.role.name,
+        isPremium: p.isPremium,
+        primarySport: p.favoriteSports?.firstOrNull ?? '',
+        hasPlayedMatch: p.matchesPlayed > 0,
+      );
+    }
   }
 
   // ── Real-time profile listener ────────────────────────────────────────────

@@ -4,12 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import 'core/routes/app_routes.dart';
 import 'controllers/profile_controller.dart';
 import 'screens/tournaments/tournament_detail_screen.dart';
 import 'design/theme.dart';
 import 'services/admin_service.dart';
+import 'services/analytics_service.dart';
 import 'services/auth_service.dart';
 import 'services/feed_service.dart';
 import 'services/follow_service.dart';
@@ -34,6 +36,16 @@ void main() async {
   try {
     await Firebase.initializeApp();
     debugPrint('✅ Firebase initialized');
+
+    // Pass all uncaught "fatal" errors from the framework to Crashlytics
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+
+    AnalyticsService().logEvent(AnalyticsEvents.appOpen);
 
     // Disable reCAPTCHA browser popup during development (debug builds only)
     if (kDebugMode) {
@@ -74,6 +86,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider<AnalyticsService>(create: (_) => AnalyticsService()),
         ChangeNotifierProvider(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => ThemeService()),
         ChangeNotifierProvider(create: (_) => ProfileController()),
@@ -130,6 +143,7 @@ class _MySportsAppState extends State<MySportsApp> {
   void _handleLink(Uri uri) {
     // msb://tournament/{id}?code={joinCode}
     if (uri.scheme != 'msb' || uri.host != 'tournament') return;
+    AnalyticsService().logEvent(AnalyticsEvents.appOpenedViaLink, parameters: {'uri': uri.toString(), 'source': 'deep_link'});
     final segments = uri.pathSegments;
     if (segments.isEmpty) return;
     final tournamentId = segments.first;
@@ -152,6 +166,7 @@ class _MySportsAppState extends State<MySportsApp> {
       builder: (_, ts, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
         navigatorKey: _navigatorKey,
+        navigatorObservers: [AnalyticsService().getObserver()],
         initialRoute: '/',
         routes: AppRoutes.routes,
         theme: AppTheme.lightTheme,

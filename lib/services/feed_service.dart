@@ -6,6 +6,7 @@ import '../core/models/comment.dart';
 import '../core/models/feed_post.dart';
 import '../core/models/saved_collection.dart';
 import '../core/models/story.dart';
+import 'analytics_service.dart';
 import 'notification_service.dart';
 import 'user_service.dart';
 
@@ -187,6 +188,10 @@ class FeedService extends ChangeNotifier {
     // Optimistic update — UI responds immediately, sheet can close
     _posts.insert(0, post);
     notifyListeners();
+    AnalyticsService().logEvent(AnalyticsEvents.feedPostCreated, parameters: {
+      'type':      'manual',
+      'has_image': imageFile != null,
+    });
 
     // Upload image + write to Firestore in the background
     _persistPost(id, post, imageFile);
@@ -411,6 +416,10 @@ class FeedService extends ChangeNotifier {
     // Optimistic local add — UI updates immediately
     _stories.insert(0, story);
     notifyListeners();
+    AnalyticsService().logEvent(AnalyticsEvents.storyCreated, parameters: {
+      'has_image': imageFile != null,
+      'has_text':  text?.isNotEmpty == true,
+    });
 
     // Upload + Firestore write in background
     _persistStory(id, story, imageFile);
@@ -654,5 +663,6 @@ class FeedService extends ChangeNotifier {
     required String sport,
   }) async {
     await createPost(text: matchSummary, sport: sport);
+    AnalyticsService().logEvent(AnalyticsEvents.scorecardShared, parameters: {'sport': sport});
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'user_service.dart';
+import 'analytics_service.dart';
 
 /// Handles all Firebase authentication flows:
 ///   • Phone OTP
@@ -58,6 +59,7 @@ class AuthService extends ChangeNotifier {
         try {
           await _signInWithCredential(credential);
           _setLoading(false);
+          AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'phone_auto'});
           onAutoVerified?.call();
         } catch (e) {
           _setLoading(false);
@@ -100,6 +102,7 @@ class AuthService extends ChangeNotifier {
         smsCode: smsCode,
       );
       await _signInWithCredential(credential);
+      AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'phone'});
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -125,6 +128,7 @@ class AuthService extends ChangeNotifier {
         email: email.trim(),
         name:  result.user!.displayName,
       );
+      AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'email'});
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -143,6 +147,7 @@ class AuthService extends ChangeNotifier {
     required String password,
     String phone = '',
   }) async {
+    AnalyticsService().logEvent(AnalyticsEvents.signUpStart, parameters: {'method': 'email'});
     _setLoading(true);
     try {
       final result = await _auth.createUserWithEmailAndPassword(
@@ -156,6 +161,7 @@ class AuthService extends ChangeNotifier {
         email: email.trim(),
         phone: phone.trim(),
       );
+      AnalyticsService().logEvent(AnalyticsEvents.signUpComplete, parameters: {'method': 'email'});
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -192,6 +198,7 @@ class AuthService extends ChangeNotifier {
         name:  googleUser.displayName,
         email: googleUser.email,
       );
+      AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'google'});
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -213,6 +220,8 @@ class AuthService extends ChangeNotifier {
       await GoogleSignIn.instance.signOut();
     } catch (_) {}
     await _auth.signOut();
+    AnalyticsService().logEvent(AnalyticsEvents.logout);
+    AnalyticsService().setUserId(null); // Clear analytics ID
     // Re-initialise UserService which will fall back to anonymous auth
     await UserService().init();
     notifyListeners();
@@ -239,6 +248,7 @@ class AuthService extends ChangeNotifier {
         email: email ?? user.email,
         phone: phone ?? user.phoneNumber,
       );
+      await AnalyticsService().setUserId(user.uid);
     } catch (e) {
       debugPrint('AuthService._postAuth error: $e');
     }

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../core/models/chat_message.dart';
 import '../core/models/conversation.dart';
+import 'analytics_service.dart';
 import 'notification_service.dart';
 import 'user_service.dart';
 
@@ -113,6 +114,7 @@ class MessageService extends ChangeNotifier {
 
     try {
       await batch.commit();
+      AnalyticsService().logEvent(AnalyticsEvents.messageSent);
     } catch (e) {
       debugPrint('MessageService.sendMessage error: $e');
       rethrow;

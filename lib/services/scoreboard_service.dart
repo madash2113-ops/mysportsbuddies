@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../core/models/match_score.dart';
+import 'analytics_service.dart';
 import 'notification_service.dart';
 import 'stats_service.dart';
 import 'tournament_service.dart';
@@ -151,6 +152,10 @@ class ScoreboardService extends ChangeNotifier {
     _ensureClock();
     _persist(match);
     notifyListeners();
+    AnalyticsService().logEvent(AnalyticsEvents.matchStarted, parameters: {
+      'sport':   match.sportDisplayName,
+      'context': match.isTournamentMatch ? 'tournament' : 'casual',
+    });
   }
 
   void removeMatch(String id) {
@@ -183,6 +188,12 @@ class ScoreboardService extends ChangeNotifier {
     _syncResultToTournament(m);
     _notifyMatchPlayers(m, result);
     notifyListeners();
+    final durationMin = DateTime.now().difference(m.createdAt).inMinutes;
+    AnalyticsService().logEvent(AnalyticsEvents.matchCompleted, parameters: {
+      'sport':        m.sportDisplayName,
+      'context':      m.isTournamentMatch ? 'tournament' : 'casual',
+      'duration_min': durationMin,
+    });
   }
 
   // ── Sync live result back to TournamentService ───────────────────────────

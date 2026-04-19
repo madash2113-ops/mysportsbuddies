@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'analytics_service.dart';
 import 'notification_service.dart';
 import 'user_service.dart';
 
@@ -84,6 +85,7 @@ class FollowService extends ChangeNotifier {
         title: 'New Follower',
         body: '$myName started following you',
       );
+      AnalyticsService().logEvent(AnalyticsEvents.followUser);
     } catch (e) {
       _following.remove(targetId);
       notifyListeners();
