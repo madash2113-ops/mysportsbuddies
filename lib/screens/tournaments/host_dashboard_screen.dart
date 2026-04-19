@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
@@ -62,6 +63,14 @@ class HostDashboardScreen extends StatelessWidget {
                 const _SectionLabel('Tournament Status'),
                 const SizedBox(height: 8),
                 _StatusCard(tournament: t, tournamentId: tournamentId),
+                const SizedBox(height: 24),
+              ],
+
+              // Private join code panel (host only)
+              if (isHost && t.isPrivate) ...[
+                const _SectionLabel('Join Code'),
+                const SizedBox(height: 8),
+                _JoinCodeCard(joinCode: t.joinCode),
                 const SizedBox(height: 24),
               ],
 
@@ -753,6 +762,59 @@ class _DashCard extends StatelessWidget {
   }
 }
 
+// ── Join code card ────────────────────────────────────────────────────────────
+
+class _JoinCodeCard extends StatelessWidget {
+  final String? joinCode;
+  const _JoinCodeCard({required this.joinCode});
+
+  @override
+  Widget build(BuildContext context) {
+    final code = joinCode ?? '';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(children: [
+        const Icon(Icons.key_rounded, color: Colors.white54, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: code.isNotEmpty
+              ? Text(code,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 6))
+              : const Text('Code unavailable',
+                  style: TextStyle(color: Colors.white38, fontSize: 13)),
+        ),
+        if (code.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.copy_rounded,
+                color: Colors.white54, size: 20),
+            tooltip: 'Copy code',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: code));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Join code "$code" copied'),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              );
+            },
+          ),
+      ]),
+    );
+  }
+}
+
 // ── Teams sheet ───────────────────────────────────────────────────────────────
 
 class _TeamsSheet extends StatefulWidget {
@@ -901,3 +963,4 @@ class _TeamsSheetState extends State<_TeamsSheet> {
     );
   }
 }
+

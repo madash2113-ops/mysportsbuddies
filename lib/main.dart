@@ -1,3 +1,4 @@
+import 'package:app_links/app_links.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'core/routes/app_routes.dart';
 import 'controllers/profile_controller.dart';
+import 'screens/tournaments/tournament_detail_screen.dart';
 import 'design/theme.dart';
 import 'services/admin_service.dart';
 import 'services/auth_service.dart';
@@ -96,14 +98,60 @@ void main() async {
 // ======================================================
 // ROOT APPLICATION
 // ======================================================
-class MySportsApp extends StatelessWidget {
+
+final _navigatorKey = GlobalKey<NavigatorState>();
+
+class MySportsApp extends StatefulWidget {
   const MySportsApp({super.key});
+
+  @override
+  State<MySportsApp> createState() => _MySportsAppState();
+}
+
+class _MySportsAppState extends State<MySportsApp> {
+  late final AppLinks _appLinks;
+
+  @override
+  void initState() {
+    super.initState();
+    _appLinks = AppLinks();
+    _initDeepLinks();
+  }
+
+  void _initDeepLinks() async {
+    // Cold start: app opened via link
+    final initial = await _appLinks.getInitialLink();
+    if (initial != null) _handleLink(initial);
+
+    // Hot start: link received while app is running
+    _appLinks.uriLinkStream.listen(_handleLink);
+  }
+
+  void _handleLink(Uri uri) {
+    // msb://tournament/{id}?code={joinCode}
+    if (uri.scheme != 'msb' || uri.host != 'tournament') return;
+    final segments = uri.pathSegments;
+    if (segments.isEmpty) return;
+    final tournamentId = segments.first;
+    final code = uri.queryParameters['code'];
+
+    final nav = _navigatorKey.currentState;
+    if (nav == null) return;
+
+    nav.push(MaterialPageRoute(
+      builder: (_) => TournamentDetailScreen(
+        tournamentId: tournamentId,
+        joinCode: code,
+      ),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ThemeService>(
       builder: (_, ts, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
+        navigatorKey: _navigatorKey,
         initialRoute: '/',
         routes: AppRoutes.routes,
         theme: AppTheme.lightTheme,

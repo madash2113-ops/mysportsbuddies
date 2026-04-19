@@ -78,6 +78,9 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   // ── Registration Fee ────────────────────────────────────────────────────────
   bool _freeEntry = true;
 
+  // ── Privacy ────────────────────────────────────────────────────────────────
+  bool _isPrivate = false;
+
   // ── Banner ─────────────────────────────────────────────────────────────────
   File?   _bannerImage;
   String? _existingBannerUrl;
@@ -365,6 +368,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         lossPoints:     _lossPoints,
         customScoringLabel: _customScoringCtrl.text.trim().isEmpty
             ? null : _customScoringCtrl.text.trim(),
+        isPrivate:      _isPrivate,
       );
 
       // Upload banner if selected
@@ -493,6 +497,57 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
             TournamentFormatPicker(
               selected:  _format,
               onChanged: (f) => setState(() => _format = f),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Privacy ───────────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.lock_outline_rounded,
+                          size: 16, color: Colors.white54),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Private Tournament',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600)),
+                            Text('Invite-only — requires a join code to enroll',
+                                style: TextStyle(
+                                    color: Colors.white38, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _isPrivate,
+                        onChanged: (v) => setState(() => _isPrivate = v),
+                        activeThumbColor: AppColors.primary,
+                      ),
+                    ],
+                  ),
+                  if (_isPrivate) ...[
+                    const SizedBox(height: 6),
+                    const Text(
+                      'A join code will be generated — only you can see it.',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
             ),
 
             const SizedBox(height: 16),

@@ -64,6 +64,8 @@ class Tournament {
   final String?          customScoringLabel; // host-defined label (custom mode)
   final bool             sameScoreAllRounds; // if false, per-round scoring overrides apply
   final Map<String, dynamic>? roundScoringConfig; // per-round config when sameScoreAllRounds=false
+  final bool             isPrivate;          // invite-only tournament
+  final String?          joinCode;           // 6-char code, only set when isPrivate=true
 
   const Tournament({
     required this.id,
@@ -100,6 +102,8 @@ class Tournament {
     this.customScoringLabel,
     this.sameScoreAllRounds = true,
     this.roundScoringConfig,
+    this.isPrivate = false,
+    this.joinCode,
   });
 
   double get totalFee => entryFee + serviceFee;
@@ -138,6 +142,8 @@ class Tournament {
     'customScoringLabel':    customScoringLabel,
     'sameScoreAllRounds':    sameScoreAllRounds,
     'roundScoringConfig':    roundScoringConfig,
+    'isPrivate':             isPrivate,
+    'joinCode':              joinCode,
   };
 
   static Tournament fromFirestore(DocumentSnapshot doc) =>
@@ -189,6 +195,8 @@ class Tournament {
     roundScoringConfig:    m['roundScoringConfig'] != null
                              ? Map<String, dynamic>.from(m['roundScoringConfig'] as Map)
                              : null,
+    isPrivate:             m['isPrivate']             as bool? ?? false,
+    joinCode:              m['joinCode']               as String?,
   );
 
   Tournament copyWith({
@@ -222,6 +230,8 @@ class Tournament {
     String? customScoringLabel,
     bool? sameScoreAllRounds,
     Map<String, dynamic>? roundScoringConfig,
+    bool? isPrivate,
+    String? joinCode,
   }) => Tournament(
     id:               id,
     name:             name             ?? this.name,
@@ -257,6 +267,8 @@ class Tournament {
     customScoringLabel:    customScoringLabel    ?? this.customScoringLabel,
     sameScoreAllRounds:    sameScoreAllRounds    ?? this.sameScoreAllRounds,
     roundScoringConfig:    roundScoringConfig    ?? this.roundScoringConfig,
+    isPrivate:             isPrivate             ?? this.isPrivate,
+    joinCode:              joinCode              ?? this.joinCode,
   );
 }
 

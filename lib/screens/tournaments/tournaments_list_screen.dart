@@ -2780,6 +2780,30 @@ class _TournamentCardState extends State<_TournamentCard> {
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w700)),
+                      if (tournament.isPrivate) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.lock_rounded,
+                                  size: 10, color: Colors.white54),
+                              SizedBox(width: 3),
+                              Text('Private',
+                                  style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ],
                       const Spacer(),
                       const Icon(Icons.groups_outlined,
                           size: 14, color: Colors.white54),

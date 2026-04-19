@@ -335,6 +335,12 @@ class TournamentService extends ChangeNotifier {
 
   // ── Create tournament ───────────────────────────────────────────────────
 
+  static String _generateJoinCode() {
+    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rng = math.Random.secure();
+    return List.generate(6, (_) => charset[rng.nextInt(charset.length)]).join();
+  }
+
   Future<String> createTournament({
     required String           name,
     required String           sport,
@@ -357,6 +363,7 @@ class TournamentService extends ChangeNotifier {
     int                       drawPoints = 1,
     int                       lossPoints = 0,
     String?                   customScoringLabel,
+    bool                      isPrivate = false,
   }) async {
     if (maxTeams > 4 && !UserService().hasFullAccess) {
       throw PremiumRequiredException();
@@ -395,6 +402,8 @@ class TournamentService extends ChangeNotifier {
       drawPoints:       drawPoints,
       lossPoints:       lossPoints,
       customScoringLabel: customScoringLabel,
+      isPrivate:        isPrivate,
+      joinCode:         isPrivate ? _generateJoinCode() : null,
     );
 
     await ref.set(tournament.toMap());

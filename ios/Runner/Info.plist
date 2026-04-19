@@ -34,6 +34,16 @@
 				<string>com.googleusercontent.apps.793247401031-1q1469jbafasvst6v8kchpgod0bi66j8</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>mysportsbuddies.tournament</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>msb</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

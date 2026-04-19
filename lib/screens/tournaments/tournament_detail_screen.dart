@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/models/tournament.dart';
@@ -26,11 +28,15 @@ class TournamentDetailScreen extends StatefulWidget {
   /// the match detail lands here rather than jumping straight to Home.
   final String? openMatchId;
   final int     openMatchTabIndex;
+  /// Deep-link join code — when present and correct, grants access to a
+  /// private tournament and auto-opens the enroll sheet.
+  final String? joinCode;
   const TournamentDetailScreen({
     super.key,
     required this.tournamentId,
     this.openMatchId,
     this.openMatchTabIndex = 0,
+    this.joinCode,
   });
 
   @override
@@ -46,7 +52,39 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   @override
   void initState() {
     super.initState();
-    TournamentService().loadDetail(widget.tournamentId);
+    TournamentService().loadDetail(widget.tournamentId).then((_) {
+      if (!mounted) return;
+      // Auto-open enroll sheet when arriving via valid private invite link.
+      final t = TournamentService()
+          .tournaments
+          .where((t) => t.id == widget.tournamentId)
+          .firstOrNull;
+      if (t != null &&
+          t.isPrivate &&
+          widget.joinCode != null &&
+          widget.joinCode == t.joinCode) {
+        final uid = UserService().userId ?? '';
+        final alreadyEnrolled =
+            TournamentService().myEnrolledIds.contains(widget.tournamentId);
+        if (uid.isNotEmpty && !alreadyEnrolled) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => EnrollTeamSheet(
+                tournamentId:   t.id,
+                entryFee:       t.entryFee,
+                serviceFee:     t.serviceFee,
+                playersPerTeam: t.playersPerTeam,
+                sport:          t.sport,
+              ),
+            );
+          });
+        }
+      }
+    });
     // If launched via Resume, auto-open the target match without animation
     // so the back stack is: TournamentDetail → MatchDetail → LiveScoreboard.
     if (widget.openMatchId != null) {
@@ -64,6 +102,25 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         );
       });
     }
+  }
+
+  void _share(Tournament t) {
+    final String text;
+    if (t.isPrivate) {
+      final code = t.joinCode ?? '';
+      if (code.isNotEmpty) {
+        text = "You're invited to join ${t.name} on MySportsBuddies!\n"
+            "Tap to join: msb://tournament/${t.id}?code=$code\n\n"
+            "Or enter code $code in the app.";
+      } else {
+        text = "You're invited to join ${t.name} on MySportsBuddies!\n"
+            "msb://tournament/${t.id}";
+      }
+    } else {
+      text = "Check out ${t.name} on MySportsBuddies!\n"
+          "msb://tournament/${t.id}";
+    }
+    SharePlus.instance.share(ShareParams(text: text));
   }
 
   @override
@@ -193,6 +250,11 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                   onPressed: () => Navigator.pop(context),
                 ),
                 actions: [
+                  IconButton(
+                    icon: const Icon(Icons.share_outlined, color: Colors.white70),
+                    tooltip: 'Share tournament',
+                    onPressed: () => _share(t),
+                  ),
                   if (canManage) ...[
                     IconButton(
                       icon: const Icon(Icons.group_add_outlined,
@@ -290,6 +352,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                   onReset:      _resetMatch,
                   onGenerate:   canManage ? _generateSchedule : null,
                   generating:   _generatingSchedule,
+                  joinCode:     widget.joinCode,
                 ),
                 _TableTab(tournamentId: tid, tournament: t),
                 _StatsTab(tournamentId: tid, tournament: t),
@@ -500,6 +563,7 @@ class _MatchesTab extends StatelessWidget {
   final void Function(TournamentMatch) onReset;
   final VoidCallback?   onGenerate;
   final bool            generating;
+  final String?         joinCode;
 
   const _MatchesTab({
     required this.tournamentId,
@@ -508,6 +572,7 @@ class _MatchesTab extends StatelessWidget {
     required this.onReset,
     required this.onGenerate,
     required this.generating,
+    this.joinCode,
   });
 
   @override
@@ -535,10 +600,15 @@ class _MatchesTab extends StatelessWidget {
     return DefaultTabController(
       length: 3,
       child: Column(children: [
-        // Enroll button banner if open + not enrolled
+        // Enroll / private-locked banner
         if (tournament.status == TournamentStatus.open &&
             !svc.myEnrolledIds.contains(tournamentId) && uid.isNotEmpty)
-          _EnrollBanner(tournamentId: tournamentId, tournament: tournament),
+          if (tournament.isPrivate &&
+              !TournamentService().isHost(tournamentId) &&
+              joinCode != tournament.joinCode)
+            _PrivateLockedBanner()
+          else
+            _EnrollBanner(tournamentId: tournamentId, tournament: tournament),
 
         Container(
           color: const Color(0xFF121212),
@@ -566,6 +636,35 @@ class _MatchesTab extends StatelessWidget {
               canManage: canManage, onReset: onReset,
               teams: svc.teamsFor(tournamentId), sport: tournament.sport),
         ])),
+      ]),
+    );
+  }
+}
+
+class _PrivateLockedBanner extends StatelessWidget {
+  // ignore: unused_element
+  const _PrivateLockedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: const Row(children: [
+        Icon(Icons.lock_rounded, color: Colors.white38, size: 20),
+        SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'This is a private tournament. Ask the host for an invite link.',
+            style: TextStyle(color: Colors.white54, fontSize: 13),
+          ),
+        ),
       ]),
     );
   }
