@@ -53,6 +53,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       title: "I'm a Player",
       subtitle:
           'Find games, join tournaments,\ndiscover sports buddies near you.',
+      activeDark: Color(0xFF8B0000),
       activeColor: Color(0xFFCC1F1F),
       activeBg: Color(0xFF1A0000),
       glowColor: Color(0xFFCC1F1F),
@@ -63,6 +64,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       title: "I'm a Venue Owner",
       subtitle:
           'List your ground, court or turf\nand manage bookings easily.',
+      activeDark: Color(0xFF1A237E),
       activeColor: Color(0xFF3949AB),
       activeBg: Color(0xFF050D2A),
       glowColor: Color(0xFF3949AB),
@@ -137,18 +139,20 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
               // ── Toggle pill ───────────────────────────────────────────────
               Container(
-                height: 52,
+                height: 56,
                 decoration: BoxDecoration(
                   color: const Color(0xFF1C1C1E),
-                  borderRadius: BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.white10),
                 ),
+                padding: const EdgeInsets.all(4),
                 child: Row(
                   children: [
                     _ToggleOption(
                       icon: Icons.sports_soccer_rounded,
                       label: 'Player',
                       selected: _selected == 'player',
+                      activeDark: const Color(0xFF8B0000),
                       activeColor: const Color(0xFFCC1F1F),
                       onTap: () => _pick('player'),
                     ),
@@ -156,6 +160,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       icon: Icons.storefront_rounded,
                       label: 'Venue Owner',
                       selected: _selected == 'merchant',
+                      activeDark: const Color(0xFF1A237E),
                       activeColor: const Color(0xFF3949AB),
                       onTap: () => _pick('merchant'),
                     ),
@@ -291,6 +296,7 @@ class _ToggleOption extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
+  final Color activeDark;
   final Color activeColor;
   final VoidCallback onTap;
 
@@ -298,6 +304,7 @@ class _ToggleOption extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.selected,
+    required this.activeDark,
     required this.activeColor,
     required this.onTap,
   });
@@ -308,28 +315,43 @@ class _ToggleOption extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          margin: const EdgeInsets.all(4),
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? activeColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(26),
+            gradient: selected
+                ? LinearGradient(
+                    colors: [activeDark, activeColor],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: activeColor.withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 18,
+                size: 22,
                 color: selected ? Colors.white : Colors.white38,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   color: selected ? Colors.white : Colors.white38,
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight:
-                      selected ? FontWeight.w700 : FontWeight.normal,
+                      selected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ],

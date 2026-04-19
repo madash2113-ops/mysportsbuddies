@@ -342,6 +342,7 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _confirmSignOut(BuildContext context) {
+    final navigator = Navigator.of(context, rootNavigator: true);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -353,18 +354,15 @@ class _AppDrawerState extends State<AppDrawer> {
             style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => navigator.pop(),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context); // close dialog
-              Navigator.pop(context); // close drawer
+              navigator.pop(); // close dialog
               await AuthService().signOut();
-              if (context.mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/login', (_) => false);
-              }
+              if (!context.mounted) return;
+              navigator.pushNamedAndRemoveUntil('/login', (_) => false);
             },
             child: const Text('Sign Out',
                 style: TextStyle(color: Colors.redAccent)),
