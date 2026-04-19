@@ -851,7 +851,7 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                   child: Text(
                     filtered.isEmpty
                         ? isFiltered
-                            ? 'No ${_format != 'All' ? _formatOptions.firstWhere((o) => o.$1 == _format).$2 + ' ' : ''}$_sport tournaments found'
+                            ? 'No ${_format != 'All' ? '${_formatOptions.firstWhere((o) => o.$1 == _format).$2} ' : ''}$_sport tournaments found'
                             : 'No tournaments found'
                         : '${filtered.length} tournament${filtered.length == 1 ? '' : 's'}${isFiltered ? ' · $_sport' : ''}${_format != 'All' ? ' · ${_formatOptions.firstWhere((o) => o.$1 == _format).$2}' : ''}',
                     style: const TextStyle(
@@ -1803,10 +1803,16 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
       // If playerUserIds is empty the team has no per-player tracking, so
       // fall back to trusting the enrolledBy check already done by myTeamIn().
       if (myTeam.playerUserIds.isNotEmpty &&
-          !myTeam.playerUserIds.contains(uid)) continue;
+          !myTeam.playerUserIds.contains(uid)) {
+        continue;
+      }
       for (final m in svc.matchesFor(t.id)) {
-        if (m.isBye) continue;
-        if (m.teamAId != myTeam.id && m.teamBId != myTeam.id) continue;
+        if (m.isBye) {
+          continue;
+        }
+        if (m.teamAId != myTeam.id && m.teamBId != myTeam.id) {
+          continue;
+        }
         result.add(_MatchEntry(match: m, tournament: t, myTeam: myTeam));
       }
     }
@@ -1985,8 +1991,7 @@ class _CalendarStripState extends State<_CalendarStrip> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: Text(
-              _months[widget.selected.month - 1] +
-                  ' ${widget.selected.year}',
+              '${_months[widget.selected.month - 1]} ${widget.selected.year}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 14,

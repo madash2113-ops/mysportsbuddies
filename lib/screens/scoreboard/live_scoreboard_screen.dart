@@ -1188,8 +1188,10 @@ class _CricketControls extends StatelessWidget {
     // Toss state — defaults to whatever the match was created with
     String selectedBatTeam = inn.battingTeam;
 
+    // ignore: no_leading_underscores_for_local_identifiers - Local function
     List<String> _battingRoster(String batTeam) =>
         batTeam == match.teamA ? match.teamAPlayers : match.teamBPlayers;
+    // ignore: no_leading_underscores_for_local_identifiers - Local function
     List<String> _bowlingRoster(String batTeam) =>
         batTeam == match.teamA ? match.teamBPlayers : match.teamAPlayers;
 
@@ -3486,7 +3488,8 @@ Widget _card({Widget? child, String? label}) => Container(
                     letterSpacing: 1.2)),
             const SizedBox(height: AppSpacing.sm),
           ],
-          if (child != null) child,
+          // ignore: use_null_aware_elements - Using pattern matching which is null-aware
+          if (child case var c?) c,
         ],
       ),
     );

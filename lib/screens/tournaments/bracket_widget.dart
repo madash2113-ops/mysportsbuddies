@@ -51,7 +51,9 @@ class _BracketWidgetState extends State<BracketWidget> {
   Offset _centroid() {
     if (_ptrs.isEmpty) return Offset.zero;
     Offset s = Offset.zero;
-    for (final p in _ptrs.values) s += p;
+    for (final p in _ptrs.values) {
+      s += p;
+    }
     return s / _ptrs.length.toDouble();
   }
 
@@ -200,8 +202,10 @@ class _BracketWidgetState extends State<BracketWidget> {
           child: Transform(
             alignment: Alignment.topLeft,
             transform: Matrix4.identity()
+              // ignore: deprecated_member_use - Using for zoom/pan transform
               ..translate(_offset.dx, _offset.dy)
-              ..scale(_scale),
+              // ignore: deprecated_member_use
+              ..scale(_scale, _scale, 1),
             child: bracketContent,
           ),
         ),

@@ -302,10 +302,14 @@ class LiveMatch {
         'teamBPlayerUserIds': teamBPlayerUserIds,
         'createdByUserId': createdByUserId,
         'isTournamentMatch': isTournamentMatch,
-        if (tournamentId != null) 'tournamentId': tournamentId!,
-        if (tournamentMatchId != null) 'tournamentMatchId': tournamentMatchId!,
-        if (teamAId != null) 'teamAId': teamAId!,
-        if (teamBId != null) 'teamBId': teamBId!,
+        // ignore: use_null_aware_elements - Using pattern matching which is null-aware
+        if (tournamentId case var x?) 'tournamentId': x,
+        // ignore: use_null_aware_elements
+        if (tournamentMatchId case var x?) 'tournamentMatchId': x,
+        // ignore: use_null_aware_elements
+        if (teamAId case var x?) 'teamAId': x,
+        // ignore: use_null_aware_elements
+        if (teamBId case var x?) 'teamBId': x,
         if (cricket != null) 'cricket': cricket!.toFirestore(),
         if (football != null) 'football': football!.toMap(),
         if (basketball != null) 'basketball': basketball!.toMap(),

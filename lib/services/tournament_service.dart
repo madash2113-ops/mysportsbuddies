@@ -1691,7 +1691,8 @@ class TournamentService extends ChangeNotifier {
       'capacity':       capacity,
       'pitchType':      pitchType,
       'hasFloodlights': hasFloodlights,
-      if (imageUrl != null) 'imageUrl': imageUrl,
+      // ignore: use_null_aware_elements - Using pattern matching which is null-aware
+      if (imageUrl case var u?) 'imageUrl': u,
     });
     await loadDetail(tournamentId);
   }
@@ -1833,7 +1834,8 @@ class TournamentService extends ChangeNotifier {
   Future<void> setMatchLive(String tournamentId, String matchId, {String? streamUrl}) async {
     await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
       'isLive': true,
-      if (streamUrl != null) 'liveStreamUrl': streamUrl,
+      // ignore: use_null_aware_elements - Using pattern matching which is null-aware
+      if (streamUrl case var s?) 'liveStreamUrl': s,
     });
     await loadDetail(tournamentId);
   }

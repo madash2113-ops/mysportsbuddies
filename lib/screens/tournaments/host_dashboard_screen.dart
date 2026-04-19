@@ -452,6 +452,7 @@ class _StatusCardState extends State<_StatusCard> {
     final shouldSuggestReset =
         isFuture && status == TournamentStatus.ongoing;
 
+    // ignore: no_leading_underscores_for_local_identifiers - Local function  
     String _fmtDate(DateTime d) =>
         '${d.day}/${d.month}/${d.year}';
 

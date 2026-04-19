@@ -434,7 +434,7 @@ PERSONALITY RULES (never break these):
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
                       itemCount: _suggestions.length,
                       itemBuilder: (_, i) => GestureDetector(
                         onTap: () {
@@ -760,7 +760,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
             ),
             child: AnimatedBuilder(
               animation: _ctrl,
-              builder: (_, __) => Row(
+              builder: (_, _) => Row(
                 mainAxisSize: MainAxisSize.min,
                 children: List.generate(3, (i) {
                   final phase = (_ctrl.value - i * 0.2).clamp(0.0, 1.0);

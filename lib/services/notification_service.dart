@@ -107,7 +107,8 @@ class NotificationService extends ChangeNotifier {
         'type':      type.name,
         'title':     title,
         'body':      body,
-        if (targetId != null) 'targetId': targetId,
+        // ignore: use_null_aware_elements - Using pattern matching which is null-aware
+        if (targetId case var t?) 'targetId': t,
         'isRead':    false,
         'createdAt': FieldValue.serverTimestamp(),
       });

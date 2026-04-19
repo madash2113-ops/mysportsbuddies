@@ -43,7 +43,7 @@ Future<void> _launchScoring(
   final expectedSport = sportFromName(tourn.sport);
   final existing = svc.byId(scoreboardId);
   bool needsRecreate = existing == null || existing.sport != expectedSport;
-  if (!needsRecreate && existing != null) {
+  if (!needsRecreate) {
     // Force recreate if tournament linkage IDs are missing (old cached match)
     if (existing.isTournamentMatch &&
         (existing.tournamentId == null || existing.teamAId == null)) {
@@ -831,8 +831,14 @@ class _RallyBoardState extends State<_RallyBoard> {
   void _addPoint(bool isA) {
     if (!widget.canManage || _matchOver) return;
     setState(() {
-      if (isA) _ptA++; else _ptB++;
-      if (_gameOver) _nextSet();
+      if (isA) {
+        _ptA++;
+      } else {
+        _ptB++;
+      }
+      if (_gameOver) {
+        _nextSet();
+      }
     });
     _persist();
   }
@@ -840,8 +846,13 @@ class _RallyBoardState extends State<_RallyBoard> {
   void _nextSet() {
     final winner = _ptA > _ptB ? 'A' : 'B';
     _setsLog.add('$_ptA-$_ptB');
-    if (winner == 'A') _setA++; else _setB++;
-    _ptA = 0; _ptB = 0;
+    if (winner == 'A') {
+      _setA++;
+    } else {
+      _setB++;
+    }
+    _ptA = 0;
+    _ptB = 0;
   }
 
   Future<void> _persist() => widget.onSave({
@@ -963,16 +974,27 @@ class _TennisBoardState extends State<_TennisBoard> {
   void _addPoint(bool isA) {
     if (!widget.canManage || _matchOver) return;
     setState(() {
-      if (isA) _ptA++; else _ptB++;
+      if (isA) {
+        _ptA++;
+      } else {
+        _ptB++;
+      }
       // Deuce: reset to 3-3 if both at 4
       if (_ptA >= 3 && _ptB >= 3) {
-        if (_ptA == _ptB && _ptA > 3) { _ptA = 3; _ptB = 3; }
+        if (_ptA == _ptB && _ptA > 3) {
+          _ptA = 3;
+          _ptB = 3;
+        }
       }
       // Game won
       final aWins = (_ptA >= 4 && _ptA - _ptB >= 2) || (_ptA == 4 && _ptB <= 2);
       final bWins = (_ptB >= 4 && _ptB - _ptA >= 2) || (_ptB == 4 && _ptA <= 2);
       if (aWins || bWins) {
-        if (aWins) _gamesA++; else _gamesB++;
+        if (aWins) {
+          _gamesA++;
+        } else {
+          _gamesB++;
+        }
         _ptA = 0; _ptB = 0;
         // Set won (first to 6, lead by 2 or tiebreak at 7-6)
         if (_gamesA >= 6 || _gamesB >= 6) {
@@ -980,8 +1002,13 @@ class _TennisBoardState extends State<_TennisBoard> {
           final bSetWin = _gamesB >= 6 && (_gamesB - _gamesA >= 2 || _gamesB == 7);
           if (aSetWin || bSetWin) {
             _setsLog.add('$_gamesA-$_gamesB');
-            if (aSetWin) _setA++; else _setB++;
-            _gamesA = 0; _gamesB = 0;
+            if (aSetWin) {
+              _setA++;
+            } else {
+              _setB++;
+            }
+            _gamesA = 0;
+            _gamesB = 0;
           }
         }
       }
@@ -1055,8 +1082,11 @@ class _GoalBoardState extends State<_GoalBoard> {
   void _add(bool isA, [int delta = 1]) {
     if (!widget.canManage) return;
     setState(() {
-      if (isA) _sA = (_sA + delta).clamp(0, 99);
-      else     _sB = (_sB + delta).clamp(0, 99);
+      if (isA) {
+        _sA = (_sA + delta).clamp(0, 99);
+      } else {
+        _sB = (_sB + delta).clamp(0, 99);
+      }
     });
     _persist();
   }
@@ -1118,7 +1148,13 @@ class _BasketballBoardState extends State<_BasketballBoard> {
 
   void _add(bool isA, int pts) {
     if (!widget.canManage) return;
-    setState(() { if (isA) _sA += pts; else _sB += pts; });
+    setState(() {
+      if (isA) {
+        _sA += pts;
+      } else {
+        _sB += pts;
+      }
+    });
     widget.onSave({'type': 'basketball', 'sA': _sA, 'sB': _sB}, _sA, _sB);
   }
 
@@ -1223,15 +1259,44 @@ class _CricketBoardState extends State<_CricketBoard> {
   }, _runsA, _runsB);
 
   void _addRuns(bool isA, int runs) {
-    setState(() { if (isA) _runsA += runs; else _runsB += runs; if (isA) _ballsA++; else _ballsB++; });
+    setState(() {
+      if (isA) {
+        _runsA += runs;
+      } else {
+        _runsB += runs;
+      }
+      if (isA) {
+        _ballsA++;
+      } else {
+        _ballsB++;
+      }
+    });
     _persist();
   }
   void _addWicket(bool isA) {
-    setState(() { if (isA) { if (_wicketsA < 10) { _wicketsA++; _ballsA++; } } else { if (_wicketsB < 10) { _wicketsB++; _ballsB++; } } });
+    setState(() {
+      if (isA) {
+        if (_wicketsA < 10) {
+          _wicketsA++;
+          _ballsA++;
+        }
+      } else {
+        if (_wicketsB < 10) {
+          _wicketsB++;
+          _ballsB++;
+        }
+      }
+    });
     _persist();
   }
   void _addWide(bool isA) {
-    setState(() { if (isA) _runsA++; else _runsB++; });
+    setState(() {
+      if (isA) {
+        _runsA++;
+      } else {
+        _runsB++;
+      }
+    });
     _persist();
   }
 
@@ -1350,7 +1415,13 @@ class _SimpleBoardState extends State<_SimpleBoard> {
 
   void _add(bool isA) {
     if (!widget.canManage) return;
-    setState(() { if (isA) _sA++; else _sB++; });
+    setState(() {
+      if (isA) {
+        _sA++;
+      } else {
+        _sB++;
+      }
+    });
     widget.onSave({'type': 'simple', 'sA': _sA, 'sB': _sB}, _sA, _sB);
   }
 
@@ -1554,7 +1625,7 @@ class _SetsLog extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: a > b ? AppColors.primary.withAlpha(80) : Colors.white12),
             ),
-            child: Center(child: Text('${parts[0]}', style: TextStyle(color: a > b ? AppColors.primary : Colors.white54, fontSize: 12, fontWeight: FontWeight.w700))),
+            child: Center(child: Text(parts[0], style: TextStyle(color: a > b ? AppColors.primary : Colors.white54, fontSize: 12, fontWeight: FontWeight.w700))),
           );
         }),
         const SizedBox(width: 8),
@@ -1575,7 +1646,7 @@ class _SetsLog extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: b > a ? AppColors.primary.withAlpha(80) : Colors.white12),
             ),
-            child: Center(child: Text('${parts.length > 1 ? parts[1] : "0"}', style: TextStyle(color: b > a ? AppColors.primary : Colors.white54, fontSize: 12, fontWeight: FontWeight.w700))),
+            child: Center(child: Text(parts.length > 1 ? parts[1] : '0', style: TextStyle(color: b > a ? AppColors.primary : Colors.white54, fontSize: 12, fontWeight: FontWeight.w700))),
           );
         }),
         const SizedBox(width: 8),
