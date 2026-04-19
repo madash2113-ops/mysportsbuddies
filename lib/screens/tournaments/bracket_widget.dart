@@ -202,8 +202,10 @@ class _BracketWidgetState extends State<BracketWidget> {
           child: Transform(
             alignment: Alignment.topLeft,
             transform: Matrix4.identity()
+              // ignore: deprecated_member_use - Using for zoom/pan transform
               ..translate(_offset.dx, _offset.dy)
-              ..scale(_scale),
+              // ignore: deprecated_member_use
+              ..scale(_scale, _scale, 1),
             child: bracketContent,
           ),
         ),

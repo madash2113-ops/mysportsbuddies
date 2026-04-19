@@ -978,7 +978,10 @@ class _TennisBoardState extends State<_TennisBoard> {
       }
       // Deuce: reset to 3-3 if both at 4
       if (_ptA >= 3 && _ptB >= 3) {
-        if (_ptA == _ptB && _ptA > 3) { _ptA = 3; _ptB = 3; }
+        if (_ptA == _ptB && _ptA > 3) {
+          _ptA = 3;
+          _ptB = 3;
+        }
       }
       // Game won
       final aWins = (_ptA >= 4 && _ptA - _ptB >= 2) || (_ptA == 4 && _ptB <= 2);
@@ -1262,7 +1265,19 @@ class _CricketBoardState extends State<_CricketBoard> {
     _persist();
   }
   void _addWicket(bool isA) {
-    setState(() { if (isA) { if (_wicketsA < 10) { _wicketsA++; _ballsA++; } } else { if (_wicketsB < 10) { _wicketsB++; _ballsB++; } } });
+    setState(() {
+      if (isA) {
+        if (_wicketsA < 10) {
+          _wicketsA++;
+          _ballsA++;
+        }
+      } else {
+        if (_wicketsB < 10) {
+          _wicketsB++;
+          _ballsB++;
+        }
+      }
+    });
     _persist();
   }
   void _addWide(bool isA) {

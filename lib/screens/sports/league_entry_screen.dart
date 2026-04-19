@@ -1609,41 +1609,6 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           ),
         ),
       );
-
-  Widget _dropdown({
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-    required IconData icon,
-  }) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white38, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DropdownButton<String>(
-                value: value,
-                isExpanded: true,
-                underline: const SizedBox(),
-                dropdownColor: const Color(0xFF1A1A1A),
-                style:
-                    const TextStyle(color: Colors.white, fontSize: 15),
-                items: items
-                    .map((s) =>
-                        DropdownMenuItem(value: s, child: Text(s)))
-                    .toList(),
-                onChanged: onChanged,
-              ),
-            ),
-          ],
-        ),
-      );
 }
 
 // ── Round score data holder ───────────────────────────────────────────────────

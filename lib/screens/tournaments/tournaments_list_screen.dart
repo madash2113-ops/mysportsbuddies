@@ -1795,8 +1795,12 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
         continue;
       }
       for (final m in svc.matchesFor(t.id)) {
-        if (m.isBye) continue;
-        if (m.teamAId != myTeam.id && m.teamBId != myTeam.id) continue;
+        if (m.isBye) {
+          continue;
+        }
+        if (m.teamAId != myTeam.id && m.teamBId != myTeam.id) {
+          continue;
+        }
         result.add(_MatchEntry(match: m, tournament: t, myTeam: myTeam));
       }
     }
