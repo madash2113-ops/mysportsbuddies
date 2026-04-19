@@ -98,7 +98,12 @@
       "Bash(curl -s http://127.0.0.1:3333/mcp)",
       "Bash(pod repo *)",
       "Bash(awk '{print $2, $11, $12}')",
-      "Bash(awk '{print $2, $11, $12, $13}')"
+      "Bash(awk '{print $2, $11, $12, $13}')",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies log --oneline -3)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies show --stat HEAD)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies log --oneline origin/main -3)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies push origin main)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies pull origin main --no-rebase -X ours)"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",
