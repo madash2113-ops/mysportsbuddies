@@ -127,7 +127,7 @@ Current Release: **v1.0.0**
 ### Share Feedback
 Your feedback helps us improve! Visit [Feedback Portal](#) to share your ideas and feature requests.
 ---
+```
+### Made with ❤️ by Avinash Maddini for sports enthusiasts worldwide.
 
-**Made with ❤️ by Avinash Maddini for sports enthusiasts worldwide.**
-
-**Follow Us**: [Instagram](#) | [Facebook](#)
+##### **Follow Us**: [Instagram](#) | [Facebook](#)
