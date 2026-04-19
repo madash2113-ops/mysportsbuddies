@@ -103,22 +103,7 @@ flutter build apk --release      # Android
 flutter build appbundle --release # Android (Play Store)
 flutter build ios --no-codesign   # iOS
 ```
-
-#### Project Structure
 ```
-lib/
-├── services/           # Business logic (singleton ChangeNotifiers)
-├── screens/            # UI by feature (auth, community, tournaments, etc.)
-├── core/
-│   ├── models/        # Data models
-│   ├── routes/        # Navigation
-│   └── config/        # App configuration
-├── widgets/           # Reusable UI components
-└── main.dart          # App entry point
-```
-
-See [CLAUDE.md](./CLAUDE.md) for detailed architecture documentation.
-
 ## 🔐 Security & Privacy
 
 - **Authentication**: Secure phone OTP, email/password, and OAuth integration
@@ -137,14 +122,12 @@ Current Release: **v1.0.0**
 ### Need Help?
 - 📧 **Email**: support@mysportsbuddies.com
 - 🐛 **Report a Bug**: [GitHub Issues](https://github.com/yourusername/mysportsbuddies/issues)
-- 💬 **Community Chat**: [Discord Server](#)
 - 📱 **In-App Support**: Settings → Help & Support
 
 ### Share Feedback
 Your feedback helps us improve! Visit [Feedback Portal](#) to share your ideas and feature requests.
-
 ---
 
 **Made with ❤️ by Avinash Maddini for sports enthusiasts worldwide.**
 
-**Follow Us**: [Twitter](#) | [Instagram](#) | [Facebook](#)
+**Follow Us**: [Instagram](#) | [Facebook](#)
