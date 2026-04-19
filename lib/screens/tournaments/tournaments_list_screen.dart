@@ -331,23 +331,42 @@ class _RoleToggleButton extends StatelessWidget {
     child: GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? selectedColor : Colors.transparent,
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [AppColors.primaryDark, AppColors.primary],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : null,
           borderRadius: BorderRadius.circular(10),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon,
-                size: 18,
-                color: selected ? Colors.white : Colors.white38),
-            const SizedBox(width: 6),
+                size: 22,
+                color: selected
+                    ? AppC.onPrimary(context)
+                    : AppC.hint(context)),
+            const SizedBox(width: 8),
             Text(label,
                 style: TextStyle(
-                    color: selected ? Colors.white : Colors.white38,
-                    fontSize: 14,
+                    color: selected
+                        ? AppC.onPrimary(context)
+                        : AppC.muted(context),
+                    fontSize: 16,
                     fontWeight: selected
                         ? FontWeight.w700
                         : FontWeight.w500)),
@@ -2875,18 +2894,33 @@ class _TournamentCardState extends State<_TournamentCard> {
                           sport:          tournament.sport,
                         ),
                         style: TextButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: Colors.transparent,
+                          padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30)),
                         ),
-                        child: const Text('Register',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700)),
-                      ),
-                    ),
+                        child: Ink(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.primaryDark, AppColors.primary],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            alignment: Alignment.center,
+                            child: const Text('Register',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700)),
+                          ),     // Container
+                        ),       // Ink
+                      ),         // TextButton
+                    ),           // SizedBox
                   ],
                   // ── Status strip (ongoing skipped — LIVE badge already shown) ──
                   if (tournament.status != TournamentStatus.open &&

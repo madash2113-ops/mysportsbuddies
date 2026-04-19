@@ -48,7 +48,7 @@ dependencies:
   win32: 6.0.1
 
   # Tournament sharing & deep links
-  share_plus: 13.0.0
+  share_plus: ^4.5.3
   app_links: ^6.0.0
   firebase_analytics: ^12.3.0
   firebase_crashlytics: ^5.2.0

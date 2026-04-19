@@ -103,7 +103,14 @@
       "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies show --stat HEAD)",
       "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies log --oneline origin/main -3)",
       "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies push origin main)",
-      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies pull origin main --no-rebase -X ours)"
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies pull origin main --no-rebase -X ours)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies pull origin main)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies branch -vv)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies remote -v)",
+      "Bash(git -C /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies pull)",
+      "Bash(curl -s -X POST http://127.0.0.1:3333/mcp -H \"Content-Type: application/json\" -d '{\"jsonrpc\":\"2.0\",\"method\":\"tools/list\",\"id\":1}')",
+      "Bash(curl -s -X POST http://127.0.0.1:3333/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"method\":\"tools/list\",\"id\":1}')",
+      "Bash(curl -s -X POST http://127.0.0.1:3333/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":2,\"params\":{\"name\":\"get_figma_data\",\"arguments\":{\"fileKey\":\"kRYU2apu1HNXk0PR0kbJVj\",\"nodeId\":\"18-57\"}}}')"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",

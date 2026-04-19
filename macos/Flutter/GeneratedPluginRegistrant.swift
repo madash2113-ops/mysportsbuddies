@@ -16,7 +16,7 @@ import firebase_storage
 import geolocator_apple
 import google_sign_in_ios
 import printing
-import share_plus
+import share_plus_macos
 import shared_preferences_foundation
 import url_launcher_macos
 

@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -120,7 +119,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       text = "Check out ${t.name} on MySportsBuddies!\n"
           "msb://tournament/${t.id}";
     }
-    SharePlus.instance.share(ShareParams(text: text));
+    Share.share(text);
   }
 
   @override
