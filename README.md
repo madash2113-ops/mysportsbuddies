@@ -132,22 +132,6 @@ See [CLAUDE.md](./CLAUDE.md) for detailed architecture documentation.
 
 Current Release: **v1.0.0**
 
-## 🤝 Contributing
-
-We welcome contributions from the community! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please ensure all tests pass and code follows our linting standards.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
-
 ## 🆘 Support & Feedback
 
 ### Need Help?
@@ -159,21 +143,8 @@ This project is licensed under the MIT License - see the [LICENSE](./LICENSE) fi
 ### Share Feedback
 Your feedback helps us improve! Visit [Feedback Portal](#) to share your ideas and feature requests.
 
-## 🎯 Roadmap
-
-- **v1.1** - Advanced tournament management
-- **v1.2** - Player statistics and leaderboards
-- **v1.3** - Video coaching integration
-- **v2.0** - Live game streaming
-
-## 📚 Additional Resources
-
-- [Flutter Documentation](https://docs.flutter.dev/)
-- [Firebase Documentation](https://firebase.google.com/docs)
-- [Dart Language Guide](https://dart.dev/guides)
-
 ---
 
-**Made with ❤️ for sports enthusiasts worldwide.**
+**Made with ❤️ by Avinash Maddini for sports enthusiasts worldwide.**
 
 **Follow Us**: [Twitter](#) | [Instagram](#) | [Facebook](#)
