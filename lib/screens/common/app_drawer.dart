@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback;
+import '../../design/colors.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/profile_controller.dart';
 import '../../services/admin_service.dart';
@@ -253,17 +254,17 @@ class _AppDrawerState extends State<AppDrawer> {
                         leading: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFB3640).withAlpha(20),
+                            color: AppColors.primary.withAlpha(20),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                                color: const Color(0xFFFB3640).withAlpha(80)),
+                                color: AppColors.primary.withAlpha(80)),
                           ),
                           child: const Icon(Icons.admin_panel_settings_rounded,
-                              color: Color(0xFFFB3640), size: 16),
+                              color: AppColors.primary, size: 16),
                         ),
                         title: const Text('Admin Panel',
                             style: TextStyle(
-                                color: Color(0xFFFB3640),
+                                color: AppColors.primary,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700)),
                         subtitle: const Text('Control panel',

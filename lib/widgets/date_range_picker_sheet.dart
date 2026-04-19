@@ -50,7 +50,16 @@ class _DateRangeSheetState extends State<_DateRangeSheet> {
     _start = widget.initialStart.let(_dateOnly);
     _end   = widget.initialEnd.let(_dateOnly);
     final now = DateTime.now();
-    _viewMonth = DateTime(_start?.year ?? now.year, _start?.month ?? now.month);
+    final currentMonth = DateTime(now.year, now.month);
+    // Open on the start date's month only if it's current or future;
+    // otherwise land on today so the user sees selectable dates immediately.
+    final startMonth = _start != null && !_start!.isBefore(currentMonth)
+        ? DateTime(_start!.year, _start!.month)
+        : currentMonth;
+    _viewMonth = startMonth;
+    // Reset existing selection so the user must pick fresh dates.
+    _start = null;
+    _end   = null;
   }
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);

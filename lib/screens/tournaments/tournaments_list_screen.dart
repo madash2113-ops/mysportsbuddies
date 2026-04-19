@@ -2875,18 +2875,33 @@ class _TournamentCardState extends State<_TournamentCard> {
                           sport:          tournament.sport,
                         ),
                         style: TextButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: Colors.transparent,
+                          padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30)),
                         ),
-                        child: const Text('Register',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700)),
-                      ),
-                    ),
+                        child: Ink(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.primaryDark, AppColors.primary],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            alignment: Alignment.center,
+                            child: const Text('Register',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700)),
+                          ),     // Container
+                        ),       // Ink
+                      ),         // TextButton
+                    ),           // SizedBox
                   ],
                   // ── Status strip (ongoing skipped — LIVE badge already shown) ──
                   if (tournament.status != TournamentStatus.open &&

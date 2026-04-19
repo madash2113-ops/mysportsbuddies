@@ -9,8 +9,9 @@ class AppColors {
   static const Color surface     = Color(0xFF060C05);
   static const Color card        = Color(0xFF161E15);
 
-  // Brand
-  static const Color primary     = Color(0xFFFB3640); // Flame
+  // Brand — linear gradient: primaryDark (0%) → primary (100%)
+  static const Color primary     = Color(0xFFDE313B);
+  static const Color primaryDark = Color(0xFF781A20);
   static const Color textOnPrimary = Colors.white;
 
   // Text
@@ -39,8 +40,9 @@ class AppColorsLight {
   static const Color card        = Color(0xFFFFFFFF);
   static const Color surface     = Color(0xFFFFFFFF);
 
-  // Brand — same Flame red across both themes
-  static const Color primary     = Color(0xFFFB3640);
+  // Brand — same gradient red across both themes
+  static const Color primary     = Color(0xFFDE313B);
+  static const Color primaryDark = Color(0xFF781A20);
   static const Color textOnPrimary = Colors.white;
 
   // Text
@@ -68,7 +70,18 @@ class AppC {
   static Color card(BuildContext ctx)         => _d(ctx) ? AppColors.card           : AppColorsLight.card;
   static Color surface(BuildContext ctx)      => _d(ctx) ? AppColors.surface        : AppColorsLight.surface;
   static Color primary(BuildContext ctx)      => _d(ctx) ? AppColors.primary        : AppColorsLight.primary;
+  static Color primaryDark(BuildContext ctx)  => _d(ctx) ? AppColors.primaryDark    : AppColorsLight.primaryDark;
   static Color onPrimary(BuildContext ctx)    => _d(ctx) ? AppColors.textOnPrimary  : AppColorsLight.textOnPrimary;
+
+  /// Convenience gradient using the two brand stops (left → right).
+  static LinearGradient primaryGradient({
+    AlignmentGeometry begin = Alignment.centerLeft,
+    AlignmentGeometry end   = Alignment.centerRight,
+  }) => LinearGradient(
+    colors: [AppColors.primaryDark, AppColors.primary],
+    begin: begin,
+    end: end,
+  );
   static Color text(BuildContext ctx)         => _d(ctx) ? AppColors.textPrimary    : AppColorsLight.textPrimary;
   static Color muted(BuildContext ctx)        => _d(ctx) ? AppColors.textMuted      : AppColorsLight.textMuted;
   static Color hint(BuildContext ctx)         => _d(ctx) ? AppColors.textHint       : AppColorsLight.textHint;

@@ -30,8 +30,10 @@ import '../games/game_detail_screen.dart';
 import '../settings/settings_screen.dart';
 import '../venues/venue_detail_screen.dart';
 
+import '../../core/models/tournament.dart';
 import '../../services/game_listing_service.dart';
 import '../../services/stats_service.dart';
+import '../../services/tournament_service.dart';
 import '../../services/venue_service.dart';
 import 'notifications_screen.dart';
 
@@ -1342,9 +1344,6 @@ class _HomeTabState extends State<_HomeTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // ── Banner slider (at top) ───────────────────────────────────────
-          const BannerSlider(),
-
           // ── Greeting + name + location ──────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(_kPageH, 10, _kPageH, 12),
@@ -1426,15 +1425,6 @@ class _HomeTabState extends State<_HomeTab> {
             ),
           ),
 
-          // ── Context banners (live / tournament / next game) ─────────────
-          if (_showSports) _ContextBanners(
-            activeScoring: widget.activeScoring,
-            onResume:      widget.onResume,
-            onDismiss:     widget.onDismiss,
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-
           // ── Content: Sports section OR Venues section ────────────────────
           Expanded(
             child: AnimatedSwitcher(
@@ -1443,6 +1433,13 @@ class _HomeTabState extends State<_HomeTab> {
                   ? const _SportsGrid(key: ValueKey('sports'))
                   : const _VenuesGrid(key: ValueKey('venues')),
             ),
+          ),
+
+          // ── Resume / next-game banners pinned at bottom ──────────────────
+          _ContextBanners(
+            activeScoring: widget.activeScoring,
+            onResume:      widget.onResume,
+            onDismiss:     widget.onDismiss,
           ),
 
           SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
@@ -1478,11 +1475,15 @@ class _ToggleTab extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: active ? primary : Colors.transparent,
+            gradient: active ? const LinearGradient(
+              colors: [AppColors.primaryDark, AppColors.primary],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ) : null,
             borderRadius: BorderRadius.circular(10),
             boxShadow: active
                 ? [BoxShadow(
-                    color: primary.withValues(alpha: 0.35),
+                    color: AppColors.primary.withValues(alpha: 0.35),
                     blurRadius: 6,
                     offset: const Offset(0, 2))]
                 : null,
@@ -1667,6 +1668,10 @@ class _SportsGrid extends StatelessWidget {
             ),
           ),
           const _GamesGrid(),
+          const SizedBox(height: AppSpacing.lg),
+
+          // ── Upcoming Matches ────────────────────────────────────────────
+          const _UpcomingMatchesSection(),
           const SizedBox(height: AppSpacing.lg),
         ],
         ),
@@ -1888,6 +1893,274 @@ class _GameCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Upcoming Matches section ──────────────────────────────────────────────────
+
+// ── Upcoming matches (Figma Frame 14) ─────────────────────────────────────────
+class _UpcomingMatchesSection extends StatelessWidget {
+  const _UpcomingMatchesSection();
+
+  static const _kFullMonths = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December',
+  ];
+  static const _kShortMonths = [
+    'JAN','FEB','MAR','APR','MAY','JUN',
+    'JUL','AUG','SEP','OCT','NOV','DEC',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+
+    return ListenableBuilder(
+      listenable: TournamentService(),
+      builder: (context, _) {
+        final svc = TournamentService();
+        final upcoming = <({TournamentMatch match, String tournamentName})>[];
+        for (final t in svc.tournaments) {
+          for (final m in svc.matchesFor(t.id)) {
+            if (!m.isBye && !m.isPlayed &&
+                m.scheduledAt != null &&
+                m.scheduledAt!.isAfter(now) &&
+                m.teamAName != null && m.teamBName != null) {
+              upcoming.add((match: m, tournamentName: t.name));
+            }
+          }
+        }
+        upcoming.sort((a, b) =>
+            a.match.scheduledAt!.compareTo(b.match.scheduledAt!));
+
+        // Group by month (max 8 matches shown)
+        final grouped = <String, List<({TournamentMatch match, String tournamentName})>>{};
+        for (final item in upcoming.take(8)) {
+          final key = _kFullMonths[item.match.scheduledAt!.month - 1];
+          grouped.putIfAbsent(key, () => []).add(item);
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _kPageH),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Gradient header (Frame 15) ─────────────────────────
+                Container(
+                  height: 54,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF781A20), Color(0xFFDE313B)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft:  Radius.circular(14),
+                      topRight: Radius.circular(14),
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Icon(Icons.access_time_rounded,
+                            color: Colors.white, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Upcoming matches',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(
+                                builder: (_) => const TournamentsListScreen())),
+                        child: const Text(
+                          'View All',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── Match list ─────────────────────────────────────────
+                if (grouped.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(
+                      child: Text(
+                        'No upcoming matches scheduled',
+                        style: TextStyle(
+                          color: Color(0xFF8B8B8B),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final entry in grouped.entries) ...[
+                          // Month label
+                          Text(
+                            entry.key,
+                            style: const TextStyle(
+                              color: Color(0xFF8B8B8B),
+                              fontSize: 8,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Match rows with separators
+                          for (int i = 0; i < entry.value.length; i++) ...[
+                            _UpcomingMatchRow(
+                              match:          entry.value[i].match,
+                              tournamentName: entry.value[i].tournamentName,
+                              shortMonths:    _kShortMonths,
+                            ),
+                            if (i < entry.value.length - 1)
+                              Container(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                height: 0.6,
+                                color: const Color(0xFF3C3C3C),
+                              ),
+                          ],
+                          const SizedBox(height: 10),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UpcomingMatchRow extends StatelessWidget {
+  final TournamentMatch match;
+  final String          tournamentName;
+  final List<String>    shortMonths;
+
+  const _UpcomingMatchRow({
+    required this.match,
+    required this.tournamentName,
+    required this.shortMonths,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dt   = match.scheduledAt!;
+    final day  = dt.day.toString();
+    final mon  = shortMonths[dt.month - 1];
+    final note = match.note;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // ── Date tile (46×46, #3D3D3D, borderRadius 8px) ────────────
+        Container(
+          width: 46, height: 46,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3D3D3D),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '$day\n$mon',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFD02E37),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              height: 1.0,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+
+        // ── Match details ────────────────────────────────────────────
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${match.teamAName} VS ${match.teamBName}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      tournamentName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (note != null && note.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD8303A),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        note,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -2340,51 +2613,68 @@ class _BannerSliderState extends State<BannerSlider> {
 // CONTEXT BANNERS — live score · active tournament · next game (single-line)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ContextBanners extends StatelessWidget {
+class _ContextBanners extends StatefulWidget {
   final Map<String, String>? activeScoring;
   final VoidCallback?         onResume;
   final VoidCallback?         onDismiss;
   const _ContextBanners({this.activeScoring, this.onResume, this.onDismiss});
 
   @override
+  State<_ContextBanners> createState() => _ContextBannersState();
+}
+
+class _ContextBannersState extends State<_ContextBanners> {
+  // Tracks the live match ID the user dismissed for this session
+  String? _dismissedLiveMatchId;
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Live scoreboard banner — shown for active live match, or saved session fallback
-        Consumer<ScoreboardService>(
-          builder: (context, svc, _) {
+        // Live scoreboard / resume banner — Figma Frame 22 full-width dark bar
+        ListenableBuilder(
+          listenable: Listenable.merge([ScoreboardService(), TournamentService()]),
+          builder: (context, _) {
             final uid  = UserService().userId;
-            final live = svc.all.where((m) =>
+            final live = ScoreboardService().all.where((m) =>
                 m.status == MatchStatus.live &&
-                m.createdByUserId == uid).toList();
+                m.createdByUserId == uid &&
+                m.id != _dismissedLiveMatchId).toList();
 
-            // Prefer a live match already in memory
             if (live.isNotEmpty) {
               final m = live.first;
-              final score = _liveScore(m);
-              return _BannerRow(
-                color: Colors.red,
-                leading: const _PulseDot(color: Colors.red),
-                label: '${m.teamA} vs ${m.teamB}',
-                detail: score,
-                actionLabel: 'Resume',
-                onTap: () => Navigator.push(context,
+              final tName = m.tournamentId != null
+                  ? TournamentService().tournaments
+                      .where((t) => t.id == m.tournamentId)
+                      .map((t) => t.name)
+                      .firstOrNull
+                  : null;
+              return _ResumeBannerBar(
+                label:    '${m.teamA} vs ${m.teamB}',
+                detail:   tName ?? '',
+                onResume: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) =>
                         LiveScoreboardScreen(matchId: m.id, isScorer: true))),
+                onDismiss: () => setState(() => _dismissedLiveMatchId = m.id),
               );
             }
 
-            // Fallback: saved scoring session from SharedPreferences
-            if (activeScoring != null && onResume != null) {
-              return _BannerRow(
-                color: Colors.red,
-                leading: const _PulseDot(color: Colors.red),
-                label: 'Live Match',
-                detail: 'Scoring in progress',
-                actionLabel: 'Resume',
-                onTap: onResume!,
-                onDismiss: onDismiss,
+            if (widget.activeScoring != null && widget.onResume != null) {
+              final tId   = widget.activeScoring!['tournamentId'];
+              final tName = tId != null
+                  ? TournamentService().tournaments
+                      .where((t) => t.id == tId)
+                      .map((t) => t.name)
+                      .firstOrNull
+                  : null;
+              return _ResumeBannerBar(
+                label:     widget.activeScoring!['teamA'] != null && widget.activeScoring!['teamB'] != null
+                    ? '${widget.activeScoring!['teamA']} vs ${widget.activeScoring!['teamB']}'
+                    : 'Live Match',
+                detail:    tName ?? '',
+                onResume:  widget.onResume!,
+                onDismiss: widget.onDismiss,
               );
             }
 
@@ -2420,21 +2710,6 @@ class _ContextBanners extends StatelessWidget {
     );
   }
 
-  static String _liveScore(LiveMatch m) {
-    switch (m.sport) {
-      case MatchSport.cricket:
-        final inn = m.cricket?.currentInnings;
-        return inn != null ? '${inn.runs}/${inn.wickets} (${inn.oversStr})' : 'Live';
-      case MatchSport.football:
-        return '${m.football?.teamAGoals ?? 0}–${m.football?.teamBGoals ?? 0}';
-      case MatchSport.basketball:
-        return '${m.basketball?.teamATotal ?? 0}–${m.basketball?.teamBTotal ?? 0}';
-      default:
-        final g = m.genericScore;
-        return g != null ? '${g.teamAScore}–${g.teamBScore}' : 'Live';
-    }
-  }
-
   static String _sportEmoji(String sport) {
     const map = {
       'cricket': '🏏', 'football': '⚽', 'basketball': '🏀',
@@ -2442,6 +2717,109 @@ class _ContextBanners extends StatelessWidget {
       'boxing': '🥊',
     };
     return map[sport.toLowerCase()] ?? '🏅';
+  }
+}
+
+// ── Resume banner bar — Figma Frame 22 (full-width dark bar pinned at bottom) ──
+
+class _ResumeBannerBar extends StatelessWidget {
+  final String        label;
+  final String        detail;
+  final VoidCallback  onResume;
+  final VoidCallback? onDismiss;
+
+  const _ResumeBannerBar({
+    required this.label,
+    required this.detail,
+    required this.onResume,
+    this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 58,
+      decoration: const BoxDecoration(
+        color: Color(0xFF3D3D3D),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x40FFFFFF),
+            offset: Offset(0, -3),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          const _PulseDot(color: Color(0xFFDE313B)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  detail,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (onDismiss != null) ...[
+            GestureDetector(
+              onTap: onDismiss,
+              child: Container(
+                width: 26, height: 26,
+                alignment: Alignment.center,
+                child: const Icon(Icons.close,
+                    color: Colors.white70, size: 16),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          GestureDetector(
+            onTap: onResume,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.primaryDark, AppColors.primary],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: const Text(
+                'Resume Score',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -2453,7 +2831,6 @@ class _BannerRow extends StatelessWidget {
   final String      detail;
   final String      actionLabel;
   final VoidCallback onTap;
-  final VoidCallback? onDismiss;
 
   const _BannerRow({
     required this.color,
@@ -2462,7 +2839,6 @@ class _BannerRow extends StatelessWidget {
     required this.detail,
     required this.actionLabel,
     required this.onTap,
-    this.onDismiss,
   });
 
   @override
@@ -2507,14 +2883,6 @@ class _BannerRow extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w700)),
             ),
-            if (onDismiss != null) ...[
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: onDismiss,
-                child: Icon(Icons.close_rounded,
-                    size: 16, color: AppC.text(context).withValues(alpha: 0.5)),
-              ),
-            ],
           ],
         ),
       ),

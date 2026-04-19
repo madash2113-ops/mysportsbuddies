@@ -48,14 +48,31 @@ class AppTheme {
         elevation: 0,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(44), // MD button height
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.workSans(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+        style: ButtonStyle(
+          backgroundBuilder: (context, states, child) {
+            final disabled = states.contains(WidgetState.disabled);
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: disabled ? null : const LinearGradient(
+                  colors: [AppColors.primaryDark, AppColors.primary],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                color: disabled ? const Color(0xFF444444) : null,
+              ),
+              child: child,
+            );
+          },
+          backgroundColor: WidgetStateProperty.all(Colors.transparent),
+          shadowColor:      WidgetStateProperty.all(Colors.transparent),
+          foregroundColor:  WidgetStateProperty.all(Colors.white),
+          overlayColor:     WidgetStateProperty.all(Colors.white.withValues(alpha: 0.12)),
+          minimumSize:      WidgetStateProperty.all(const Size.fromHeight(44)),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          textStyle: WidgetStateProperty.all(
+            GoogleFonts.workSans(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
       ),
@@ -152,14 +169,31 @@ class AppTheme {
         elevation: 0,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColorsLight.primary,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(44),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.workSans(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+        style: ButtonStyle(
+          backgroundBuilder: (context, states, child) {
+            final disabled = states.contains(WidgetState.disabled);
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: disabled ? null : const LinearGradient(
+                  colors: [AppColors.primaryDark, AppColors.primary],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                color: disabled ? const Color(0xFFBBBBBB) : null,
+              ),
+              child: child,
+            );
+          },
+          backgroundColor: WidgetStateProperty.all(Colors.transparent),
+          shadowColor:      WidgetStateProperty.all(Colors.transparent),
+          foregroundColor:  WidgetStateProperty.all(Colors.white),
+          overlayColor:     WidgetStateProperty.all(Colors.white.withValues(alpha: 0.12)),
+          minimumSize:      WidgetStateProperty.all(const Size.fromHeight(44)),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          textStyle: WidgetStateProperty.all(
+            GoogleFonts.workSans(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
       ),
