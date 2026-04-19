@@ -79,7 +79,26 @@
       "Bash(dart analyze *)",
       "Bash(grep -v \"^$\")",
       "Bash(grep -n \"forecast\\\\|prediction\\\\|odds\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/*.dart)",
-      "Bash(du -sh ~/*)"
+      "Bash(du -sh ~/*)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)",
+      "Bash(git merge *)",
+      "Bash(git checkout *)",
+      "Bash(git fetch *)",
+      "WebFetch(domain:127.0.0.1)",
+      "Bash(curl -s http://127.0.0.1:3845/mcp)",
+      "Bash(curl -sv http://127.0.0.1:3845/mcp)",
+      "Bash(python3 -m json.tool)",
+      "WebSearch",
+      "WebFetch(domain:developers.figma.com)",
+      "WebFetch(domain:help.figma.com)",
+      "Bash(curl -s http://127.0.0.1:3333/mcp)",
+      "Bash(pod repo *)",
+      "Bash(awk '{print $2, $11, $12}')",
+      "Bash(awk '{print $2, $11, $12, $13}')"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",
@@ -87,7 +106,8 @@
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_portal",
       "/Users/avinashkumarmaddini/Library/Developer/Xcode/DerivedData",
       "/Users/avinashkumarmaddini/Library/Caches/Google",
-      "/Users/avinashkumarmaddini/Desktop"
+      "/Users/avinashkumarmaddini/Desktop",
+      "/Users/avinashkumarmaddini"
     ]
   }
 }

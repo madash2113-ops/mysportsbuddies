@@ -1,5 +1,5 @@
 # Minimum iOS version required by Firebase & all packages we use
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -28,7 +28,7 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  use_frameworks!
+  use_frameworks! :linkage => :static
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
@@ -37,6 +37,17 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  # gRPC-C++ "Create Symlinks to Header Folders" has no declared outputs,
+  # which causes Xcode to warn and sometimes block simulator builds.
+  # Mark it explicitly as always-run so Xcode stops complaining.
+  installer.pods_project.targets.each do |target|
+    next unless target.name == 'gRPC-C++'
+    target.build_phases.each do |phase|
+      next unless phase.respond_to?(:name) && phase.name == 'Create Symlinks to Header Folders'
+      phase.always_out_of_date = '1'
+    end
+  end
+
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
@@ -159,7 +170,7 @@ post_install do |installer|
       [ -d "$FRAMEWORKS_DIR" ] || exit 0
 
       # Deployment target + SDK version come from the Xcode environment.
-      MINOS="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}"
+      MINOS="${IPHONEOS_DEPLOYMENT_TARGET:-15.0}"
       SDK=$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo "17.0")
 
       find "$FRAMEWORKS_DIR" -maxdepth 1 -name "*.framework" -type d | while read fw; do

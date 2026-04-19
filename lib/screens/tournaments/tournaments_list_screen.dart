@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -851,7 +853,7 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                   child: Text(
                     filtered.isEmpty
                         ? isFiltered
-                            ? 'No ${_format != 'All' ? _formatOptions.firstWhere((o) => o.$1 == _format).$2 + ' ' : ''}$_sport tournaments found'
+                            ? 'No ${_format != 'All' ? '${_formatOptions.firstWhere((o) => o.$1 == _format).$2} ' : ''}$_sport tournaments found'
                             : 'No tournaments found'
                         : '${filtered.length} tournament${filtered.length == 1 ? '' : 's'}${isFiltered ? ' · $_sport' : ''}${_format != 'All' ? ' · ${_formatOptions.firstWhere((o) => o.$1 == _format).$2}' : ''}',
                     style: const TextStyle(
@@ -1803,7 +1805,9 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
       // If playerUserIds is empty the team has no per-player tracking, so
       // fall back to trusting the enrolledBy check already done by myTeamIn().
       if (myTeam.playerUserIds.isNotEmpty &&
-          !myTeam.playerUserIds.contains(uid)) continue;
+          !myTeam.playerUserIds.contains(uid)) {
+        continue;
+      }
       for (final m in svc.matchesFor(t.id)) {
         if (m.isBye) continue;
         if (m.teamAId != myTeam.id && m.teamBId != myTeam.id) continue;
@@ -1985,8 +1989,7 @@ class _CalendarStripState extends State<_CalendarStrip> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: Text(
-              _months[widget.selected.month - 1] +
-                  ' ${widget.selected.year}',
+              '${_months[widget.selected.month - 1]} ${widget.selected.year}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 14,
@@ -2504,6 +2507,42 @@ class _TournamentCardState extends State<_TournamentCard> {
     'Chess':      [Color(0xFF212121), Color(0xFF424242)],
   };
 
+  /// Frosted-glass pill used for date and fee overlaid on the banner image.
+  Widget _glassPill({
+    required IconData icon,
+    required String text,
+    Color? iconColor,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.65), width: 1.2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 11,
+                  color: iconColor ?? Colors.white.withValues(alpha: 0.85)),
+              const SizedBox(width: 5),
+              Text(text,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _formatLabel(TournamentFormat f) {
     switch (f) {
       case TournamentFormat.knockout:       return 'Knockout';
@@ -2515,7 +2554,7 @@ class _TournamentCardState extends State<_TournamentCard> {
   }
 
   String _fmtDate(DateTime d) =>
-      '${d.day}/${d.month}/${d.year}';
+      '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}/${d.year}';
 
   (Color, String) _statusStyle(TournamentStatus s) {
     switch (s) {
@@ -2551,6 +2590,13 @@ class _TournamentCardState extends State<_TournamentCard> {
         (tournament.maxTeams == 0 ||
             tournament.registeredTeams < tournament.maxTeams);
     final (statusColor, statusLabel) = _statusStyle(tournament.status);
+    // Sport emoji for body row
+    const sportEmoji = {
+      'Cricket': '🏏', 'Football': '⚽', 'Basketball': '🏀',
+      'Badminton': '🏸', 'Tennis': '🎾', 'Volleyball': '🏐',
+      'Table Tennis': '🏓', 'Chess': '♟️',
+    };
+    final emoji = sportEmoji[tournament.sport] ?? '🏆';
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2574,9 +2620,9 @@ class _TournamentCardState extends State<_TournamentCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Gradient banner ──────────────────────────────────────────
+            // ── Banner image (date + fee glass pills live inside) ────────
             SizedBox(
-              height: 170,
+              height: 200,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2621,138 +2667,104 @@ class _TournamentCardState extends State<_TournamentCard> {
                         ),
                       ),
                     ),
-                  // dark gradient overlay — stronger at the bottom so the
-                  // white tournament name is always readable over any image
+                  // Dual gradient: dark at top (pills) + dark at bottom (name)
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
+                            Colors.black.withValues(alpha: 0.60),
                             Colors.transparent,
                             Colors.black.withValues(alpha: 0.55),
                             Colors.black,
                           ],
-                          stops: const [0.0, 0.35, 1.0],
+                          stops: const [0.0, 0.30, 0.60, 1.0],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
                       ),
                     ),
                   ),
-                  // content on top of banner
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  // ── Date glass pill (top-left) ──────────────────────────
+                  Positioned(
+                    top: 10, left: 12,
+                    child: _glassPill(
+                      icon: Icons.calendar_today_outlined,
+                      text: tournament.endDate != null &&
+                              tournament.endDate != tournament.startDate
+                          ? '${_fmtDate(tournament.startDate)} - ${_fmtDate(tournament.endDate!)}'
+                          : _fmtDate(tournament.startDate),
+                    ),
+                  ),
+                  // ── Fee glass pill (top-right) ──────────────────────────
+                  Positioned(
+                    top: 10, right: 12,
+                    child: _glassPill(
+                      icon: tournament.entryFee == 0
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.attach_money_rounded,
+                      text: tournament.entryFee == 0
+                          ? 'Free'
+                          : '${tournament.totalFee.toInt()}/Team',
+                      iconColor: tournament.entryFee == 0
+                          ? Colors.greenAccent
+                          : Colors.white,
+                    ),
+                  ),
+                  // ── LIVE / HOST badge (below fee pill) ─────────────────
+                  if (isHost || tournament.status != TournamentStatus.open)
+                    Positioned(
+                      top: 46, right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isHost
+                              ? AppColors.primary.withValues(alpha: 0.9)
+                              : statusColor.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          isHost ? 'HOST' : statusLabel,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  // ── Tournament name + format (bottom-left) ─────────────
+                  Positioned(
+                    bottom: 10, left: 12, right: 12,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // format chip + host/status pill
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                _formatLabel(tournament.format),
-                                style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: tournament.entryFee == 0
-                                    ? Colors.green.withValues(alpha: 0.75)
-                                    : AppColors.primary.withValues(alpha: 0.75),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                tournament.entryFee == 0
-                                    ? 'Free'
-                                    : '₹${tournament.totalFee.toInt()}',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                            const Spacer(),
-                            if (isHost)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary
-                                      .withValues(alpha: 0.85),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Text('HOST',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800)),
-                              )
-                            else if (tournament.status != TournamentStatus.open)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withValues(alpha: 0.85),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(statusLabel,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800)),
-                              ),
-                          ],
+                        Text(
+                          tournament.name,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              shadows: [
+                                Shadow(
+                                    color: Colors.black,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 1))
+                              ]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        // tournament name (left) + sport label (right)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                tournament.name,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    shadows: [
-                                      Shadow(
-                                          color: Colors.black54,
-                                          blurRadius: 4,
-                                          offset: Offset(0, 1))
-                                    ]),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              tournament.sport,
-                              style: TextStyle(
-                                  color: Colors.white
-                                      .withValues(alpha: 0.75),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  shadows: const [
-                                    Shadow(
-                                        color: Colors.black,
-                                        blurRadius: 6)
-                                  ]),
-                            ),
-                          ],
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatLabel(tournament.format),
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              shadows: const [
+                                Shadow(color: Colors.black, blurRadius: 4)
+                              ]),
                         ),
                       ],
                     ),
@@ -2767,35 +2779,29 @@ class _TournamentCardState extends State<_TournamentCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Date range row + teams count on the right
+                  // Sport + teams count row
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_outlined,
-                          size: 13, color: Colors.white38),
-                      const SizedBox(width: 4),
-                      Text(_fmtDate(tournament.startDate),
+                      Text(emoji,
+                          style: const TextStyle(fontSize: 15)),
+                      const SizedBox(width: 7),
+                      Text(tournament.sport,
                           style: const TextStyle(
-                              color: Colors.white54, fontSize: 12)),
-                      if (tournament.endDate != null) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
-                          child: Icon(Icons.arrow_forward,
-                              size: 11, color: Colors.white30),
-                        ),
-                        Text(_fmtDate(tournament.endDate!),
-                            style: const TextStyle(
-                                color: Colors.white54, fontSize: 12)),
-                      ],
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700)),
                       const Spacer(),
                       const Icon(Icons.groups_outlined,
-                          size: 13, color: Colors.white38),
+                          size: 14, color: Colors.white54),
                       const SizedBox(width: 4),
                       Text(maxStr,
                           style: const TextStyle(
-                              color: Colors.white54, fontSize: 12)),
+                              color: Colors.white70,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500)),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   // Location row
                   Row(
                     children: [
@@ -2805,7 +2811,7 @@ class _TournamentCardState extends State<_TournamentCard> {
                       Expanded(
                         child: Text(tournament.location,
                             style: const TextStyle(
-                                color: Colors.white54, fontSize: 12),
+                                color: Colors.white, fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
@@ -2856,14 +2862,14 @@ class _TournamentCardState extends State<_TournamentCard> {
                         ),
                         style: TextButton.styleFrom(
                           backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
+                              borderRadius: BorderRadius.circular(30)),
                         ),
                         child: const Text('Register',
                             style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 13,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700)),
                       ),
                     ),

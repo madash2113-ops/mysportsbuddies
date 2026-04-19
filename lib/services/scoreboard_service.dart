@@ -116,8 +116,9 @@ class ScoreboardService extends ChangeNotifier {
     final stack = _undoStacks[matchId];
     if (stack == null || stack.isEmpty) return;
     final snap = stack.removeLast();
-    if (m.rally        != null) m.rally!.restoreSnapshot(snap);
-    else if (m.cricket != null) m.cricket!.restoreSnapshot(snap);
+    if (m.rally        != null) {
+      m.rally!.restoreSnapshot(snap);
+    } else if (m.cricket != null) m.cricket!.restoreSnapshot(snap);
     else if (m.football    != null) m.football!.restoreSnapshot(snap);
     else if (m.basketball  != null) m.basketball!.restoreSnapshot(snap);
     else if (m.hockey      != null) m.hockey!.restoreSnapshot(snap);

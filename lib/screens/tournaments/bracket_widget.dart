@@ -51,7 +51,9 @@ class _BracketWidgetState extends State<BracketWidget> {
   Offset _centroid() {
     if (_ptrs.isEmpty) return Offset.zero;
     Offset s = Offset.zero;
-    for (final p in _ptrs.values) s += p;
+    for (final p in _ptrs.values) {
+      s += p;
+    }
     return s / _ptrs.length.toDouble();
   }
 

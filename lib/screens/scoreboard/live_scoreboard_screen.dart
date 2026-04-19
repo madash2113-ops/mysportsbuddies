@@ -1188,9 +1188,9 @@ class _CricketControls extends StatelessWidget {
     // Toss state — defaults to whatever the match was created with
     String selectedBatTeam = inn.battingTeam;
 
-    List<String> _battingRoster(String batTeam) =>
+    List<String> battingRoster0(String batTeam) =>
         batTeam == match.teamA ? match.teamAPlayers : match.teamBPlayers;
-    List<String> _bowlingRoster(String batTeam) =>
+    List<String> bowlingRoster0(String batTeam) =>
         batTeam == match.teamA ? match.teamBPlayers : match.teamAPlayers;
 
     final b1Ctrl   = TextEditingController();
@@ -1203,8 +1203,8 @@ class _CricketControls extends StatelessWidget {
       barrierDismissible: false,
       builder: (dCtx) => StatefulBuilder(
         builder: (dCtx, setS) {
-          final battingRoster = _battingRoster(selectedBatTeam);
-          final bowlingRoster = _bowlingRoster(selectedBatTeam);
+          final battingRoster = battingRoster0(selectedBatTeam);
+          final bowlingRoster = bowlingRoster0(selectedBatTeam);
           final hasRoster     = battingRoster.isNotEmpty;
           return AlertDialog(
             backgroundColor: AppColors.card,
@@ -3486,7 +3486,7 @@ Widget _card({Widget? child, String? label}) => Container(
                     letterSpacing: 1.2)),
             const SizedBox(height: AppSpacing.sm),
           ],
-          if (child != null) child,
+          ?child,
         ],
       ),
     );

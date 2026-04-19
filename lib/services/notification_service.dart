@@ -107,7 +107,7 @@ class NotificationService extends ChangeNotifier {
         'type':      type.name,
         'title':     title,
         'body':      body,
-        if (targetId != null) 'targetId': targetId,
+        'targetId': ?targetId,
         'isRead':    false,
         'createdAt': FieldValue.serverTimestamp(),
       });

@@ -233,7 +233,6 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
-				D06F1B08EEDA30C9A9A04191 /* [CP] Embed Pods Frameworks */,
 				753138487202468809257780 /* [CP] Copy Pods Resources */,
 				4F94F2CBBF00542C01550343 /* Generate Missing dSYMs */,
 				0DB02A56F6CF0AF14BD75A6D /* Strip Simulator Slices */,
@@ -330,7 +329,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Fix App Store Connect errors 91169 / \"Couldn't find platform family\" for\n# objective_c.framework and any other Dart-FFI framework whose Mach-O\n# binary carries an iOS Simulator LC_BUILD_VERSION (platform 7).\n#\n# IMPORTANT: only strip simulator slices for device/archive builds.\n# Simulator debug builds legitimately contain simulator-platform frameworks\n# and stripping them causes dyld to fail loading (Library not loaded crash).\nif [ \"${PLATFORM_NAME}\" = \"iphonesimulator\" ]; then\n  echo \"Strip Simulator Slices: skipping (simulator build)\"\n  exit 0\nfi\n\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks\"\n[ -d \"$FRAMEWORKS_DIR\" ] || exit 0\n\n# Deployment target + SDK version come from the Xcode environment.\nMINOS=\"${IPHONEOS_DEPLOYMENT_TARGET:-13.0}\"\nSDK=$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo \"17.0\")\n\nfind \"$FRAMEWORKS_DIR\" -maxdepth 1 -name \"*.framework\" -type d | while read fw; do\n  name=$(basename \"$fw\" .framework)\n  binary=\"$fw/$name\"\n  [ -f \"$binary\" ] || continue\n\n  # Skip if no simulator platform present.\n  xcrun vtool -show-build \"$binary\" 2>/dev/null | grep -q \"IOSSIMULATOR\" || continue\n\n  echo \"Patching simulator platform in: $name\"\n  tmp=\"${binary}.tmp_stripsim\"\n\n  # Step 1 — remove the iOS Simulator build version (platform 7).\n  xcrun vtool -remove-build-version 7 -output \"$tmp\" \"$binary\"\n\n  # Step 2 — check whether an iOS device platform entry still exists.\n  # If vtool -show-build shows no \"platform \" lines, the binary had only\n  # a simulator entry and is now platform-less → inject the iOS one.\n  if xcrun vtool -show-build \"$tmp\" 2>/dev/null | grep -q \"platform \"; then\n    # Case A: iOS device platform was already present — keep it.\n    mv \"$tmp\" \"$binary\"\n  else\n    # Case B: binary was simulator-only — stamp it as iOS device.\n    #\n    # IMPORTANT: Apple error 90208 fires when the minos in LC_BUILD_VERSION\n    # differs from MinimumOSVersion in the framework's Info.plist.\n    # Use the framework's own Info.plist value as the authoritative minos.\n    fw_plist=\"$fw/Info.plist\"\n    if [ -f \"$fw_plist\" ]; then\n      fw_minos=$(/usr/libexec/PlistBuddy -c \"Print :MinimumOSVersion\" \\\n                   \"$fw_plist\" 2>/dev/null || echo \"$MINOS\")\n    else\n      fw_minos=\"$MINOS\"\n    fi\n    echo \"  Injecting iOS device build version (minos $fw_minos sdk $SDK)\"\n    xcrun vtool -set-build-version ios \"$fw_minos\" \"$SDK\" -output \"$binary\" \"$tmp\"\n    rm -f \"$tmp\"\n  fi\n\n  # Re-sign the patched binary so Xcode's archive validator accepts it.\n  if [ \"${CODE_SIGNING_REQUIRED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n    codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" \\\n      --preserve-metadata=identifier,entitlements,flags \"$binary\"\n  fi\ndone\n";
+			shellScript = "# Fix App Store Connect errors 91169 / \"Couldn't find platform family\" for\n# objective_c.framework and any other Dart-FFI framework whose Mach-O\n# binary carries an iOS Simulator LC_BUILD_VERSION (platform 7).\n#\n# IMPORTANT: only strip simulator slices for device/archive builds.\n# Simulator debug builds legitimately contain simulator-platform frameworks\n# and stripping them causes dyld to fail loading (Library not loaded crash).\nif [ \"${PLATFORM_NAME}\" = \"iphonesimulator\" ]; then\n  echo \"Strip Simulator Slices: skipping (simulator build)\"\n  exit 0\nfi\n\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks\"\n[ -d \"$FRAMEWORKS_DIR\" ] || exit 0\n\n# Deployment target + SDK version come from the Xcode environment.\nMINOS=\"${IPHONEOS_DEPLOYMENT_TARGET:-15.0}\"\nSDK=$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo \"17.0\")\n\nfind \"$FRAMEWORKS_DIR\" -maxdepth 1 -name \"*.framework\" -type d | while read fw; do\n  name=$(basename \"$fw\" .framework)\n  binary=\"$fw/$name\"\n  [ -f \"$binary\" ] || continue\n\n  # Skip if no simulator platform present.\n  xcrun vtool -show-build \"$binary\" 2>/dev/null | grep -q \"IOSSIMULATOR\" || continue\n\n  echo \"Patching simulator platform in: $name\"\n  tmp=\"${binary}.tmp_stripsim\"\n\n  # Step 1 — remove the iOS Simulator build version (platform 7).\n  xcrun vtool -remove-build-version 7 -output \"$tmp\" \"$binary\"\n\n  # Step 2 — check whether an iOS device platform entry still exists.\n  # If vtool -show-build shows no \"platform \" lines, the binary had only\n  # a simulator entry and is now platform-less → inject the iOS one.\n  if xcrun vtool -show-build \"$tmp\" 2>/dev/null | grep -q \"platform \"; then\n    # Case A: iOS device platform was already present — keep it.\n    mv \"$tmp\" \"$binary\"\n  else\n    # Case B: binary was simulator-only — stamp it as iOS device.\n    #\n    # IMPORTANT: Apple error 90208 fires when the minos in LC_BUILD_VERSION\n    # differs from MinimumOSVersion in the framework's Info.plist.\n    # Use the framework's own Info.plist value as the authoritative minos.\n    fw_plist=\"$fw/Info.plist\"\n    if [ -f \"$fw_plist\" ]; then\n      fw_minos=$(/usr/libexec/PlistBuddy -c \"Print :MinimumOSVersion\" \\\n                   \"$fw_plist\" 2>/dev/null || echo \"$MINOS\")\n    else\n      fw_minos=\"$MINOS\"\n    fi\n    echo \"  Injecting iOS device build version (minos $fw_minos sdk $SDK)\"\n    xcrun vtool -set-build-version ios \"$fw_minos\" \"$SDK\" -output \"$binary\" \"$tmp\"\n    rm -f \"$tmp\"\n  fi\n\n  # Re-sign the patched binary so Xcode's archive validator accepts it.\n  if [ \"${CODE_SIGNING_REQUIRED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n    codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" \\\n      --preserve-metadata=identifier,entitlements,flags \"$binary\"\n  fi\ndone\n";
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -441,23 +440,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
-		};
-		D06F1B08EEDA30C9A9A04191 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -571,7 +553,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = iphoneos;
@@ -708,7 +690,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -760,7 +742,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = iphoneos;

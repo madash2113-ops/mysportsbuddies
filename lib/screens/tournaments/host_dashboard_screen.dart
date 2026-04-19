@@ -452,7 +452,7 @@ class _StatusCardState extends State<_StatusCard> {
     final shouldSuggestReset =
         isFuture && status == TournamentStatus.ongoing;
 
-    String _fmtDate(DateTime d) =>
+    String fmtDate(DateTime d) =>
         '${d.day}/${d.month}/${d.year}';
 
     return Container(
@@ -495,10 +495,10 @@ class _StatusCardState extends State<_StatusCard> {
               const SizedBox(width: 4),
               Text(
                 isFuture
-                    ? 'Starts ${_fmtDate(start)}  ($daysUntil day${daysUntil == 1 ? '' : 's'})'
+                    ? 'Starts ${fmtDate(start)}  ($daysUntil day${daysUntil == 1 ? '' : 's'})'
                     : isToday
                         ? 'Starts today!'
-                        : 'Started ${_fmtDate(start)}',
+                        : 'Started ${fmtDate(start)}',
                 style: TextStyle(
                   color: dateArrived ? Colors.orange : Colors.white38,
                   fontSize: 11,
