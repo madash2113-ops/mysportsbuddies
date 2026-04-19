@@ -910,34 +910,22 @@ class _CricketControls extends StatelessWidget {
 
   void _promptWicket(BuildContext context) {
     final inn = match.cricket!.currentInnings;
-
-    // Determine roster availability
     final isBattingTeamA = inn.battingTeam == match.teamA;
     final battingRoster =
         isBattingTeamA ? match.teamAPlayers : match.teamBPlayers;
-    final hasRoster = battingRoster.isNotEmpty;
 
-    // Active (not-out) batsmen for "who got out" dropdown
     final activeBatsmen =
         inn.batsmen.where((b) => !b.isOut).map((b) => b.name).toList();
-
-    // Players not yet at the crease (for "new batsman" dropdown)
     final usedNames = inn.batsmen.map((b) => b.name).toSet();
-    final nextBatsmen = hasRoster
-        ? battingRoster.where((p) => !usedNames.contains(p)).toList()
-        : <String>[];
+    final nextRoster =
+        battingRoster.where((p) => !usedNames.contains(p)).toList();
 
-    // Fallback text controllers (used when no roster)
-    final outCtrl = TextEditingController(text: inn.striker?.name ?? '');
-    final newCtrl = TextEditingController();
-
-    // Pre-select striker as the out player; pre-select next batsman if available
     String? outPlayer = inn.striker?.name;
-    String? newBatsman = nextBatsmen.isNotEmpty ? nextBatsmen[0] : null;
+    String? newBatsman;
     String dismissal = 'Caught';
-    final dismissals = [
+    const dismissals = [
       'Caught', 'Bowled', 'LBW', 'Run Out', 'Stumped',
-      'Hit Wicket', 'Caught & Bowled', 'Retired'
+      'Hit Wicket', 'Caught & Bowled', 'Retired',
     ];
 
     showDialog(
@@ -948,12 +936,8 @@ class _CricketControls extends StatelessWidget {
           title: const Text('Wicket', style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              // ── Batsman Out ─────────────────────────────────────────────
-              if (hasRoster && activeBatsmen.isNotEmpty)
-                _dialogDropdown('Batsman Out', activeBatsmen, outPlayer,
-                    (v) => setDialogState(() => outPlayer = v))
-              else
-                _dialogField('Batsman Out', outCtrl),
+              _pickerField('Batsman Out', activeBatsmen, outPlayer,
+                  (v) => setDialogState(() => outPlayer = v)),
               const SizedBox(height: 12),
               const Align(
                 alignment: Alignment.centerLeft,
@@ -984,12 +968,8 @@ class _CricketControls extends StatelessWidget {
                 }).toList(),
               ),
               const SizedBox(height: 12),
-              // ── New Batsman ──────────────────────────────────────────────
-              if (hasRoster && nextBatsmen.isNotEmpty)
-                _dialogDropdown('New Batsman', nextBatsmen, newBatsman,
-                    (v) => setDialogState(() => newBatsman = v))
-              else
-                _dialogField('New Batsman Name', newCtrl),
+              _pickerField('New Batsman', nextRoster, newBatsman,
+                  (v) => setDialogState(() => newBatsman = v)),
             ]),
           ),
           actions: [
@@ -999,13 +979,10 @@ class _CricketControls extends StatelessWidget {
                     style: TextStyle(color: AppColors.textMuted))),
             ElevatedButton(
               onPressed: () {
+                final out = outPlayer ?? '';
+                final newB = newBatsman ?? '';
+                if (out.isEmpty || newB.isEmpty) return;
                 Navigator.pop(dCtx);
-                final out = hasRoster
-                    ? (outPlayer ?? outCtrl.text.trim())
-                    : outCtrl.text.trim();
-                final newB = hasRoster
-                    ? (newBatsman ?? newCtrl.text.trim())
-                    : newCtrl.text.trim();
                 svc.cricketWicket(match.id, dismissal, out, newB);
               },
               style: ElevatedButton.styleFrom(
@@ -1023,9 +1000,7 @@ class _CricketControls extends StatelessWidget {
     final isBowlingTeamA = inn.bowlingTeam == match.teamA;
     final bowlingRoster =
         isBowlingTeamA ? match.teamAPlayers : match.teamBPlayers;
-    final hasRoster = bowlingRoster.isNotEmpty;
 
-    final ctrl = TextEditingController();
     String? selectedBowler;
 
     showDialog(
@@ -1035,15 +1010,12 @@ class _CricketControls extends StatelessWidget {
           backgroundColor: AppColors.card,
           title: const Text('Over Complete \u2014 New Bowler',
               style: TextStyle(color: Colors.white)),
-          content: hasRoster
-              ? _dialogDropdown('Select Bowler', bowlingRoster, selectedBowler,
-                  (v) => setS(() => selectedBowler = v))
-              : _dialogField('Bowler Name', ctrl),
+          content: _pickerField('Select Bowler', bowlingRoster, selectedBowler,
+              (v) => setS(() => selectedBowler = v)),
           actions: [
             ElevatedButton(
               onPressed: () {
-                final name =
-                    hasRoster ? (selectedBowler ?? '') : ctrl.text.trim();
+                final name = selectedBowler ?? '';
                 if (name.isEmpty) return;
                 Navigator.pop(context);
                 svc.cricketNewBowler(match.id, name);
@@ -1064,11 +1036,7 @@ class _CricketControls extends StatelessWidget {
     final isBatTeamA = firstInnBatTeam != match.teamA; // 2nd innings batting team
     final battingRoster = isBatTeamA ? match.teamAPlayers : match.teamBPlayers;
     final bowlingRoster = isBatTeamA ? match.teamBPlayers : match.teamAPlayers;
-    final hasRoster = battingRoster.isNotEmpty;
 
-    final b1 = TextEditingController();
-    final b2 = TextEditingController();
-    final bowl = TextEditingController();
     String? bat1, bat2, bowler;
 
     showDialog(
@@ -1079,35 +1047,27 @@ class _CricketControls extends StatelessWidget {
           title: const Text('Start 2nd Innings',
               style: TextStyle(color: Colors.white)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            if (hasRoster) ...[
-              _dialogDropdown('Opener 1 (Striker)', battingRoster, bat1,
-                  (v) => setS(() {
-                        bat1 = v;
-                        if (bat2 == v) bat2 = null;
-                      })),
-              const SizedBox(height: 8),
-              _dialogDropdown(
-                  'Opener 2 (Non-striker)',
-                  battingRoster.where((p) => p != bat1).toList(),
-                  bat2,
-                  (v) => setS(() => bat2 = v)),
-              const SizedBox(height: 8),
-              _dialogDropdown('Opening Bowler', bowlingRoster, bowler,
-                  (v) => setS(() => bowler = v)),
-            ] else ...[
-              _dialogField('Opener 1 (Striker)', b1),
-              const SizedBox(height: 8),
-              _dialogField('Opener 2 (Non-striker)', b2),
-              const SizedBox(height: 8),
-              _dialogField('Opening Bowler', bowl),
-            ],
+            _pickerField('Opener 1 (Striker)', battingRoster, bat1,
+                (v) => setS(() {
+                      bat1 = v;
+                      if (bat2 == v) bat2 = null;
+                    })),
+            const SizedBox(height: 8),
+            _pickerField(
+                'Opener 2 (Non-striker)',
+                battingRoster.where((p) => p != bat1).toList(),
+                bat2,
+                (v) => setS(() => bat2 = v)),
+            const SizedBox(height: 8),
+            _pickerField('Opening Bowler', bowlingRoster, bowler,
+                (v) => setS(() => bowler = v)),
           ]),
           actions: [
             ElevatedButton(
               onPressed: () {
-                final s1 = hasRoster ? (bat1 ?? '') : b1.text.trim();
-                final s2 = hasRoster ? (bat2 ?? '') : b2.text.trim();
-                final bwl = hasRoster ? (bowler ?? '') : bowl.text.trim();
+                final s1 = bat1 ?? '';
+                final s2 = bat2 ?? '';
+                final bwl = bowler ?? '';
                 if (s1.isEmpty || s2.isEmpty || bwl.isEmpty) return;
                 Navigator.pop(context);
                 svc.cricketStartSecondInnings(match.id, s1, s2, bwl);
@@ -1128,15 +1088,12 @@ class _CricketControls extends StatelessWidget {
     final isBattingTeamA = inn.battingTeam == match.teamA;
     final battingRoster =
         isBattingTeamA ? match.teamAPlayers : match.teamBPlayers;
-    final hasRoster = battingRoster.isNotEmpty;
     final usedNames = inn.batsmen.map((b) => b.name).toSet();
-    final availablePlayers = hasRoster
-        ? battingRoster.where((p) => !usedNames.contains(p)).toList()
-        : <String>[];
+    final availablePlayers =
+        battingRoster.where((p) => !usedNames.contains(p)).toList();
 
     final injuredCtrl =
         TextEditingController(text: inn.striker?.name ?? '');
-    final replacementCtrl = TextEditingController();
     String? selectedReplacement;
 
     showDialog(
@@ -1149,11 +1106,8 @@ class _CricketControls extends StatelessWidget {
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             _dialogField('Injured Batsman Name', injuredCtrl),
             const SizedBox(height: 10),
-            if (hasRoster && availablePlayers.isNotEmpty)
-              _dialogDropdown('Replacement Batsman', availablePlayers,
-                  selectedReplacement, (v) => setS(() => selectedReplacement = v))
-            else
-              _dialogField('Replacement Batsman Name', replacementCtrl),
+            _pickerField('Replacement Batsman', availablePlayers,
+                selectedReplacement, (v) => setS(() => selectedReplacement = v)),
           ]),
           actions: [
             TextButton(
@@ -1163,9 +1117,7 @@ class _CricketControls extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 final inj = injuredCtrl.text.trim();
-                final rep = hasRoster
-                    ? (selectedReplacement ?? replacementCtrl.text.trim())
-                    : replacementCtrl.text.trim();
+                final rep = selectedReplacement ?? '';
                 Navigator.pop(context);
                 if (inj.isNotEmpty && rep.isNotEmpty) {
                   svc.cricketInjuredReplace(match.id, inj, rep);
@@ -1193,9 +1145,6 @@ class _CricketControls extends StatelessWidget {
     List<String> bowlingRoster0(String batTeam) =>
         batTeam == match.teamA ? match.teamBPlayers : match.teamAPlayers;
 
-    final b1Ctrl   = TextEditingController();
-    final b2Ctrl   = TextEditingController();
-    final bowlCtrl = TextEditingController();
     String? bat1, bat2, bowler;
 
     showDialog(
@@ -1205,14 +1154,12 @@ class _CricketControls extends StatelessWidget {
         builder: (dCtx, setS) {
           final battingRoster = battingRoster0(selectedBatTeam);
           final bowlingRoster = bowlingRoster0(selectedBatTeam);
-          final hasRoster     = battingRoster.isNotEmpty;
           return AlertDialog(
             backgroundColor: AppColors.card,
             title: const Text('Toss & Openers',
                 style: TextStyle(color: Colors.white)),
             content: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                // ── Toss: who bats first? ────────────────────────────────
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Who bats first?',
@@ -1246,38 +1193,29 @@ class _CricketControls extends StatelessWidget {
                 const SizedBox(height: 14),
                 const Divider(color: Colors.white12),
                 const SizedBox(height: 10),
-                // ── Openers & bowler ─────────────────────────────────────
-                if (hasRoster) ...[
-                  _dialogDropdown(
-                      'Striker (Opener 1) *', battingRoster, bat1,
-                      (v) => setS(() {
-                            bat1 = v;
-                            if (bat2 == v) bat2 = null;
-                          })),
-                  const SizedBox(height: 10),
-                  _dialogDropdown(
-                      'Non-Striker (Opener 2) *',
-                      battingRoster.where((p) => p != bat1).toList(),
-                      bat2,
-                      (v) => setS(() => bat2 = v)),
-                  const SizedBox(height: 10),
-                  _dialogDropdown('Opening Bowler *', bowlingRoster, bowler,
-                      (v) => setS(() => bowler = v)),
-                ] else ...[
-                  _dialogField('Striker (Opener 1) *', b1Ctrl),
-                  const SizedBox(height: 10),
-                  _dialogField('Non-Striker (Opener 2) *', b2Ctrl),
-                  const SizedBox(height: 10),
-                  _dialogField('Opening Bowler *', bowlCtrl),
-                ],
+                _pickerField(
+                    'Striker (Opener 1) *', battingRoster, bat1,
+                    (v) => setS(() {
+                          bat1 = v;
+                          if (bat2 == v) bat2 = null;
+                        })),
+                const SizedBox(height: 10),
+                _pickerField(
+                    'Non-Striker (Opener 2) *',
+                    battingRoster.where((p) => p != bat1).toList(),
+                    bat2,
+                    (v) => setS(() => bat2 = v)),
+                const SizedBox(height: 10),
+                _pickerField('Opening Bowler *', bowlingRoster, bowler,
+                    (v) => setS(() => bowler = v)),
               ]),
             ),
             actions: [
               ElevatedButton(
                 onPressed: () {
-                  final b1  = hasRoster ? (bat1  ?? '') : b1Ctrl.text.trim();
-                  final b2  = hasRoster ? (bat2  ?? '') : b2Ctrl.text.trim();
-                  final bwl = hasRoster ? (bowler ?? '') : bowlCtrl.text.trim();
+                  final b1  = bat1  ?? '';
+                  final b2  = bat2  ?? '';
+                  final bwl = bowler ?? '';
                   if (b1.isEmpty || b2.isEmpty || bwl.isEmpty) return;
                   Navigator.pop(context);
                   svc.cricketSetupOpeners(match.id, b1, b2, bwl,
@@ -1325,63 +1263,67 @@ class _CricketControls extends StatelessWidget {
     );
   }
 
-  /// Compact dropdown for use inside dialogs.
-  Widget _dialogDropdown(
+
+  /// Unified player picker — shows roster as a searchable list with
+  /// "Add [name]" option for new entries. Replaces _dialogDropdown + _dialogField.
+  Widget _pickerField(
     String label,
-    List<String> options,
+    List<String> roster,
     String? value,
     ValueChanged<String?> onChanged,
-  ) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 12)),
-          const SizedBox(height: 4),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        const SizedBox(height: 4),
+        Builder(builder: (bCtx) => GestureDetector(
+          onTap: () {
+            showModalBottomSheet(
+              context: bCtx,
+              isScrollControlled: true,
+              backgroundColor: AppColors.card,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              builder: (shCtx) => _PlayerPickerSheet(
+                label: label,
+                roster: roster,
+                onSelect: (name) {
+                  Navigator.pop(shCtx);
+                  onChanged(name);
+                },
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: value != null
-                    ? AppColors.primary
-                    : Colors.white24,
+                color: value != null ? AppColors.primary : Colors.white24,
               ),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: value,
-                hint: const Text('Select player',
-                    style: TextStyle(
-                        color: Colors.white54, fontSize: 14)),
-                dropdownColor: AppColors.card,
-                isExpanded: true,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 14),
-                icon: const Icon(Icons.expand_more,
-                    color: Colors.white54, size: 18),
-                items: options.isEmpty
-                    ? [
-                        const DropdownMenuItem(
-                            value: '',
-                            child: Text('No players available',
-                                style: TextStyle(
-                                    color: Colors.white54)))
-                      ]
-                    : options
-                        .map((p) =>
-                            DropdownMenuItem(value: p, child: Text(p)))
-                        .toList(),
-                onChanged: options.isEmpty ? null : onChanged,
+            child: Row(children: [
+              Expanded(
+                child: Text(
+                  value ?? 'Tap to select...',
+                  style: TextStyle(
+                    color: value != null ? Colors.white : Colors.white38,
+                    fontSize: 14,
+                  ),
+                ),
               ),
-            ),
+              const Icon(Icons.arrow_drop_down, color: Colors.white54),
+            ]),
           ),
-        ],
-      );
+        )),
+      ],
+    );
+  }
 
   /// Bottom sheet: choose runs for Wide / Bye / Leg Bye.
   void _showExtrasSheet(BuildContext context, String label, String extraType) {
@@ -3539,3 +3481,144 @@ Widget _dialogField(String label, TextEditingController ctrl) => Column(
         ),
       ],
     );
+
+// ── Player picker bottom sheet ────────────────────────────────────────────────
+
+class _PlayerPickerSheet extends StatefulWidget {
+  final String label;
+  final List<String> roster;
+  final ValueChanged<String> onSelect;
+
+  const _PlayerPickerSheet({
+    required this.label,
+    required this.roster,
+    required this.onSelect,
+  });
+
+  @override
+  State<_PlayerPickerSheet> createState() => _PlayerPickerSheetState();
+}
+
+class _PlayerPickerSheetState extends State<_PlayerPickerSheet> {
+  late final TextEditingController _ctrl;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController();
+    _ctrl.addListener(() => setState(() => _query = _ctrl.text.trim()));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.roster
+        .where((p) => p.toLowerCase().contains(_query.toLowerCase()))
+        .toList();
+    final showAdd = _query.isNotEmpty &&
+        !widget.roster
+            .any((p) => p.toLowerCase() == _query.toLowerCase());
+
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              widget.label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: _ctrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Search or type new name...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                prefixIcon: const Icon(Icons.search,
+                    color: Colors.white38, size: 20),
+                filled: true,
+                fillColor: AppColors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 260),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ...filtered.map((p) => ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.person_outline,
+                          color: Colors.white54, size: 18),
+                      title: Text(p,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14)),
+                      onTap: () => widget.onSelect(p),
+                    )),
+                if (showAdd)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.add_circle_outline,
+                        color: AppColors.primary, size: 18),
+                    title: Text(
+                      'Add "$_query"',
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14),
+                    ),
+                    onTap: () => widget.onSelect(_query),
+                  ),
+                if (filtered.isEmpty && !showAdd)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      widget.roster.isEmpty
+                          ? 'No registered players — type a name above'
+                          : 'No match — type to add a new player',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}

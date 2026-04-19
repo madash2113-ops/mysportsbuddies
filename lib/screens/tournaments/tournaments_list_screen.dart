@@ -159,20 +159,6 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              _HubCard(
-                                icon: Icons.calendar_month_outlined,
-                                title: 'My Fixtures',
-                                subtitle: 'Who you play & when',
-                                accent: const Color(0xFF2E7D32),
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        _MyScheduleScreen(userId: userId),
-                                  ),
-                                ),
-                              ),
                             ],
                           )
                         : Column(

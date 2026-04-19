@@ -1215,8 +1215,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           ],
         ],
 
-        // Standard score — points to win (shown for all sports)
-        if (_scoringType == ScoringType.standard) ...[
+        // Standard score — points to win (not applicable for innings-based sports)
+        if (_scoringType == ScoringType.standard && !_isInningsSport(_sport)) ...[
           const SizedBox(height: 12),
           const Text('Points to win', style: TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 8),
@@ -1425,6 +1425,9 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
       default:             return 21;
     }
   }
+
+  bool _isInningsSport(String sport) =>
+      const {'Cricket', 'Baseball', 'Softball'}.contains(sport);
 
   bool _sportAllowsDraws(String sport) {
     const noDrawSports = {
