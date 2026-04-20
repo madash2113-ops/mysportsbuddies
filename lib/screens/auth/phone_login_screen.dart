@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/auth_service.dart';
+import '../../services/location_country_service.dart';
 import 'auth_router.dart';
 
 class PhoneLoginScreen extends StatefulWidget {
@@ -15,9 +16,39 @@ class PhoneLoginScreen extends StatefulWidget {
 
 class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   final _phoneCtrl = TextEditingController();
-  Country _country = CountryParser.parseCountryCode('IN');
+  late Country _country;
   bool _loading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    // Use device locale instantly — no spinner, no network needed.
+    _country = LocationCountryService.detectFromLocale()
+        ?? CountryParser.parseCountryCode('IN');
+    // Silently refine via IP in the background.
+    _refineCountryInBackground();
+  }
+
+  void _refineCountryInBackground() {
+    LocationCountryService()
+        .getCachedOrDetectCountryCode()
+        .timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => '+${_country.phoneCode}',
+        )
+        .then((phoneCode) {
+          if (!mounted) return;
+          final refined = LocationCountryService.getCountryFromCode(phoneCode);
+          if (refined.countryCode != _country.countryCode) {
+            setState(() => _country = refined);
+            debugPrint('🌍 Country refined to: ${refined.name} (${refined.phoneCode})');
+          }
+        })
+        .catchError((dynamic e) {
+          debugPrint('🌍 Background refinement failed: $e');
+        });
+  }
 
   @override
   void dispose() {
