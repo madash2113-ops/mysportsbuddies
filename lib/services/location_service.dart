@@ -5,7 +5,7 @@ import 'package:geolocator/geolocator.dart';
 ///
 /// Caches the last known position so distance calculations
 /// don't need to re-request GPS on every list rebuild.
-class LocationService {
+class LocationService extends ChangeNotifier {
   LocationService._();
   static final LocationService _instance = LocationService._();
   factory LocationService() => _instance;
@@ -20,7 +20,10 @@ class LocationService {
   Future<Position?> getLastKnownPosition() async {
     try {
       final pos = await Geolocator.getLastKnownPosition();
-      if (pos != null) _lastPosition = pos;
+      if (pos != null) {
+        _lastPosition = pos;
+        notifyListeners();
+      }
       return pos;
     } catch (e) {
       debugPrint('LocationService.getLastKnownPosition error: $e');
@@ -56,6 +59,7 @@ class LocationService {
           timeLimit: Duration(seconds: 10),
         ),
       );
+      notifyListeners();
       return _lastPosition;
     } catch (e) {
       debugPrint('LocationService.getCurrentPosition error: $e');
