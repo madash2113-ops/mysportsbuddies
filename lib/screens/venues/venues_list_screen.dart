@@ -65,10 +65,10 @@ class _VenuesListScreenState extends State<VenuesListScreen> {
       list = [...list]..sort((a, b) {
           final da = (a.lat == 0 && a.lng == 0)
               ? double.infinity
-              : a.distanceTo(pos.latitude, pos.longitude);
+              : LocationService().distanceInKm(a.lat, a.lng, pos.latitude, pos.longitude);
           final db = (b.lat == 0 && b.lng == 0)
               ? double.infinity
-              : b.distanceTo(pos.latitude, pos.longitude);
+              : LocationService().distanceInKm(b.lat, b.lng, pos.latitude, pos.longitude);
           return da.compareTo(db);
         });
     }
@@ -174,7 +174,7 @@ class _VenuesListScreenState extends State<VenuesListScreen> {
           // ── Venue list ─────────────────────────────────────────────────
           Expanded(
             child: ListenableBuilder(
-              listenable: Listenable.merge([VenueService(), LocationService()]),
+              listenable: VenueService(),
               builder: (context, _) {
                 final venues = _filtered;
                 if (venues.isEmpty) {
@@ -311,7 +311,8 @@ class _VenueCard extends StatelessWidget {
                           ),
                           child: Text(
                             LocationService().formatDistance(
-                                venue.distanceTo(
+                                LocationService().distanceInKm(
+                                    venue.lat, venue.lng,
                                     userPos!.latitude, userPos!.longitude)),
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 11),

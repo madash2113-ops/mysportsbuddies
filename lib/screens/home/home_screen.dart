@@ -2190,10 +2190,10 @@ class _VenuesGrid extends StatelessWidget {
           venues.sort((a, b) {
             final da = (a.lat == 0 && a.lng == 0)
                 ? double.infinity
-                : a.distanceTo(pos.latitude, pos.longitude);
+                : locSvc.distanceInKm(a.lat, a.lng, pos.latitude, pos.longitude);
             final db = (b.lat == 0 && b.lng == 0)
                 ? double.infinity
-                : b.distanceTo(pos.latitude, pos.longitude);
+                : locSvc.distanceInKm(b.lat, b.lng, pos.latitude, pos.longitude);
             return da.compareTo(db);
           });
         }
@@ -2277,7 +2277,7 @@ class _VenuesGrid extends StatelessWidget {
                                 const SizedBox(width: 6),
                                 Text(
                                   locSvc.formatDistance(
-                                      v.distanceTo(pos.latitude, pos.longitude)),
+                                      locSvc.distanceInKm(v.lat, v.lng, pos.latitude, pos.longitude)),
                                   style: TextStyle(
                                       color: AppC.muted(context),
                                       fontSize: 12),

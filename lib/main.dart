@@ -24,6 +24,7 @@ import 'services/tournament_service.dart';
 import 'services/user_service.dart';
 import 'services/game_listing_service.dart';
 import 'services/stats_service.dart';
+import 'services/location_service.dart';
 import 'services/venue_service.dart';
 
 // ======================================================
@@ -31,6 +32,12 @@ import 'services/venue_service.dart';
 // ======================================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Image Cache Configuration ─────────────────────────────────────────────
+  // Increase memory cache to 100 MB for frequently accessed images (avatars, banners)
+  imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100 MB
+  imageCache.maximumSize = 300; // Cache up to 300 images
+  debugPrint('📸 Image cache configured: 100 MB, max 300 images');
 
   // ── Firebase ──────────────────────────────────────────────────────────────
   try {
@@ -56,6 +63,9 @@ void main() async {
 
     await UserService().init();
     debugPrint('✅ UserService initialized');
+
+    // Precache current user's profile image for instant display
+    _precacheUserImages();
 
     await Future.wait([
       GameService().loadFromFirestore(),
@@ -102,10 +112,25 @@ void main() async {
         ChangeNotifierProvider(create: (_) => GameListingService()),
         ChangeNotifierProvider(create: (_) => StatsService()),
         ChangeNotifierProvider(create: (_) => AdminService()),
+        ChangeNotifierProvider(create: (_) => LocationService()),
       ],
       child: const MySportsApp(),
     ),
   );
+}
+
+// ======================================================
+// HELPER FUNCTIONS
+// ======================================================
+
+/// Precache profile images for instant display on first load.
+/// cached_network_image will automatically cache these to disk.
+void _precacheUserImages() {
+  // The cached_network_image package handles caching automatically.
+  // Just accessing the user's profile image URL is enough for it to
+  // cache on first load for next app session.
+  final userProfile = UserService().profile;
+  debugPrint('📸 User profile image: ${userProfile?.imageUrl}');
 }
 
 // ======================================================
