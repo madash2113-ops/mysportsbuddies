@@ -41,7 +41,6 @@
       "Bash(pkill -9 -f \"adb\")",
       "Bash(/Users/avinashkumarmaddini/Library/Android/sdk/platform-tools/adb devices:*)",
       "Bash(flutter devices:*)",
-      "Bash(xcrun simctl:*)",
       "Bash(python3 -c \" import sys, json data = json.load\\(sys.stdin\\) print\\('Exception:', data.get\\('exception', {}\\).get\\('type',''\\)\\) print\\('Signal:', data.get\\('exception', {}\\).get\\('signal',''\\)\\) print\\('Reason:', data.get\\('exception', {}\\).get\\('codes',''\\)\\) threads = data.get\\('threads', []\\) for t in threads: if t.get\\('triggered', False\\): print\\('--- Crashed Thread ---'\\) for f in t.get\\('frames', []\\)[:20]: print\\(' ', f.get\\('imageOffset',''\\), f.get\\('symbol',''\\), f.get\\('symbolLocation',''\\)\\) \")",
       "Bash(firebase --version)",
       "Bash(firebase help:*)",
@@ -134,7 +133,9 @@
       "Bash(grep -n \"^\\\\s*'R\\\\${\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/tournament_service.dart)",
       "Bash(sed -i '' \"1s/^import 'package:flutter\\\\/foundation.dart';\\\\n//\" lib/core/search/player_search_service.dart)",
       "Bash(plutil -lint \"/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Info.plist\")",
-      "Bash(flutter clean *)"
+      "Bash(flutter clean *)",
+      "Bash(rm -rf ~/Library/Developer/Xcode/DerivedData)",
+      "Bash(sips -g pixelWidth -g pixelHeight -g format \"/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png\")"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",
@@ -144,6 +145,29 @@
       "/Users/avinashkumarmaddini/Library/Caches/Google",
       "/Users/avinashkumarmaddini/Desktop",
       "/Users/avinashkumarmaddini"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rm -rf ~/Library/Developer/Xcode/DerivedData && cd /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies && flutter clean",
+            "if": "Bash(flutter build *)",
+            "timeout": 120,
+            "statusMessage": "Clearing DerivedData + flutter clean before build..."
+          },
+          {
+            "type": "command",
+            "command": "rm -rf ~/Library/Developer/Xcode/DerivedData && cd /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies && flutter clean",
+            "if": "Bash(flutter run *)",
+            "timeout": 120,
+            "statusMessage": "Clearing DerivedData + flutter clean before run..."
+          }
+        ]
+      }
     ]
   }
 }

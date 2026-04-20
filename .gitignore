@@ -39,3 +39,7 @@ macos/Flutter/ephemeral/
 pubspec.lock
 
 flutter/
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
