@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/models/venue_model.dart';
 import '../../design/colors.dart';
+import '../../services/location_service.dart';
 import '../../services/venue_service.dart';
 import 'venue_detail_screen.dart';
 
@@ -22,11 +24,19 @@ class _VenuesListScreenState extends State<VenuesListScreen> {
   final _searchCtrl = TextEditingController();
   String _selectedSport = 'All';
   String _query = '';
+  Position? _userPos;
 
   @override
   void initState() {
     super.initState();
     VenueService().listenToVenues();
+    // Fast first render from cached position, then refine with accurate fix.
+    LocationService().getLastKnownPosition().then((pos) {
+      if (pos != null && mounted) setState(() => _userPos = pos);
+    });
+    LocationService().getCurrentPosition().then((pos) {
+      if (pos != null && mounted) setState(() => _userPos = pos);
+    });
     _searchCtrl.addListener(() {
       setState(() => _query = _searchCtrl.text.toLowerCase());
     });
@@ -49,6 +59,18 @@ class _VenuesListScreenState extends State<VenuesListScreen> {
               v.name.toLowerCase().contains(_query) ||
               v.address.toLowerCase().contains(_query))
           .toList();
+    }
+    final pos = _userPos;
+    if (pos != null) {
+      list = [...list]..sort((a, b) {
+          final da = (a.lat == 0 && a.lng == 0)
+              ? double.infinity
+              : a.distanceTo(pos.latitude, pos.longitude);
+          final db = (b.lat == 0 && b.lng == 0)
+              ? double.infinity
+              : b.distanceTo(pos.latitude, pos.longitude);
+          return da.compareTo(db);
+        });
     }
     return list;
   }
@@ -187,7 +209,7 @@ class _VenuesListScreenState extends State<VenuesListScreen> {
                   itemCount: venues.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 14),
                   itemBuilder: (context, i) =>
-                      _VenueCard(venue: venues[i]),
+                      _VenueCard(venue: venues[i], userPos: _userPos),
                 );
               },
             ),
@@ -200,7 +222,8 @@ class _VenuesListScreenState extends State<VenuesListScreen> {
 
 class _VenueCard extends StatelessWidget {
   final VenueModel venue;
-  const _VenueCard({required this.venue});
+  final Position?  userPos;
+  const _VenueCard({required this.venue, this.userPos});
 
   @override
   Widget build(BuildContext context) {
@@ -276,6 +299,25 @@ class _VenueCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
+                      if (userPos != null &&
+                          !(venue.lat == 0 && venue.lng == 0)) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            LocationService().formatDistance(
+                                venue.distanceTo(
+                                    userPos!.latitude, userPos!.longitude)),
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 11),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 10),
