@@ -174,7 +174,7 @@ class _VenuesListScreenState extends State<VenuesListScreen> {
           // ── Venue list ─────────────────────────────────────────────────
           Expanded(
             child: ListenableBuilder(
-              listenable: VenueService(),
+              listenable: Listenable.merge([VenueService(), LocationService()]),
               builder: (context, _) {
                 final venues = _filtered;
                 if (venues.isEmpty) {
