@@ -19,8 +19,8 @@ class CachedImage extends StatelessWidget {
     this.height,
     this.borderRadius,
     this.backgroundColor = const Color(0xFF111111),
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -71,8 +71,8 @@ class CachedAvatar extends StatelessWidget {
     required this.displayName,
     this.radius = 16,
     this.backgroundColor = const Color(0xFF2A2A2A),
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

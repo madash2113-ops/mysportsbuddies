@@ -119,7 +119,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       text = "Check out ${t.name} on MySportsBuddies!\n"
           "msb://tournament/${t.id}";
     }
-    Share.share(text);
+    SharePlus.instance.share(ShareParams(text: text));
   }
 
   @override

@@ -1340,11 +1340,12 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
 
   Future<void> _load() async {
     final cols = await FeedService().loadCollections();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _collections = cols;
         _loading = false;
       });
+    }
   }
 
   Future<void> _saveToCollection(
