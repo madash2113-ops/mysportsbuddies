@@ -16,48 +16,6 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
-	<key>CFBundleIcons</key>
-	<dict>
-		<key>CFBundlePrimaryIcon</key>
-		<dict>
-			<key>CFBundleIconFiles</key>
-			<array>
-				<string>Icon-App-20x20@2x</string>
-				<string>Icon-App-29x29@2x</string>
-				<string>Icon-App-40x40@2x</string>
-				<string>Icon-App-60x60@2x</string>
-				<string>Icon-App-60x60@3x</string>
-			</array>
-			<key>CFBundleIconName</key>
-			<string>AppIcon</string>
-			<key>UIPrerenderedIcon</key>
-			<false/>
-		</dict>
-	</dict>
-	<key>CFBundleIcons~ipad</key>
-	<dict>
-		<key>CFBundlePrimaryIcon</key>
-		<dict>
-			<key>CFBundleIconFiles</key>
-			<array>
-				<string>Icon-App-20x20@1x</string>
-				<string>Icon-App-20x20@2x</string>
-				<string>Icon-App-29x29@1x</string>
-				<string>Icon-App-29x29@2x</string>
-				<string>Icon-App-40x40@1x</string>
-				<string>Icon-App-40x40@2x</string>
-				<string>Icon-App-60x60@2x</string>
-				<string>Icon-App-60x60@3x</string>
-				<string>Icon-App-76x76@1x</string>
-				<string>Icon-App-76x76@2x</string>
-				<string>Icon-App-83.5x83.5@2x</string>
-			</array>
-			<key>CFBundleIconName</key>
-			<string>AppIcon</string>
-			<key>UIPrerenderedIcon</key>
-			<false/>
-		</dict>
-	</dict>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
