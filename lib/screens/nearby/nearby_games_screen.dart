@@ -56,11 +56,12 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
 
     // Accurate: full GPS fix
     final precise = await LocationService().getCurrentPosition();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _userPos = precise ?? quick;
         _locating = false;
       });
+    }
   }
 
   // ── Classify games into tabs ──────────────────────────────────────────────
@@ -119,8 +120,9 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
   }
 
   double? _distanceTo(Game g) {
-    if (_userPos == null || g.latitude == null || g.longitude == null)
+    if (_userPos == null || g.latitude == null || g.longitude == null) {
       return null;
+    }
     return LocationService().distanceInKm(
       _userPos!.latitude,
       _userPos!.longitude,
@@ -180,11 +182,12 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
   Future<void> _onGpsTap() async {
     setState(() => _locating = true);
     final pos = await LocationService().getCurrentPosition();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _userPos = pos;
         _locating = false;
       });
+    }
   }
 
   void _showRadiusSheet() {
@@ -1186,46 +1189,66 @@ class _SportBanner extends StatelessWidget {
 
   static (List<Color>, String) _theme(String sport) {
     final s = sport.toLowerCase();
-    if (s.contains('cricket'))
+    if (s.contains('cricket')) {
       return ([const Color(0xFF1B5E20), const Color(0xFF388E3C)], '🏏');
-    if (s.contains('football') || s.contains('soccer'))
+    }
+    if (s.contains('football') || s.contains('soccer')) {
       return ([const Color(0xFF0D47A1), const Color(0xFF1976D2)], '⚽');
-    if (s.contains('basketball'))
+    }
+    if (s.contains('basketball')) {
       return ([const Color(0xFFE65100), const Color(0xFFF57C00)], '🏀');
-    if (s.contains('badminton'))
+    }
+    if (s.contains('badminton')) {
       return ([const Color(0xFF4A148C), const Color(0xFF7B1FA2)], '🏸');
-    if (s.contains('table tennis'))
+    }
+    if (s.contains('table tennis')) {
       return ([const Color(0xFF01579B), const Color(0xFF0288D1)], '🏓');
-    if (s.contains('tennis') || s.contains('squash'))
+    }
+    if (s.contains('tennis') || s.contains('squash')) {
       return ([const Color(0xFF33691E), const Color(0xFF689F38)], '🎾');
-    if (s.contains('volleyball'))
+    }
+    if (s.contains('volleyball')) {
       return ([const Color(0xFF1A237E), const Color(0xFF3949AB)], '🏐');
-    if (s.contains('hockey'))
+    }
+    if (s.contains('hockey')) {
       return ([const Color(0xFF37474F), const Color(0xFF546E7A)], '🏑');
-    if (s.contains('rugby'))
+    }
+    if (s.contains('rugby')) {
       return ([const Color(0xFF3E2723), const Color(0xFF6D4C41)], '🏉');
-    if (s.contains('swimming'))
+    }
+    if (s.contains('swimming')) {
       return ([const Color(0xFF006064), const Color(0xFF00838F)], '🏊');
-    if (s.contains('boxing') || s.contains('mma'))
+    }
+    if (s.contains('boxing') || s.contains('mma')) {
       return ([const Color(0xFFB71C1C), const Color(0xFFD32F2F)], '🥊');
-    if (s.contains('cycling'))
+    }
+    if (s.contains('cycling')) {
       return ([const Color(0xFF1565C0), const Color(0xFF42A5F5)], '🚴');
-    if (s.contains('kabaddi'))
+    }
+    if (s.contains('kabaddi')) {
       return ([const Color(0xFFBF360C), const Color(0xFFE64A19)], '🤼');
-    if (s.contains('throwball'))
+    }
+    if (s.contains('throwball')) {
       return ([const Color(0xFF6A1B9A), const Color(0xFF8E24AA)], '🎯');
-    if (s.contains('handball'))
+    }
+    if (s.contains('handball')) {
       return ([const Color(0xFF00695C), const Color(0xFF00897B)], '🤾');
-    if (s.contains('golf'))
+    }
+    if (s.contains('golf')) {
       return ([const Color(0xFF2E7D32), const Color(0xFF66BB6A)], '⛳');
-    if (s.contains('wrestling'))
+    }
+    if (s.contains('wrestling')) {
       return ([const Color(0xFF4A148C), const Color(0xFF7B1FA2)], '🤼');
-    if (s.contains('athletics') || s.contains('running'))
+    }
+    if (s.contains('athletics') || s.contains('running')) {
       return ([const Color(0xFFE65100), const Color(0xFFFFA000)], '🏃');
-    if (s.contains('archery'))
+    }
+    if (s.contains('archery')) {
       return ([const Color(0xFF1B5E20), const Color(0xFF558B2F)], '🏹');
-    if (s.contains('esport') || s.contains('gaming'))
+    }
+    if (s.contains('esport') || s.contains('gaming')) {
       return ([const Color(0xFF1A237E), const Color(0xFF283593)], '🎮');
+    }
     return ([const Color(0xFF212121), const Color(0xFF424242)], '🏆');
   }
 

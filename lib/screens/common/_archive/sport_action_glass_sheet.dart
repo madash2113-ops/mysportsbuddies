@@ -44,9 +44,12 @@ class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
     if (s.contains('squash')) return '🎾';
     if (s.contains('handball')) return '🤾';
     if (s.contains('kabaddi') || s.contains('kho')) return '🤸';
-    if (s.contains('esport') || s.contains('cs:go') ||
-        s.contains('valorant') || s.contains('league') ||
-        s.contains('dota') || s.contains('fifa')) {
+    if (s.contains('esport') ||
+        s.contains('cs:go') ||
+        s.contains('valorant') ||
+        s.contains('league') ||
+        s.contains('dota') ||
+        s.contains('fifa')) {
       return '🎮';
     }
     return '🏆';
@@ -54,9 +57,9 @@ class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark   = Theme.of(context).brightness == Brightness.dark;
-    final primary  = isDark ? AppColors.primary : AppColorsLight.primary;
-    final cardBg   = isDark ? const Color(0xFF0E0E0E) : Colors.white;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = isDark ? AppColors.primary : AppColorsLight.primary;
+    final cardBg = isDark ? const Color(0xFF0E0E0E) : Colors.white;
     final titleCol = isDark ? Colors.white : const Color(0xFF1A1A1A);
     final toggleBg = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF0F0F0);
 
@@ -70,9 +73,7 @@ class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
               onTap: () => Navigator.of(context).pop(),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.55),
-                ),
+                child: Container(color: Colors.black.withValues(alpha: 0.55)),
               ),
             ),
           ),
@@ -106,41 +107,51 @@ class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // ── Header ──────────────────────────────────────
-                          Row(children: [
-                            Container(
-                              width: 44, height: 44,
-                              decoration: BoxDecoration(
-                                color: primary.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: Text(_emoji(widget.sport),
-                                    style: const TextStyle(fontSize: 22)),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                widget.sport,
-                                style: TextStyle(
-                                  color: titleCol,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => Navigator.of(context).pop(),
-                              child: Container(
-                                width: 30, height: 30,
+                          Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
                                 decoration: BoxDecoration(
-                                  color: primary.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: Icon(Icons.close, color: primary, size: 16),
+                                child: Center(
+                                  child: Text(
+                                    _emoji(widget.sport),
+                                    style: const TextStyle(fontSize: 22),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ]),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  widget.sport,
+                                  style: TextStyle(
+                                    color: titleCol,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => Navigator.of(context).pop(),
+                                child: Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: primary.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.close,
+                                    color: primary,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
 
                           const SizedBox(height: 16),
 
@@ -159,7 +170,8 @@ class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
                                   active: _showSports,
                                   primary: primary,
                                   isDark: isDark,
-                                  onTap: () => setState(() => _showSports = true),
+                                  onTap: () =>
+                                      setState(() => _showSports = true),
                                 ),
                                 _Tab(
                                   label: 'Scoreboard',
@@ -167,7 +179,8 @@ class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
                                   active: !_showSports,
                                   primary: primary,
                                   isDark: isDark,
-                                  onTap: () => setState(() => _showSports = false),
+                                  onTap: () =>
+                                      setState(() => _showSports = false),
                                 ),
                               ],
                             ),
@@ -221,11 +234,9 @@ class _SportActionGlassScreenState extends State<SportActionGlassScreen> {
           title: 'Host a Game',
           primary: primary,
           isDark: isDark,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => HostAGameScreen(sport: widget.sport),
-            ),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const HostAGameScreen())),
         ),
         _ActionRow(
           icon: Icons.calendar_today_outlined,
@@ -305,29 +316,36 @@ class _Tab extends StatelessWidget {
             color: active ? primary : Colors.transparent,
             borderRadius: BorderRadius.circular(9),
             boxShadow: active
-                ? [BoxShadow(
-                    color: primary.withValues(alpha: 0.35),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2))]
+                ? [
+                    BoxShadow(
+                      color: primary.withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
                 : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon,
-                  size: 16,
+              Icon(
+                icon,
+                size: 16,
+                color: active
+                    ? Colors.white
+                    : (isDark ? Colors.white38 : Colors.black38),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
                   color: active
                       ? Colors.white
-                      : (isDark ? Colors.white38 : Colors.black38)),
-              const SizedBox(width: 6),
-              Text(label,
-                  style: TextStyle(
-                    color: active
-                        ? Colors.white
-                        : (isDark ? Colors.white54 : Colors.black45),
-                    fontSize: 13,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  )),
+                      : (isDark ? Colors.white54 : Colors.black45),
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
@@ -366,25 +384,27 @@ class _ActionRow extends StatelessWidget {
           color: bg,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(children: [
-          Icon(icon, color: primary, size: 20),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: primary,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+        child: Row(
+          children: [
+            Icon(icon, color: primary, size: 20),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: primary.withValues(alpha: 0.5),
-            size: 20,
-          ),
-        ]),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: primary.withValues(alpha: 0.5),
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }

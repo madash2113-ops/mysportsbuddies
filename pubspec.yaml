@@ -45,13 +45,13 @@ dependencies:
 
   # Google Fonts — Work Sans brand typeface
   google_fonts: ^8.0.0
-  win32: 6.0.1
+  win32: ^5.15.0
 
   # Image caching for faster load times
   cached_network_image: ^3.4.0
 
   # Tournament sharing & deep links
-  share_plus: ^13.0.0
+  share_plus: ^12.0.2
   app_links: ^6.0.0
   firebase_analytics: ^12.3.0
   firebase_crashlytics: ^5.2.0

@@ -85,7 +85,9 @@ void main() async {
     VenueService().listenToVenues();
     GameListingService().listenToOpenGames();
     AdminService().listen(); // real-time admin roster
-  } catch (e) { /* ignored */ }
+  } catch (e) {
+    /* ignored */
+  }
 
   runApp(
     MultiProvider(
@@ -162,7 +164,10 @@ class _MySportsAppState extends State<MySportsApp> {
   void _handleLink(Uri uri) {
     // msb://tournament/{id}?code={joinCode}
     if (uri.scheme != 'msb' || uri.host != 'tournament') return;
-    AnalyticsService().logEvent(AnalyticsEvents.appOpenedViaLink, parameters: {'uri': uri.toString(), 'source': 'deep_link'});
+    AnalyticsService().logEvent(
+      AnalyticsEvents.appOpenedViaLink,
+      parameters: {'uri': uri.toString(), 'source': 'deep_link'},
+    );
     final segments = uri.pathSegments;
     if (segments.isEmpty) return;
     final tournamentId = segments.first;
@@ -171,12 +176,12 @@ class _MySportsAppState extends State<MySportsApp> {
     final nav = _navigatorKey.currentState;
     if (nav == null) return;
 
-    nav.push(MaterialPageRoute(
-      builder: (_) => TournamentDetailScreen(
-        tournamentId: tournamentId,
-        joinCode: code,
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) =>
+            TournamentDetailScreen(tournamentId: tournamentId, joinCode: code),
       ),
-    ));
+    );
   }
 
   @override

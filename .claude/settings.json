@@ -132,7 +132,9 @@
       "Bash(sed -n '1250,1258p' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/tournament_service.dart)",
       "Bash(sed -n '1363,1372p' /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/tournament_service.dart)",
       "Bash(grep -n \"^\\\\s*'R\\\\${\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/lib/services/tournament_service.dart)",
-      "Bash(sed -i '' \"1s/^import 'package:flutter\\\\/foundation.dart';\\\\n//\" lib/core/search/player_search_service.dart)"
+      "Bash(sed -i '' \"1s/^import 'package:flutter\\\\/foundation.dart';\\\\n//\" lib/core/search/player_search_service.dart)",
+      "Bash(plutil -lint \"/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Info.plist\")",
+      "Bash(flutter clean *)"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",

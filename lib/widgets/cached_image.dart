@@ -54,11 +54,7 @@ class CachedImage extends StatelessWidget {
   Widget _brokenImage() => Container(
     color: backgroundColor,
     child: const Center(
-      child: Icon(
-        Icons.broken_image_outlined,
-        color: Colors.white24,
-        size: 40,
-      ),
+      child: Icon(Icons.broken_image_outlined, color: Colors.white24, size: 40),
     ),
   );
 }
