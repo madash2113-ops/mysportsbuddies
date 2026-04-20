@@ -9,6 +9,7 @@ import '../../design/spacing.dart';
 import '../../core/models/player_entry.dart';
 import '../../services/game_service.dart';
 import '../../services/user_service.dart';
+import '../../services/location_country_service.dart';
 import '../../widgets/address_autocomplete_field.dart';
 import '../../widgets/player_search_field.dart';
 
@@ -61,6 +62,7 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
   @override
   void initState() {
     super.initState();
+    _detectCountryCode();
     // Pre-fill controllers when editing an existing game
     final g = widget.existingGame;
     if (g != null) {
@@ -82,6 +84,15 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
         setState(() => _venueError = false);
       }
     });
+  }
+
+  /// Detect user's country code based on location.
+  Future<void> _detectCountryCode() async {
+    final phoneCode = await LocationCountryService().detectCountryCode();
+    if (mounted) {
+      setState(() => _countryCode = phoneCode);
+      debugPrint('🌍 Detected country code for game registration: $_countryCode');
+    }
   }
 
   /// Splits a full phone string like "+919876543210" into (countryCode, digits).

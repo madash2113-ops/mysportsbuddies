@@ -41,10 +41,12 @@ flutter build ios --no-codesign
 - `lib/screens/` — UI only. Organized by feature (auth, community, tournaments, scoreboard, etc.)
 - `lib/core/models/` — Data models (user_profile, tournament, feed_post, match_score, etc.)
 - `lib/core/routes/app_routes.dart` — All named routes
-- `lib/core/config/app_config.dart` — `kDevMode = true` bypasses ALL premium restrictions; `kOwnerUserIds` for production premium
+- `lib/core/config/app_config.dart` — `kDevMode = true` bypasses ALL premium restrictions; `kOwnerUserIds`/`kOwnerNumericIds` for production premium; `kGeminiApiKey` enables AI banner generation (Gemini 2.0 Flash)
+- `lib/core/engines/rally/` — Standalone `RallyEngine` for rally-based sports (badminton, volleyball, etc.); configured via `RallyRuleConfig`/`RallyPresets`, used by `ScoreboardService`
+- `lib/design/` — Design system: `AppColors` (dark "Void" palette, "Flame" red accent), `AppTheme`, `AppTypography`, `AppSpacing`, `AppTextStyles` — always use these instead of raw values
 
 ### State management
-- 14 services registered in `MultiProvider` at `main.dart`
+- 15 services registered in `MultiProvider` at `main.dart`
 - Use `Consumer<XService>` in most screens
 - Use `ListenableBuilder(listenable: XService(), ...)` when a screen can be pushed from a modal bottom sheet or drawer (Provider tree may not be available there)
 
@@ -68,6 +70,12 @@ tournaments/ → teams/matches/venues/admins/groups/squads/
 venues/                             venue listings
 game_listings/                      open games marketplace
 ```
+
+### Analytics
+Use `AnalyticsService` (wraps Firebase Analytics + Crashlytics). Always use `AnalyticsEvents` string constants — never raw strings — when logging events.
+
+### Stats storage
+`StatsService` stores per-player sport stats **inside user documents** (`users/{userId}.sportStats.{Sport}`), not in a separate collection. ICC-standard batting/bowling stats are tracked.
 
 ### Notification triggers
 Call `NotificationService.send(toUserId, NotifType.X, ...)` from:

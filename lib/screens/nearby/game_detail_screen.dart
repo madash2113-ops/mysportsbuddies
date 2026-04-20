@@ -15,6 +15,7 @@ import '../../services/game_service.dart';
 import '../../services/user_service.dart';
 import '../../services/message_service.dart';
 import '../../widgets/map_picker_sheet.dart';
+import '../../widgets/cached_image.dart';
 import '../community/chat_screen.dart';
 import '../community/community_feed_screen.dart';
 import '../community/user_profile_screen.dart';
@@ -764,21 +765,10 @@ class GameDetailScreen extends StatelessWidget {
                         },
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
+                          child: CachedImage(
                             game.photoUrls[i],
                             fit: BoxFit.cover,
-                            loadingBuilder: (_, child, progress) =>
-                                progress == null
-                                    ? child
-                                    : Container(
-                                        color: const Color(0xFF1C1C1C),
-                                        child: const Center(
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                      ),
+                            backgroundColor: const Color(0xFF1C1C1C),
                           ),
                         ),
                       ),
@@ -816,18 +806,10 @@ class _PhotoBannerState extends State<_PhotoBanner> {
           onPageChanged: (i) => setState(() => _current = i),
           itemBuilder: (_, i) => GestureDetector(
             onTap: () => widget.onTap(i),
-            child: Image.network(
+            child: CachedImage(
               widget.photoUrls[i],
               fit: BoxFit.cover,
-              loadingBuilder: (_, child, progress) => progress == null
-                  ? child
-                  : Container(
-                      color: const Color(0xFF1C1C1C),
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.primary),
-                      ),
-                    ),
+              backgroundColor: const Color(0xFF1C1C1C),
             ),
           ),
         ),

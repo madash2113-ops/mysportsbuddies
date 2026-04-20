@@ -8,6 +8,7 @@ import '../../services/feed_service.dart';
 import '../../services/message_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
+import '../../widgets/cached_image.dart';
 
 /// Full-screen Instagram-style story viewer.
 ///
@@ -287,23 +288,10 @@ class _UserStoriesPageState extends State<_UserStoriesPage>
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Row(
                     children: [
-                      CircleAvatar(
+                      CachedAvatar(
+                        imageUrl: story.userImageUrl,
+                        displayName: story.userName,
                         radius: 18,
-                        backgroundColor: const Color(0xFF2A2A2A),
-                        backgroundImage: story.userImageUrl != null
-                            ? NetworkImage(story.userImageUrl!)
-                            : null,
-                        child: story.userImageUrl == null
-                            ? Text(
-                                story.userName.isNotEmpty
-                                    ? story.userName[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13),
-                              )
-                            : null,
                       ),
                       const SizedBox(width: 8),
                       Column(
@@ -490,14 +478,11 @@ class _StoryBackground extends StatelessWidget {
         return Image.file(File(url), fit: BoxFit.cover,
             errorBuilder: (context, err, st) => _Gradient(userName: story.userName));
       }
-      return Image.network(
+      // Use CachedImage for network images
+      return CachedImage(
         url,
         fit: BoxFit.cover,
-        loadingBuilder: (_, child, p) {
-          if (p == null) return child;
-          return _Gradient(userName: story.userName);
-        },
-        errorBuilder: (context, err, st) => _Gradient(userName: story.userName),
+        backgroundColor: const Color(0xFF111111),
       );
     }
     return _Gradient(userName: story.userName);

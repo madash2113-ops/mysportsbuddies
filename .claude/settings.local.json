@@ -7,7 +7,16 @@
       "Bash(where java *)",
       "Read(//c/Program Files/Android/Android Studio/jbr/bin/**)",
       "Read(//c/Program Files/**)",
-      "Bash(export JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\")"
+      "Bash(export JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\")",
+      "mcp__claude_ai_Notion__notion-get-users",
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "Bash(gh issue:*)",
+      "Bash(git:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "figma"
+  ]
 }

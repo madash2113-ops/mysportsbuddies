@@ -12,6 +12,7 @@ import '../../services/feed_service.dart';
 import '../../services/message_service.dart';
 import '../../controllers/profile_controller.dart';
 import '../../services/user_service.dart';
+import '../../widgets/cached_image.dart';
 import 'comments_screen.dart';
 import 'create_post_sheet.dart';
 import 'create_story_sheet.dart';
@@ -621,23 +622,10 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                                     ? (UserService().profile?.imageUrl ??
                                         post.userImageUrl)
                                     : post.userImageUrl;
-                                return CircleAvatar(
+                                return CachedAvatar(
+                                  imageUrl: displayImgUrl,
+                                  displayName: post.userName,
                                   radius: 16,
-                                  backgroundColor: const Color(0xFF2A2A2A),
-                                  backgroundImage: displayImgUrl != null
-                                      ? NetworkImage(displayImgUrl)
-                                      : null,
-                                  child: displayImgUrl == null
-                                      ? Text(
-                                          post.userName.isNotEmpty
-                                              ? post.userName[0].toUpperCase()
-                                              : 'S',
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13),
-                                        )
-                                      : null,
                                 );
                               },
                             ),
@@ -1047,23 +1035,11 @@ class _NetworkImageSafe extends StatelessWidget {
         errorBuilder: (context, error, stackTrace) => _broken(),
       );
     }
-    return Image.network(
-      url, fit: BoxFit.cover, width: double.infinity,
-      loadingBuilder: (_, child, p) {
-        if (p == null) return child;
-        return Container(
-          color: const Color(0xFF111111),
-          child: Center(
-            child: CircularProgressIndicator(
-              value: p.expectedTotalBytes != null
-                  ? p.cumulativeBytesLoaded / p.expectedTotalBytes!
-                  : null,
-              color: AppColors.primary, strokeWidth: 2,
-            ),
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) => _broken(),
+    // Network image — use CachedImage for disk caching
+    return CachedImage(
+      url,
+      fit: BoxFit.cover,
+      width: double.infinity,
     );
   }
 
