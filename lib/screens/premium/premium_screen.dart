@@ -1,11 +1,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/models/user_profile.dart';
 import '../../design/colors.dart';
 import '../../services/user_service.dart';
 
+/// Which persona tab to open the upgrade screen on.
+enum PremiumContext { player, organizer }
+
 class PremiumScreen extends StatefulWidget {
-  const PremiumScreen({super.key});
+  /// Optional single reason shown as a focused banner at the top of the paywall.
+  /// Keep it to one short sentence: "Unlock larger tournaments", etc.
+  final String? reason;
+
+  /// Override which role tab is shown first. Defaults to the user's own role.
+  final PremiumContext? context;
+
+  const PremiumScreen({super.key, this.reason, this.context});
 
   @override
   State<PremiumScreen> createState() => _PremiumScreenState();
@@ -13,6 +24,7 @@ class PremiumScreen extends StatefulWidget {
 
 class _PremiumScreenState extends State<PremiumScreen> {
   int _selectedPlan = 1; // 0=Monthly, 1=Annual, 2=Lifetime
+  late PremiumContext _viewRole;
 
   static String _detectCurrency() {
     try {
@@ -64,24 +76,41 @@ class _PremiumScreenState extends State<PremiumScreen> {
     'CAD': ['\u00245.49',  '\u002439.99',  '\u002466.99'],
   };
 
-  static const _features = [
-    _Feature('PDF Match Reports',
-        'Export full scorecards as formatted PDFs', false, true),
-    _Feature('Advanced Statistics',
-        'Batting avg, bowling economy, strike rates', false, true),
-    _Feature('Unlimited Scoreboards',
-        'Create as many live scoreboards as you need', true, true),
-    _Feature('Premium Badge',
-        'Gold \u26A1 badge on your profile', false, true),
-    _Feature('Priority Alerts',
-        'First to know about nearby games', false, true),
-    _Feature('Live Streaming',
-        'Stream & watch sports live', false, true),
-    _Feature('Tournament Priority',
-        'Early access to register in tournaments', false, true),
+  static List<_Feature> _playerFeatures() => const [
+    _Feature('Priority Game Alerts',  'First notified about nearby games & open slots',    false, true),
+    _Feature('Advanced Stats',        'Batting avg, bowling economy, win rate tracking',    false, true),
+    _Feature('PDF Match Reports',     'Export full scorecards as formatted PDFs',           false, true),
+    _Feature('Boosted Visibility',    'Your hosted games shown higher in listings',         false, true),
+    _Feature('Premium Badge',         'Red \u26A1 badge visible on your profile',           false, true),
+    _Feature('Early Access',          'Register in tournaments before general public',      false, true),
   ];
 
+  static List<_Feature> _organizerFeatures() => const [
+    _Feature('Tournament Size',    'Max teams you can host',              true,  true,  freeLabel: '4 teams',    proLabel: 'Unlimited'),
+    _Feature('Live Scoreboards',   'Simultaneous scoreboard flows',       true,  true,  freeLabel: '1',          proLabel: 'Unlimited'),
+    _Feature('AI Banner',          'Auto-generate a tournament banner',   false, true),
+    _Feature('Advanced Reports',   'Export bracket, standings & stats',   false, true),
+    _Feature('PDF Scorecards',     'Full cricket match reports as PDF',   false, true),
+  ];
+
+  List<_Feature> get _features {
+    switch (_viewRole) {
+      case PremiumContext.organizer: return _organizerFeatures();
+      case PremiumContext.player:    return _playerFeatures();
+    }
+  }
+
   late final String _currency = _detectCurrency();
+
+  @override
+  void initState() {
+    super.initState();
+    final profile = UserService().profile;
+    _viewRole = widget.context ??
+        (profile?.role == UserRole.organizer
+            ? PremiumContext.organizer
+            : PremiumContext.player);
+  }
   List<String> get _planPrices => _prices[_currency] ?? _prices['USD']!;
 
   List<_Plan> get _plans => [
@@ -137,7 +166,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   child: Stack(
                     fit: StackFit.passthrough,
                     children: [
-                      _HeroBanner(isDark: isDark),
+                      _HeroBanner(isDark: isDark, viewRole: _viewRole),
                       if (canPop)
                         Positioned(
                           top: MediaQuery.of(context).padding.top + 4,
@@ -150,6 +179,61 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         ),
                     ],
                   ),
+                ),
+              ),
+              // ── Reason banner (focused single-reason paywall) ──────────
+              if (widget.reason != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: primary.withValues(alpha: 0.30)),
+                      ),
+                      child: Row(children: [
+                        Icon(Icons.lock_open_rounded,
+                            color: primary, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(widget.reason!,
+                              style: TextStyle(
+                                  color: textCol,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.4)),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+              // ── Role picker ────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: Row(children: [
+                    _RoleChip(
+                      label: 'Player',
+                      selected: _viewRole == PremiumContext.player,
+                      primary: primary,
+                      isDark: isDark,
+                      onTap: () => setState(
+                          () => _viewRole = PremiumContext.player),
+                    ),
+                    const SizedBox(width: 8),
+                    _RoleChip(
+                      label: 'Organizer',
+                      selected: _viewRole == PremiumContext.organizer,
+                      primary: primary,
+                      isDark: isDark,
+                      onTap: () => setState(
+                          () => _viewRole = PremiumContext.organizer),
+                    ),
+                  ]),
                 ),
               ),
               SliverToBoxAdapter(
@@ -981,11 +1065,60 @@ class _CancelSubscriptionScreenState
       );
 }
 
+// ── Role picker chip ──────────────────────────────────────────────────────────
+
+class _RoleChip extends StatelessWidget {
+  final String label;
+  final bool selected, isDark;
+  final Color primary;
+  final VoidCallback onTap;
+  const _RoleChip({
+    required this.label,
+    required this.selected,
+    required this.primary,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? primary
+              : (isDark ? const Color(0xFF1C1C1E) : const Color(0x14000000)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? primary
+                : (isDark ? Colors.white24 : Colors.black26),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected
+                ? Colors.white
+                : (isDark ? Colors.white60 : Colors.black54),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Hero banner ───────────────────────────────────────────────────────────────
 
 class _HeroBanner extends StatelessWidget {
   final bool isDark;
-  const _HeroBanner({required this.isDark});
+  final PremiumContext viewRole;
+  const _HeroBanner({required this.isDark, required this.viewRole});
 
   @override
   Widget build(BuildContext context) {
@@ -1069,7 +1202,11 @@ class _HeroBanner extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5)),
             const SizedBox(height: 8),
-            Text('Unlock the complete sports experience',
+            Text(
+                switch (viewRole) {
+                  PremiumContext.organizer => 'Hosting power tools for serious organisers',
+                  PremiumContext.player    => 'Unlock the complete sports experience',
+                },
                 style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 13)),
@@ -1203,29 +1340,21 @@ class _ComparisonTable extends StatelessWidget {
                       ),
                       SizedBox(
                         width: 52,
-                        child: Center(
-                          child: Text(
-                            f.hasFree ? '\u2713' : '\u2717',
-                            style: TextStyle(
-                              color: f.hasFree ? textCol : subCol,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
+                        child: Center(child: _featureCell(
+                          f.freeLabel ?? (f.hasFree ? '\u2713' : '\u2717'),
+                          active: f.hasFree || f.freeLabel != null,
+                          textCol: textCol, subCol: subCol,
+                          small: f.freeLabel != null,
+                        )),
                       ),
                       SizedBox(
                         width: 60,
-                        child: Center(
-                          child: Text(
-                            f.hasPro ? '\u2713' : '\u2717',
-                            style: TextStyle(
-                              color: f.hasPro ? textCol : subCol,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
+                        child: Center(child: _featureCell(
+                          f.proLabel ?? (f.hasPro ? '\u2713' : '\u2717'),
+                          active: f.hasPro || f.proLabel != null,
+                          textCol: primary, subCol: subCol,
+                          small: f.proLabel != null,
+                        )),
                       ),
                     ],
                   ),
@@ -1237,6 +1366,22 @@ class _ComparisonTable extends StatelessWidget {
       ],
     );
   }
+
+  static Widget _featureCell(String text, {
+    required bool active,
+    required Color textCol,
+    required Color subCol,
+    required bool small,
+  }) =>
+      Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: active ? textCol : subCol,
+          fontSize: small ? 10 : 16,
+          fontWeight: small ? FontWeight.w600 : FontWeight.w700,
+        ),
+      );
 }
 
 // ── Plan card ─────────────────────────────────────────────────────────────────
@@ -1401,7 +1546,10 @@ class _TextLink extends StatelessWidget {
 class _Feature {
   final String title, subtitle;
   final bool hasFree, hasPro;
-  const _Feature(this.title, this.subtitle, this.hasFree, this.hasPro);
+  /// When set, replaces the ✓/✗ tick in the Free / Pro column with a short label.
+  final String? freeLabel, proLabel;
+  const _Feature(this.title, this.subtitle, this.hasFree, this.hasPro,
+      {this.freeLabel, this.proLabel});
 }
 
 class _Plan {

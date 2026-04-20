@@ -1,7 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// User role — determines which home shell is shown after login.
-enum UserRole { player, merchant }
+/// `organizer` is a separate role; players can also take on organizer duties
+/// without switching roles, but declaring as organizer shows organizer features.
+enum UserRole { player, organizer, merchant }
+
+/// Subscription tier. `free` is the default.
+/// Merchant features are free — no merchantPremium tier.
+/// Stored as `planTier` in Firestore.
+enum PlanTier { free, playerPremium, organizerPremium }
+
+/// Lifecycle state of the subscription.
+enum SubscriptionStatus { none, trial, active, expired, cancelled }
+
+/// Billing cadence — only meaningful when status is active or trial.
+enum BillingPeriod { monthly, annual, lifetime }
 
 class UserProfile {
   final String id;
@@ -14,10 +27,18 @@ class UserProfile {
   final String bio;
   final String? imageUrl;
   final DateTime updatedAt;
-  final bool isPremium;
+  final bool isPremium;         // legacy — keep for backward compat during beta
   final bool isAdmin;
   final String? membershipId;   // set when premium is granted, e.g. "MSB-517913-4821"
   final UserRole role;
+
+  // ── Entitlement-based subscription fields (v2) ────────────────────────────
+  final PlanTier planTier;
+  final SubscriptionStatus subscriptionStatus;
+  final BillingPeriod? billingPeriod;
+  final String? storeProductId;
+  final DateTime? trialEndsAt;
+  final Set<String> entitlements;
 
   // ── Player statistics ─────────────────────────────────────────────────────
   final int tournamentsPlayed;
@@ -46,6 +67,12 @@ class UserProfile {
     this.matchesPlayed = 0,
     this.matchesWon = 0,
     this.favoriteSports,
+    this.planTier = PlanTier.free,
+    this.subscriptionStatus = SubscriptionStatus.none,
+    this.billingPeriod,
+    this.storeProductId,
+    this.trialEndsAt,
+    this.entitlements = const {},
   });
 
   // ── Search index helpers ──────────────────────────────────────────────────
@@ -116,6 +143,13 @@ class UserProfile {
         'matchesPlayed':     matchesPlayed,
         'matchesWon':        matchesWon,
         'favoriteSports':    favoriteSports,
+        'planTier':           planTier.name,
+        'subscriptionStatus': subscriptionStatus.name,
+        if (billingPeriod != null) 'billingPeriod': billingPeriod!.name,
+        if (storeProductId != null) 'storeProductId': storeProductId,
+        if (trialEndsAt != null)
+          'trialEndsAt': Timestamp.fromDate(trialEndsAt!),
+        'entitlements': entitlements.toList(),
       };
 
   factory UserProfile.fromMap(Map<String, dynamic> map) => UserProfile(
@@ -147,6 +181,28 @@ class UserProfile {
           if (raw is List) return raw.whereType<String>().toList();
           return null;
         })(),
+        planTier: PlanTier.values.firstWhere(
+          (t) => t.name == (map['planTier'] as String? ?? 'free'),
+          orElse: () => PlanTier.free,
+        ),
+        subscriptionStatus: SubscriptionStatus.values.firstWhere(
+          (s) => s.name == (map['subscriptionStatus'] as String? ?? 'none'),
+          orElse: () => SubscriptionStatus.none,
+        ),
+        billingPeriod: map['billingPeriod'] == null ? null :
+          BillingPeriod.values.firstWhere(
+            (b) => b.name == (map['billingPeriod'] as String),
+            orElse: () => BillingPeriod.monthly,
+          ),
+        storeProductId: map['storeProductId'] as String?,
+        trialEndsAt: map['trialEndsAt'] != null
+            ? (map['trialEndsAt'] as Timestamp).toDate()
+            : null,
+        entitlements: (() {
+          final raw = map['entitlements'];
+          if (raw is List) return raw.whereType<String>().toSet();
+          return <String>{};
+        })(),
       );
 
   factory UserProfile.fromFirestore(DocumentSnapshot doc) =>
@@ -169,6 +225,12 @@ class UserProfile {
     int? matchesPlayed,
     int? matchesWon,
     List<String>? favoriteSports,
+    PlanTier? planTier,
+    SubscriptionStatus? subscriptionStatus,
+    BillingPeriod? billingPeriod,
+    String? storeProductId,
+    DateTime? trialEndsAt,
+    Set<String>? entitlements,
   }) =>
       UserProfile(
         id: id,
@@ -189,5 +251,11 @@ class UserProfile {
         matchesPlayed:     matchesPlayed     ?? this.matchesPlayed,
         matchesWon:        matchesWon        ?? this.matchesWon,
         favoriteSports: favoriteSports ?? this.favoriteSports,
+        planTier: planTier ?? this.planTier,
+        subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+        billingPeriod: billingPeriod ?? this.billingPeriod,
+        storeProductId: storeProductId ?? this.storeProductId,
+        trialEndsAt: trialEndsAt ?? this.trialEndsAt,
+        entitlements: entitlements ?? this.entitlements,
       );
 }

@@ -1,6 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:flutter/foundation.dart';
 
 class AnalyticsEvents {
   // App lifecycle
@@ -61,9 +60,7 @@ class AnalyticsService {
   Future<void> logEvent(String name, {Map<String, Object>? parameters}) async {
     try {
       await _analytics.logEvent(name: name, parameters: parameters);
-      debugPrint('📊 Analytics Logged: $name | Params: $parameters');
     } catch (e, stackTrace) {
-      debugPrint('❌ Analytics Error: $e');
       FirebaseCrashlytics.instance.recordError(e, stackTrace, reason: 'Analytics logging failed');
     }
   }
@@ -74,29 +71,20 @@ class AnalyticsService {
       if (userId != null) {
         FirebaseCrashlytics.instance.setUserIdentifier(userId);
       }
-      debugPrint('📊 Analytics UserId set: $userId');
-    } catch (e) {
-      debugPrint('❌ Analytics setUserId Error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   Future<void> setUserProperty(String name, String value) async {
     try {
       await _analytics.setUserProperty(name: name, value: value);
       FirebaseCrashlytics.instance.setCustomKey(name, value);
-      debugPrint('📊 Analytics Property: $name = $value');
-    } catch (e) {
-      debugPrint('❌ Analytics setUserProperty Error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   Future<void> logScreenView({required String screenName, String? screenClass}) async {
     try {
       await _analytics.logScreenView(screenName: screenName, screenClass: screenClass);
-      debugPrint('📊 Analytics Screen: $screenName');
-    } catch (e) {
-      debugPrint('❌ Analytics logScreenView Error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Call once after login to segment all subsequent events by user attributes.

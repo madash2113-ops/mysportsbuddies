@@ -179,9 +179,7 @@ class StatsService extends ChangeNotifier {
         'sportStats.Cricket.$statsKey.matches':                  FieldValue.increment(1),
         'sportStats.Cricket.$statsKey.formats.$format.matches': FieldValue.increment(1),
       });
-    } catch (e) {
-      debugPrint('StatsService._incrementMatch error [$userId]: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── ICC-standard batting update ───────────────────────────────────────────
@@ -236,9 +234,7 @@ class StatsService extends ChangeNotifier {
           if (isDuck)    'sportStats.Cricket.$sk.formats.$format.batting.ducks':    FieldValue.increment(1),
         });
       });
-    } catch (e) {
-      debugPrint('StatsService._updateBatting error [$userId]: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── ICC-standard bowling update ───────────────────────────────────────────
@@ -286,9 +282,7 @@ class StatsService extends ChangeNotifier {
           if (isFiveWickets) 'sportStats.Cricket.$sk.formats.$format.bowling.fiveWickets': FieldValue.increment(1),
         });
       });
-    } catch (e) {
-      debugPrint('StatsService._updateBowling error [$userId]: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── Generic sport stats (non-cricket) ────────────────────────────────────
@@ -479,9 +473,7 @@ class StatsService extends ChangeNotifier {
           '$prefix.${e.key}': FieldValue.increment(e.value),
       };
       await _db.doc('$_col/$userId').update(update);
-    } catch (e) {
-      debugPrint('StatsService._writeGenericStat error [$userId]: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

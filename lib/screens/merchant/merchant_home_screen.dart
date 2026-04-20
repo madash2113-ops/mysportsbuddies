@@ -176,8 +176,7 @@ class _DashboardTab extends StatelessWidget {
                   color: AppColors.primary,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (_) => const AddVenueScreen()),
+                    MaterialPageRoute(builder: (_) => const AddVenueScreen()),
                   ),
                 ),
                 _ActionCard(

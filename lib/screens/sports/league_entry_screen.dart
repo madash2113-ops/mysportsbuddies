@@ -93,7 +93,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
     'Kabaddi', 'Hockey', 'Boxing', 'Chess', 'Other',
   ];
 
-  bool get _isPremium => UserService().hasFullAccess;
+  bool get _canHostLarge =>
+      UserService().hasEntitlement('large_tournaments');
 
   int get _effectiveBestOf =>
       _bestOf == -1 ? (int.tryParse(_bestOfCustomCtrl.text.trim()) ?? 3) : _bestOf;
@@ -240,9 +241,9 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         backgroundColor: const Color(0xFF1A1A1A),
         title: const Row(
           children: [
-            Icon(Icons.workspace_premium, color: AppColors.primary),
+            Icon(Icons.rocket_launch_outlined, color: AppColors.primary),
             SizedBox(width: 8),
-            Text('Premium Required',
+            Text('Hosting Power Tools',
                 style: TextStyle(color: Colors.white, fontSize: 16)),
           ],
         ),
@@ -251,7 +252,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
+            child: const Text('Not now',
                 style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
@@ -259,10 +260,17 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                 backgroundColor: AppColors.primary, elevation: 0),
             onPressed: () {
               Navigator.pop(context);
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const PremiumScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PremiumScreen(
+                    context: PremiumContext.organizer,
+                    reason: 'Unlock larger tournaments for serious organisers.',
+                  ),
+                ),
+              );
             },
-            child: const Text('Upgrade',
+            child: const Text('Unlock',
                 style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -289,12 +297,12 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         setState(() => _error = 'Please enter a valid entry fee amount.'); return;
       }
     }
-    if (_noTeamLimit && !_isPremium) {
-      _requirePremium('Unlimited teams requires a Premium account.');
+    if (_noTeamLimit && !_canHostLarge) {
+      _requirePremium('Hosting unlimited teams requires the Organiser upgrade.');
       return;
     }
-    if (!_noTeamLimit && _maxTeams > 4 && !_isPremium) {
-      _requirePremium('More than 4 teams requires a Premium account.');
+    if (!_noTeamLimit && _maxTeams > 4 && !_canHostLarge) {
+      _requirePremium('Hosting more than 4 teams requires the Organiser upgrade.');
       return;
     }
 
@@ -749,7 +757,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                       ),
                     ),
                     // PRO badge next to "No Limit" when non-premium
-                    if (!_isPremium) ...[
+                    if (!_canHostLarge) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 5, vertical: 2),
@@ -774,7 +782,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                     Switch(
                       value: _noTeamLimit,
                       onChanged: (v) {
-                        if (v && !_isPremium) {
+                        if (v && !_canHostLarge) {
                           _requirePremium(
                               'Unlimited teams requires a Premium account.');
                           return;
@@ -816,35 +824,35 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                       // + button: shows lock icon when non-premium & at limit
                       GestureDetector(
                         onTap: () {
-                          if (!_isPremium && _maxTeams >= 4) {
+                          if (!_canHostLarge && _maxTeams >= 4) {
                             _requirePremium(
                                 'More than 4 teams requires a Premium account.');
                             return;
                           }
-                          if (_maxTeams < (_isPremium ? 64 : 4)) {
+                          if (_maxTeams < (_canHostLarge ? 64 : 4)) {
                             setState(() => _maxTeams++);
                           }
                         },
                         child: Container(
                           width: 34, height: 34,
                           decoration: BoxDecoration(
-                            color: (!_isPremium && _maxTeams >= 4)
+                            color: (!_canHostLarge && _maxTeams >= 4)
                                 ? AppColors.primary.withValues(alpha: 0.12)
                                 : Colors.transparent,
                             shape: BoxShape.circle,
-                            border: (!_isPremium && _maxTeams >= 4)
+                            border: (!_canHostLarge && _maxTeams >= 4)
                                 ? Border.all(
                                     color: AppColors.primary
                                         .withValues(alpha: 0.5))
                                 : null,
                           ),
                           child: Icon(
-                            (!_isPremium && _maxTeams >= 4)
+                            (!_canHostLarge && _maxTeams >= 4)
                                 ? Icons.lock_outline
                                 : Icons.add_circle_outline,
-                            color: (!_isPremium && _maxTeams >= 4)
+                            color: (!_canHostLarge && _maxTeams >= 4)
                                 ? AppColors.primary
-                                : (_maxTeams >= (_isPremium ? 64 : 4)
+                                : (_maxTeams >= (_canHostLarge ? 64 : 4)
                                     ? Colors.white24
                                     : AppColors.primary),
                             size: 26,
@@ -855,7 +863,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                   ),
 
                   // Upgrade banner — shown when at the free limit
-                  if (!_isPremium && _maxTeams >= 4) ...[
+                  if (!_canHostLarge && _maxTeams >= 4) ...[
                     const SizedBox(height: 10),
                     GestureDetector(
                       onTap: () => _requirePremium(
@@ -1631,7 +1639,7 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           IconButton(
             icon: Icon(
               Icons.add_circle_outline,
-              color: (value >= max && _isPremium) || (value >= max)
+              color: (value >= max && _canHostLarge) || (value >= max)
                   ? Colors.white24
                   : AppColors.primary,
               size: 22,

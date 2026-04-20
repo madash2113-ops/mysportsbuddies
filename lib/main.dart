@@ -42,7 +42,6 @@ void main() async {
   // ── Firebase ──────────────────────────────────────────────────────────────
   try {
     await Firebase.initializeApp();
-    debugPrint('✅ Firebase initialized');
 
     // Pass all uncaught "fatal" errors from the framework to Crashlytics
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
@@ -62,7 +61,6 @@ void main() async {
     }
 
     await UserService().init();
-    debugPrint('✅ UserService initialized');
 
     // Precache current user's profile image for instant display
     _precacheUserImages();
@@ -74,7 +72,6 @@ void main() async {
       StatsService().load(),
       TournamentService().loadTournaments(),
     ]);
-    debugPrint('✅ All services loaded in parallel');
 
     // Start real-time listeners
     FeedService().listenToFeed();
@@ -88,10 +85,7 @@ void main() async {
     VenueService().listenToVenues();
     GameListingService().listenToOpenGames();
     AdminService().listen(); // real-time admin roster
-    debugPrint('✅ Real-time listeners started');
-  } catch (e) {
-    debugPrint('❌ Firebase error: $e');
-  }
+  } catch (e) { /* ignored */ }
 
   runApp(
     MultiProvider(

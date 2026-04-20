@@ -111,9 +111,7 @@ class NotificationService extends ChangeNotifier {
         'isRead':    false,
         'createdAt': FieldValue.serverTimestamp(),
       });
-    } catch (e) {
-      debugPrint('NotificationService.send error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Mark a single notification as read.
@@ -131,9 +129,7 @@ class NotificationService extends ChangeNotifier {
           .collection('items')
           .doc(id)
           .update({'isRead': true});
-    } catch (e) {
-      debugPrint('NotificationService.markRead error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Mark all notifications as read.
@@ -156,8 +152,6 @@ class NotificationService extends ChangeNotifier {
     }
     try {
       await batch.commit();
-    } catch (e) {
-      debugPrint('NotificationService.markAllRead error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 }

@@ -51,6 +51,8 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+
       # iOS 26+ simulators on Apple Silicon are arm64-only.
       # Explicitly pin simulator builds to arm64 to avoid:
       #   1. "destination not found" (Xcode rejects x86_64-only builds for arm64 sims)

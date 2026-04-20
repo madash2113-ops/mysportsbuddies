@@ -44,6 +44,7 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
   PlayerEntry? _contactEntry;
   String _countryCode = '+91';
   final List<File> _pendingPhotos = [];
+  bool _loading = false;
 
   DateTime?  _date;
   TimeOfDay? _time;
@@ -676,7 +677,7 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     borderRadius: BorderRadius.circular(AppSpacing.sm),
                   ),
                 ),
-                onPressed: () async {
+                onPressed: _loading ? null : () async {
                   final venueEmpty = _venueCtrl.text.trim().isEmpty;
                   final dateEmpty  = _date == null;
                   final timeEmpty  = _time == null;
@@ -688,6 +689,7 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                     });
                     return;
                   }
+                  setState(() => _loading = true);
 
                   final combined = DateTime(
                     _date!.year, _date!.month, _date!.day,
@@ -767,13 +769,18 @@ class _RegisterGameScreenState extends State<RegisterGameScreen> {
                   );
                   Navigator.of(context).pop();
                 },
-                child: Text(
-                  widget.existingGame != null ? 'Update Game' : 'Create Game',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600),
-                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Text(
+                        widget.existingGame != null ? 'Update Game' : 'Create Game',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600),
+                      ),
               ),
             ),
 

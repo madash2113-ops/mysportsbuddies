@@ -57,9 +57,7 @@ class FollowService extends ChangeNotifier {
           followersSnap.docs.map((d) => d['followerId'] as String? ?? ''));
 
       notifyListeners();
-    } catch (e) {
-      debugPrint('FollowService.init error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   Future<void> follow(String targetId) async {
@@ -89,7 +87,6 @@ class FollowService extends ChangeNotifier {
     } catch (e) {
       _following.remove(targetId);
       notifyListeners();
-      debugPrint('FollowService.follow error: $e');
     }
   }
 
@@ -106,7 +103,6 @@ class FollowService extends ChangeNotifier {
     } catch (e) {
       _following.add(targetId);
       notifyListeners();
-      debugPrint('FollowService.unfollow error: $e');
     }
   }
 

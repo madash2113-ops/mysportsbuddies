@@ -218,7 +218,7 @@ class AuthService extends ChangeNotifier {
   Future<void> signOut() async {
     try {
       await GoogleSignIn.instance.signOut();
-    } catch (_) {}
+    } catch (_) { /* ignored */ }
     await _auth.signOut();
     AnalyticsService().logEvent(AnalyticsEvents.logout);
     AnalyticsService().setUserId(null); // Clear analytics ID
@@ -249,9 +249,7 @@ class AuthService extends ChangeNotifier {
         phone: phone ?? user.phoneNumber,
       );
       await AnalyticsService().setUserId(user.uid);
-    } catch (e) {
-      debugPrint('AuthService._postAuth error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   void _setLoading(bool v) {

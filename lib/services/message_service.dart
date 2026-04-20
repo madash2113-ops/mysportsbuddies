@@ -116,7 +116,6 @@ class MessageService extends ChangeNotifier {
       await batch.commit();
       AnalyticsService().logEvent(AnalyticsEvents.messageSent);
     } catch (e) {
-      debugPrint('MessageService.sendMessage error: $e');
       rethrow;
     }
 

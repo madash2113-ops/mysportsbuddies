@@ -34,6 +34,18 @@ class MerchantBookingsScreen extends StatelessWidget {
             ],
           ),
         ),
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: AppColors.primary,
+          icon: const Icon(Icons.download_outlined, color: Colors.white),
+          label: const Text('Export',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Export coming soon — stay tuned!'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          ),
+        ),
         body: _BookingsBody(),
       ),
     );

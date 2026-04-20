@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 /// Thin wrapper around the geolocator package.
@@ -26,7 +25,6 @@ class LocationService extends ChangeNotifier {
       }
       return pos;
     } catch (e) {
-      debugPrint('LocationService.getLastKnownPosition error: $e');
       return null;
     }
   }
@@ -36,7 +34,6 @@ class LocationService extends ChangeNotifier {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        debugPrint('LocationService: location services disabled');
         return null;
       }
 
@@ -44,12 +41,10 @@ class LocationService extends ChangeNotifier {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          debugPrint('LocationService: permission denied');
           return null;
         }
       }
       if (permission == LocationPermission.deniedForever) {
-        debugPrint('LocationService: permission permanently denied');
         return null;
       }
 
@@ -62,7 +57,6 @@ class LocationService extends ChangeNotifier {
       notifyListeners();
       return _lastPosition;
     } catch (e) {
-      debugPrint('LocationService.getCurrentPosition error: $e');
       return null;
     }
   }

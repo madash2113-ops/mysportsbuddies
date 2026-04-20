@@ -75,9 +75,7 @@ class TournamentService extends ChangeNotifier {
       _tournaments = snap.docs.map(Tournament.fromFirestore).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       notifyListeners();
-    } catch (e) {
-      debugPrint('TournamentService.loadTournaments error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── My enrollments ───────────────────────────────────────────────────────
@@ -101,9 +99,7 @@ class TournamentService extends ChangeNotifier {
         }
       }
       notifyListeners();
-    } catch (e) {
-      debugPrint('TournamentService.loadMyEnrollments error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── Load detail (teams + matches) ───────────────────────────────────────
@@ -227,9 +223,7 @@ class TournamentService extends ChangeNotifier {
             _captainPhotoCache['team:${t.id}'] = fallbackPhoto;
           }
         }
-      } catch (e) {
-        debugPrint('[TournamentService] captain photo prefetch error: $e');
-      }
+      } catch (e) { /* ignored */ }
 
       // ── Self-healing: repair missing bracket advancements ────────────
       try {
@@ -240,14 +234,10 @@ class TournamentService extends ChangeNotifier {
           await _advanceGroupWinnersToKO(tournamentId);
         }
         await _repairAdvancements(tournamentId);
-      } catch (e) {
-        debugPrint('[bracket] _repairAdvancements error: $e');
-      }
+      } catch (e) { /* ignored */ }
 
       notifyListeners();
-    } catch (e) {
-      debugPrint('TournamentService.loadDetail error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// One-pass repair: for every completed match with a winner, ensure
@@ -262,7 +252,6 @@ class TournamentService extends ChangeNotifier {
     final allSnap = await matchesRef.get();
     if (allSnap.docs.isEmpty) return;
 
-    debugPrint('[repair] ${allSnap.docs.length} match docs in Firestore');
 
     // Build map: "round_matchIndex" → (docRef, data)
     final docMap = <String, ({DocumentReference ref, Map<String, dynamic> data})>{};
@@ -275,7 +264,6 @@ class TournamentService extends ChangeNotifier {
       }
     }
 
-    debugPrint('[repair] Keys: ${docMap.keys.toList()..sort()}');
 
     final batch = _db.batch();
     int fixes = 0;
@@ -306,10 +294,6 @@ class TournamentService extends ChangeNotifier {
       final currentSlot = next.data[slotField] as String?;
       if (currentSlot == winnerId) continue;
 
-      debugPrint('[repair] FIX: $winnerName from '
-          'R${round}M$matchIndex → R${nextRound}M$nextMatchIndex '
-          '(${isSlotA ? "A" : "B"}) was=$currentSlot');
-
       final update = isSlotA
           ? {'teamAId': winnerId, 'teamAName': winnerName}
           : {'teamBId': winnerId, 'teamBName': winnerName};
@@ -318,7 +302,6 @@ class TournamentService extends ChangeNotifier {
     }
 
     if (fixes > 0) {
-      debugPrint('[repair] Committing $fixes bracket fixes');
       await batch.commit();
       // Re-read into in-memory cache
       final snap = await matchesRef.get();
@@ -330,7 +313,6 @@ class TournamentService extends ChangeNotifier {
           return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
         });
     } else {
-      debugPrint('[repair] All advancements correct');
     }
   }
 
@@ -469,8 +451,7 @@ class TournamentService extends ChangeNotifier {
 
     // Guard: max teams
     if (tourn.maxTeams > 0 && existing.docs.length >= tourn.maxTeams) {
-      throw Exception(
-          'Tournament is full — maximum ${tourn.maxTeams} teams allowed');
+      throw Exception('Tournament is full.');
     }
 
     // Guard: duplicate team name
@@ -1204,8 +1185,6 @@ class TournamentService extends ChangeNotifier {
     required String winnerId,
     required String winnerName,
   }) async {
-    debugPrint('[bracket] updateMatchResult: matchId=$matchId '
-        'score=$scoreA-$scoreB winner=$winnerName($winnerId)');
 
     final result = scoreA > scoreB
         ? TournamentMatchResult.teamAWin
@@ -1231,7 +1210,6 @@ class TournamentService extends ChangeNotifier {
     final matchDoc = await matchesRef.doc(matchId).get();
     final mData = matchDoc.data();
     if (mData == null) {
-      debugPrint('[bracket] ERROR: match doc $matchId not found after write');
       await loadDetail(tournamentId);
       return;
     }
@@ -1241,7 +1219,6 @@ class TournamentService extends ChangeNotifier {
     final matchNote  = mData['note'] as String? ?? '';
     final isGroupMatch = matchNote.startsWith('Group');
 
-    debugPrint('[bracket] Match is R${round}M$matchIndex note="$matchNote"');
 
     // 3. Advance winner directly — but ONLY for knockout matches.
     //    Group-stage (RR) matches must NOT trigger knockout advancement.
@@ -1252,7 +1229,6 @@ class TournamentService extends ChangeNotifier {
 
       // Fetch ALL match docs to find the next-round match
       final allSnap = await matchesRef.get();
-      debugPrint('[bracket] Fetched ${allSnap.docs.length} total match docs');
 
       // Build a round→matchIndex→docId map for diagnostics
       final docMap = <String, String>{};
@@ -1262,7 +1238,6 @@ class TournamentService extends ChangeNotifier {
         final mi = (dd['matchIndex'] as num?)?.toInt();
         if (r != null && mi != null) docMap['R${r}M$mi'] = d.id;
       }
-      debugPrint('[bracket] All match keys: ${docMap.keys.toList()..sort()}');
 
       final nextDoc = allSnap.docs.where((d) {
         final dd = d.data();
@@ -1274,14 +1249,8 @@ class TournamentService extends ChangeNotifier {
         final update = isSlotA
             ? {'teamAId': winnerId, 'teamAName': winnerName}
             : {'teamBId': winnerId, 'teamBName': winnerName};
-        debugPrint('[bracket] ADVANCING $winnerName → '
-            'R${nextRound}M$nextMatchIndex '
-            '(${isSlotA ? "slotA" : "slotB"}) docId=${nextDoc.id}');
         await matchesRef.doc(nextDoc.id).update(update);
-        debugPrint('[bracket] Advancement write SUCCESS');
       } else {
-        debugPrint('[bracket] No next-round match at R${nextRound}M$nextMatchIndex '
-            '(this is the final round)');
       }
     }
 
@@ -1301,7 +1270,6 @@ class TournamentService extends ChangeNotifier {
     }
 
     // 6. Reload to refresh UI
-    debugPrint('[bracket] Reloading detail...');
     await loadDetail(tournamentId);
   }
 
@@ -1383,7 +1351,6 @@ class TournamentService extends ChangeNotifier {
       return result != 'pending';
     });
     if (!allGroupDone) {
-      debugPrint('[leagueKO] Not all group matches done yet');
       return;
     }
 
@@ -1395,13 +1362,11 @@ class TournamentService extends ChangeNotifier {
         .reduce(math.min);
     final firstRoundKOPlayed = koMatches.any((m) =>
         (m.data['round'] as num).toInt() == earlyKORound &&
-        (m.data['result'] as String? ?? 'pending') != 'pending');
+        (m.data['result'] != null && m.data['result'] != 'pending'));
     if (firstRoundKOPlayed) {
-      debugPrint('[leagueKO] KO matches already played — skipping re-seed');
       return;
     }
 
-    debugPrint('[leagueKO] All group matches done — seeding KO bracket');
 
     // Group matches by their group label
     final groupMap = <String, List<Map<String, dynamic>>>{};
@@ -1477,8 +1442,6 @@ class TournamentService extends ChangeNotifier {
         return b.gd.compareTo(a.gd);
       });
 
-      debugPrint('[leagueKO] $groupName rankings: '
-          '${rankings.map((r) => '${r.name}(${r.pts}pts)').join(', ')}');
 
       // Top 2 from each group qualify
       for (int i = 0; i < math.min(2, rankings.length); i++) {
@@ -1488,8 +1451,6 @@ class TournamentService extends ChangeNotifier {
 
     if (qualifiers.isEmpty) return;
 
-    debugPrint('[leagueKO] Qualifiers: '
-        '${qualifiers.map((q) => q.teamName).join(', ')}');
 
     // Seed qualifiers into KO matches.
     // Standard cross-seeding: Group A #1 vs Group B #2, Group B #1 vs Group A #2
@@ -1537,11 +1498,9 @@ class TournamentService extends ChangeNotifier {
       }
       if (update.isNotEmpty) {
         batch.update(ko.doc.reference, update);
-        debugPrint('[leagueKO] Seeded KO match ${ko.doc.id}: $update');
       }
     }
     await batch.commit();
-    debugPrint('[leagueKO] KO bracket seeding complete');
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
@@ -1770,9 +1729,7 @@ class TournamentService extends ChangeNotifier {
       _squads.putIfAbsent(tournamentId, () => {});
       _squads[tournamentId]![teamId] =
           snap.docs.map(TournamentSquadPlayer.fromFirestore).toList();
-    } catch (e) {
-      debugPrint('TournamentService._loadSquadInternal error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   Future<void> loadSquad(String tournamentId, String teamId) async {
@@ -1784,9 +1741,7 @@ class TournamentService extends ChangeNotifier {
       _squads.putIfAbsent(tournamentId, () => {});
       _squads[tournamentId]![teamId] = snap.docs.map(TournamentSquadPlayer.fromFirestore).toList();
       notifyListeners();
-    } catch (e) {
-      debugPrint('TournamentService.loadSquad error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   Future<void> addPlayerToSquad({

@@ -47,7 +47,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _CreateChooserSheet(
-        onPost:   _openCreatePost,
+        onPost: _openCreatePost,
         onStatus: _openCreateStory,
       ),
     );
@@ -72,15 +72,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   }
 
   void _openMessages() {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const MessagesScreen()));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MessagesScreen()),
+    );
   }
 
   void _openSearch() {
-    showSearch(
-      context: context,
-      delegate: _UserSearchDelegate(),
-    );
+    showSearch(context: context, delegate: _UserSearchDelegate());
   }
 
   @override
@@ -104,91 +103,98 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               letterSpacing: -0.5,
             ),
           ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white, size: 26),
-            onPressed: _openSearch,
-            tooltip: 'Search people',
-          ),
-          // DM button with unread badge — uses singleton directly to avoid
-          // Provider-not-found errors when screen is pushed from different contexts
-          ListenableBuilder(
-            listenable: MessageService(),
-            builder: (ctx, child) {
-              final unread = MessageService().totalUnread;
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.near_me_outlined,
-                        color: Colors.white, size: 26),
-                    onPressed: _openMessages,
-                    tooltip: 'Messages',
-                  ),
-                  if (unread > 0)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          unread > 9 ? '9+' : '$unread',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.search, color: Colors.white, size: 26),
+              onPressed: _openSearch,
+              tooltip: 'Search people',
+            ),
+            // DM button with unread badge — uses singleton directly to avoid
+            // Provider-not-found errors when screen is pushed from different contexts
+            ListenableBuilder(
+              listenable: MessageService(),
+              builder: (ctx, child) {
+                final unread = MessageService().totalUnread;
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.near_me_outlined,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                      onPressed: _openMessages,
+                      tooltip: 'Messages',
+                    ),
+                    if (unread > 0)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unread > 9 ? '9+' : '$unread',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 9,
-                              fontWeight: FontWeight.w700),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_box_outlined,
-                color: Colors.white, size: 26),
-            onPressed: _openCreateChooser,
-            tooltip: 'Create',
-          ),
-        ],
-      ),
-      body: Consumer<FeedService>(
-        builder: (ctx, feedSvc, _) {
-          if (feedSvc.loading && feedSvc.posts.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
-
-          if (feedSvc.posts.isEmpty) {
-            return _EmptyState(onCreatePost: _openCreatePost);
-          }
-
-          return RefreshIndicator(
-            color: AppColors.primary,
-            backgroundColor: const Color(0xFF1A1A1A),
-            onRefresh: () => feedSvc.loadPosts(),
-            child: ListView.builder(
-              itemCount: feedSvc.posts.length + 1,
-              itemBuilder: (_, i) {
-                if (i == 0) {
-                  return _StoriesBar(
-                    feedSvc: feedSvc,
-                    onAddStory: _openCreateStory,
-                  );
-                }
-                return _PostCard(post: feedSvc.posts[i - 1]);
+                  ],
+                );
               },
             ),
-          );
-        },
-      ),
+            IconButton(
+              icon: const Icon(
+                Icons.add_box_outlined,
+                color: Colors.white,
+                size: 26,
+              ),
+              onPressed: _openCreateChooser,
+              tooltip: 'Create',
+            ),
+          ],
+        ),
+        body: Consumer<FeedService>(
+          builder: (ctx, feedSvc, _) {
+            if (feedSvc.loading && feedSvc.posts.isEmpty) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+
+            if (feedSvc.posts.isEmpty) {
+              return _EmptyState(onCreatePost: _openCreatePost);
+            }
+
+            return RefreshIndicator(
+              color: AppColors.primary,
+              backgroundColor: const Color(0xFF1A1A1A),
+              onRefresh: () => feedSvc.loadPosts(),
+              child: ListView.builder(
+                itemCount: feedSvc.posts.length + 1,
+                itemBuilder: (_, i) {
+                  if (i == 0) {
+                    return _StoriesBar(
+                      feedSvc: feedSvc,
+                      onAddStory: _openCreateStory,
+                    );
+                  }
+                  return _PostCard(post: feedSvc.posts[i - 1]);
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -213,15 +219,21 @@ class _EmptyState extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white24, width: 2),
             ),
-            child: const Icon(Icons.photo_camera_outlined,
-                color: Colors.white38, size: 38),
+            child: const Icon(
+              Icons.photo_camera_outlined,
+              color: Colors.white38,
+              size: 38,
+            ),
           ),
           const SizedBox(height: 20),
-          const Text('Share Your Moments',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700)),
+          const Text(
+            'Share Your Moments',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 8),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 48),
@@ -229,17 +241,23 @@ class _EmptyState extends StatelessWidget {
               'When you or others share moments and scores, they\'ll appear here.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: Colors.white54, fontSize: 14, height: 1.5),
+                color: Colors.white54,
+                fontSize: 14,
+                height: 1.5,
+              ),
             ),
           ),
           const SizedBox(height: 28),
           GestureDetector(
             onTap: onCreatePost,
-            child: const Text('+ Create First Post',
-                style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700)),
+            child: const Text(
+              '+ Create First Post',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -266,17 +284,14 @@ class _StoriesBar extends StatelessWidget {
   final FeedService feedSvc;
   final VoidCallback onAddStory;
 
-  const _StoriesBar({
-    required this.feedSvc,
-    required this.onAddStory,
-  });
+  const _StoriesBar({required this.feedSvc, required this.onAddStory});
 
   @override
   Widget build(BuildContext context) {
-    final myId        = UserService().userId ?? '';
-    final groups      = feedSvc.groupedStories;           // List<List<Story>>
-    final myStories   = feedSvc.storiesByUser(myId);
-    final hasMyStory  = myStories.isNotEmpty;
+    final myId = UserService().userId ?? '';
+    final groups = feedSvc.groupedStories; // List<List<Story>>
+    final myStories = feedSvc.storiesByUser(myId);
+    final hasMyStory = myStories.isNotEmpty;
 
     // Only show circles for users with active stories.
     final otherGroups = groups.where((g) => g.first.userId != myId).toList();
@@ -294,8 +309,7 @@ class _StoriesBar extends StatelessWidget {
             height: 108,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
                 // ── Your Story (only shown when you have an active status) ──
                 if (hasMyStory)
@@ -303,8 +317,9 @@ class _StoriesBar extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 18),
                     child: _StoryCircle(
                       label: 'Your Story',
-                      imageUrl: context.watch<ProfileController>().networkImageUrl
-                          ?? UserService().profile?.imageUrl,
+                      imageUrl:
+                          context.watch<ProfileController>().networkImageUrl ??
+                          UserService().profile?.imageUrl,
                       initials: '',
                       isOwn: true,
                       hasOwnStory: true,
@@ -324,12 +339,13 @@ class _StoriesBar extends StatelessWidget {
 
                 // ── Other users — only those with active status ──
                 ...otherGroups.asMap().entries.map((entry) {
-                  final idx      = entry.key;
-                  final grp      = entry.value;
-                  final first    = grp.first;
-                  final name     = first.userName;
-                  final initials =
-                      name.isNotEmpty ? name[0].toUpperCase() : 'U';
+                  final idx = entry.key;
+                  final grp = entry.value;
+                  final first = grp.first;
+                  final name = first.userName;
+                  final initials = name.isNotEmpty
+                      ? name[0].toUpperCase()
+                      : 'U';
                   final isViewed = grp.every((s) => s.isViewedBy(myId));
 
                   return Padding(
@@ -349,8 +365,7 @@ class _StoriesBar extends StatelessWidget {
                             storyGroups: hasMyStory
                                 ? [myStories, ...otherGroups]
                                 : otherGroups,
-                            initialGroupIndex:
-                                hasMyStory ? idx + 1 : idx,
+                            initialGroupIndex: hasMyStory ? idx + 1 : idx,
                           ),
                         ),
                       ),
@@ -360,10 +375,7 @@ class _StoriesBar extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(
-              height: 0.5,
-              color: Color(0xFF262626),
-              thickness: 0.5),
+          const Divider(height: 0.5, color: Color(0xFF262626), thickness: 0.5),
         ],
       ),
     );
@@ -419,21 +431,17 @@ class _StoryCircle extends StatelessWidget {
                       ? Colors.transparent
                       : null,
                   border: (isOwn && !hasOwnStory)
-                      ? Border.all(
-                          color: Colors.white24,
-                          width: 1.5,
-                        )
+                      ? Border.all(color: Colors.white24, width: 1.5)
                       : isViewed
-                          ? Border.all(
-                              color: Colors.white24,
-                              width: 1.5,
-                            )
-                          : null,
+                      ? Border.all(color: Colors.white24, width: 1.5)
+                      : null,
                 ),
                 padding: const EdgeInsets.all(2.5),
                 child: Container(
                   decoration: const BoxDecoration(
-                      shape: BoxShape.circle, color: Colors.black),
+                    shape: BoxShape.circle,
+                    color: Colors.black,
+                  ),
                   padding: const EdgeInsets.all(2),
                   child: CircleAvatar(
                     radius: 28,
@@ -443,9 +451,7 @@ class _StoryCircle extends StatelessWidget {
                         : null,
                     child: imageUrl == null
                         ? Icon(
-                            isOwn
-                                ? Icons.person_outline
-                                : Icons.person,
+                            isOwn ? Icons.person_outline : Icons.person,
                             color: Colors.white54,
                             size: 26,
                           )
@@ -469,7 +475,11 @@ class _StoryCircle extends StatelessWidget {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.black, width: 2),
                       ),
-                      child: const Icon(Icons.add, color: Colors.white, size: 13),
+                      child: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 13,
+                      ),
                     ),
                   ),
                 ),
@@ -502,15 +512,17 @@ class _PostCard extends StatefulWidget {
 }
 
 class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
-  bool _showHeart  = false;
+  bool _showHeart = false;
   late AnimationController _heartCtrl;
-  late Animation<double>   _heartAnim;
+  late Animation<double> _heartAnim;
 
   @override
   void initState() {
     super.initState();
     _heartCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 700));
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
     _heartAnim = TweenSequence([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 25),
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 50),
@@ -537,8 +549,7 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
   void _openComments() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-          builder: (_) => CommentsScreen(post: widget.post)),
+      MaterialPageRoute(builder: (_) => CommentsScreen(post: widget.post)),
     );
   }
 
@@ -547,7 +558,8 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (_) => _ShareSheet(post: widget.post),
     );
   }
@@ -584,10 +596,11 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
             children: [
               GestureDetector(
                 onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            UserProfileScreen(userId: post.userId))),
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UserProfileScreen(userId: post.userId),
+                  ),
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -595,9 +608,9 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                     ListenableBuilder(
                       listenable: FeedService(),
                       builder: (ctx, _) {
-                        final hasStory = FeedService()
-                            .activeStories
-                            .any((s) => s.userId == post.userId);
+                        final hasStory = FeedService().activeStories.any(
+                          (s) => s.userId == post.userId,
+                        );
                         return Container(
                           width: 40,
                           height: 40,
@@ -606,13 +619,14 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                             gradient: hasStory ? _igGradient : null,
                             border: hasStory
                                 ? null
-                                : Border.all(
-                                    color: Colors.white24, width: 1.5),
+                                : Border.all(color: Colors.white24, width: 1.5),
                           ),
                           padding: const EdgeInsets.all(2),
                           child: Container(
                             decoration: const BoxDecoration(
-                                shape: BoxShape.circle, color: Colors.black),
+                              shape: BoxShape.circle,
+                              color: Colors.black,
+                            ),
                             padding: const EdgeInsets.all(1.5),
                             child: ListenableBuilder(
                               listenable: UserService(),
@@ -620,7 +634,7 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                                 final myId = UserService().userId;
                                 final displayImgUrl = post.userId == myId
                                     ? (UserService().profile?.imageUrl ??
-                                        post.userImageUrl)
+                                          post.userImageUrl)
                                     : post.userImageUrl;
                                 return CachedAvatar(
                                   imageUrl: displayImgUrl,
@@ -637,15 +651,22 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(post.userName,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700)),
+                        Text(
+                          post.userName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                         if (post.sport != null)
-                          Text(post.sport!,
-                              style: const TextStyle(
-                                  color: Colors.white54, fontSize: 11)),
+                          Text(
+                            post.sport!,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 11,
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -656,8 +677,7 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                 onTap: () => _showOptions(context, post),
                 child: const Padding(
                   padding: EdgeInsets.all(4),
-                  child: Icon(Icons.more_horiz,
-                      color: Colors.white, size: 22),
+                  child: Icon(Icons.more_horiz, color: Colors.white, size: 22),
                 ),
               ),
             ],
@@ -679,14 +699,14 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                       child: FadeTransition(
                         opacity: _heartAnim,
                         child: const Center(
-                          child: Icon(Icons.favorite,
-                              color: Colors.white,
-                              size: 96,
-                              shadows: [
-                                Shadow(
-                                    color: Colors.black54,
-                                    blurRadius: 18)
-                              ]),
+                          child: Icon(
+                            Icons.favorite,
+                            color: Colors.white,
+                            size: 96,
+                            shadows: [
+                              Shadow(color: Colors.black54, blurRadius: 18),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -707,8 +727,11 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                 onTap: _openComments,
                 child: const Padding(
                   padding: EdgeInsets.all(6),
-                  child: Icon(Icons.chat_bubble_outline,
-                      color: Colors.white, size: 26),
+                  child: Icon(
+                    Icons.chat_bubble_outline,
+                    color: Colors.white,
+                    size: 26,
+                  ),
                 ),
               ),
               const SizedBox(width: 4),
@@ -717,16 +740,22 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                 onTap: _openShare,
                 child: const Padding(
                   padding: EdgeInsets.all(6),
-                  child: Icon(Icons.near_me_outlined,
-                      color: Colors.white, size: 24),
+                  child: Icon(
+                    Icons.near_me_outlined,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
               ),
               const Spacer(),
               if (post.type == FeedPostType.scoreCard)
                 const Padding(
                   padding: EdgeInsets.only(right: 4),
-                  child: Icon(Icons.scoreboard_outlined,
-                      color: Colors.white30, size: 18),
+                  child: Icon(
+                    Icons.scoreboard_outlined,
+                    color: Colors.white30,
+                    size: 18,
+                  ),
                 ),
               // Bookmark
               GestureDetector(
@@ -753,9 +782,10 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
             child: Text(
               '${post.likes} ${post.likes == 1 ? 'like' : 'likes'}',
               style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700),
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           )
         else
@@ -771,20 +801,23 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
                   TextSpan(
                     text: post.userName,
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700),
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const TextSpan(
-                      text: '  ',
-                      style: TextStyle(color: Colors.white)),
+                    text: '  ',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   TextSpan(
                     text: post.text,
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        height: 1.45,
-                        fontWeight: FontWeight.w400),
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.45,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ],
               ),
@@ -800,8 +833,7 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
               post.commentCount > 0
                   ? 'View all ${post.commentCount} comments'
                   : 'View all comments',
-              style: const TextStyle(
-                  color: Colors.white38, fontSize: 13),
+              style: const TextStyle(color: Colors.white38, fontSize: 13),
             ),
           ),
         ),
@@ -811,9 +843,10 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
           onTap: _openComments,
           child: const Padding(
             padding: EdgeInsets.fromLTRB(14, 1, 14, 2),
-            child: Text('Add a comment…',
-                style: TextStyle(
-                    color: Colors.white24, fontSize: 13)),
+            child: Text(
+              'Add a comment…',
+              style: TextStyle(color: Colors.white24, fontSize: 13),
+            ),
           ),
         ),
 
@@ -823,14 +856,14 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
           child: Text(
             _timeAgo(post.createdAt).toUpperCase(),
             style: const TextStyle(
-                color: Colors.white38,
-                fontSize: 10,
-                letterSpacing: 0.4),
+              color: Colors.white38,
+              fontSize: 10,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
 
-        const Divider(
-            height: 1, color: Color(0xFF262626), thickness: 0.5),
+        const Divider(height: 1, color: Color(0xFF262626), thickness: 0.5),
       ],
     );
   }
@@ -840,38 +873,51 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
       shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(16))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(top: 10, bottom: 8),
               decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2)),
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             ListTile(
-              leading: const Icon(Icons.person_outline,
-                  color: Colors.white, size: 22),
-              title: const Text('View Profile',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+              leading: const Icon(
+                Icons.person_outline,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'View Profile',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            UserProfileScreen(userId: post.userId)));
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UserProfileScreen(userId: post.userId),
+                  ),
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.copy_outlined,
-                  color: Colors.white, size: 22),
-              title: const Text('Copy Caption',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+              leading: const Icon(
+                Icons.copy_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Copy Caption',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 Clipboard.setData(ClipboardData(text: post.text));
@@ -884,10 +930,15 @@ class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.flag_outlined,
-                  color: Colors.white, size: 22),
-              title: const Text('Report',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+              leading: const Icon(
+                Icons.flag_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Report',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -919,58 +970,84 @@ class _ShareSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             margin: const EdgeInsets.only(top: 10, bottom: 12),
             decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2)),
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-          const Text('Share',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700)),
+          const Text(
+            'Share',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 16),
 
           // Share via DM
           ListTile(
             leading: Container(
-              width: 44, height: 44,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.15),
-                  shape: BoxShape.circle),
-              child: const Icon(Icons.near_me_outlined,
-                  color: AppColors.primary, size: 22),
+                color: AppColors.primary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.near_me_outlined,
+                color: AppColors.primary,
+                size: 22,
+              ),
             ),
-            title: const Text('Send as Message',
-                style: TextStyle(color: Colors.white, fontSize: 14)),
-            subtitle: const Text('Share with a follower via DM',
-                style: TextStyle(color: Colors.white38, fontSize: 12)),
+            title: const Text(
+              'Send as Message',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            subtitle: const Text(
+              'Share with a follower via DM',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
             onTap: () {
               Navigator.pop(context);
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const MessagesScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MessagesScreen()),
+              );
             },
           ),
 
           // Copy link
           ListTile(
             leading: Container(
-              width: 44, height: 44,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  shape: BoxShape.circle),
-              child: const Icon(Icons.link_outlined,
-                  color: Colors.white, size: 22),
+                color: Colors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.link_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
-            title: const Text('Copy Link',
-                style: TextStyle(color: Colors.white, fontSize: 14)),
-            subtitle: const Text('Copy post ID to clipboard',
-                style: TextStyle(color: Colors.white38, fontSize: 12)),
+            title: const Text(
+              'Copy Link',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            subtitle: const Text(
+              'Copy post ID to clipboard',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
             onTap: () {
               Navigator.pop(context);
               Clipboard.setData(
-                  ClipboardData(text: 'sportsbuddies://post/${post.id}'));
+                ClipboardData(text: 'sportsbuddies://post/${post.id}'),
+              );
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Link copied to clipboard'),
@@ -983,17 +1060,26 @@ class _ShareSheet extends StatelessWidget {
           // Share as story
           ListTile(
             leading: Container(
-              width: 44, height: 44,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  shape: BoxShape.circle),
-              child: const Icon(Icons.auto_stories_outlined,
-                  color: Colors.white, size: 22),
+                color: Colors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.auto_stories_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
-            title: const Text('Add to Your Story',
-                style: TextStyle(color: Colors.white, fontSize: 14)),
-            subtitle: const Text('Reshare this post in your story',
-                style: TextStyle(color: Colors.white38, fontSize: 12)),
+            title: const Text(
+              'Add to Your Story',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            subtitle: const Text(
+              'Reshare this post in your story',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
             onTap: () {
               Navigator.pop(context);
               showModalBottomSheet(
@@ -1023,8 +1109,12 @@ class _NetworkImageSafe extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (_isAsset) {
-      return Image.asset(url, fit: BoxFit.cover, width: double.infinity,
-          errorBuilder: (context, error, stackTrace) => _broken());
+      return Image.asset(
+        url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (context, error, stackTrace) => _broken(),
+      );
     }
     if (_isLocal) {
       // Local file path — shown while upload is in progress
@@ -1036,20 +1126,15 @@ class _NetworkImageSafe extends StatelessWidget {
       );
     }
     // Network image — use CachedImage for disk caching
-    return CachedImage(
-      url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-    );
+    return CachedImage(url, fit: BoxFit.cover, width: double.infinity);
   }
 
   Widget _broken() => Container(
-        color: const Color(0xFF111111),
-        child: const Center(
-          child: Icon(Icons.broken_image_outlined,
-              color: Colors.white24, size: 40),
-        ),
-      );
+    color: const Color(0xFF111111),
+    child: const Center(
+      child: Icon(Icons.broken_image_outlined, color: Colors.white24, size: 40),
+    ),
+  );
 }
 
 // ── Animated Like Button ──────────────────────────────────────────────────────
@@ -1065,13 +1150,15 @@ class _AnimatedLikeButton extends StatefulWidget {
 class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late Animation<double>   _scale;
+  late Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 160));
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    );
     _scale = TweenSequence([
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 50),
       TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 50),
@@ -1098,12 +1185,8 @@ class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: Icon(
-            widget.post.likedByMe
-                ? Icons.favorite
-                : Icons.favorite_border,
-            color: widget.post.likedByMe
-                ? AppColors.primary
-                : Colors.white,
+            widget.post.likedByMe ? Icons.favorite : Icons.favorite_border,
+            color: widget.post.likedByMe ? AppColors.primary : Colors.white,
             size: 26,
           ),
         ),
@@ -1131,18 +1214,22 @@ class _CreateChooserSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
               color: Colors.white24,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const Text('Create',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700)),
+          const Text(
+            'Create',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 20),
           Row(
             children: [
@@ -1152,7 +1239,10 @@ class _CreateChooserSheet extends StatelessWidget {
                   label: 'Post',
                   subtitle: 'Share a photo or thought',
                   gradient: const [Color(0xFF8B0000), Color(0xFFD32F2F)],
-                  onTap: () { Navigator.pop(context); onPost(); },
+                  onTap: () {
+                    Navigator.pop(context);
+                    onPost();
+                  },
                 ),
               ),
               const SizedBox(width: 12),
@@ -1162,7 +1252,10 @@ class _CreateChooserSheet extends StatelessWidget {
                   label: 'Status',
                   subtitle: 'Disappears in 24 hours',
                   gradient: const [Color(0xFF1A0050), Color(0xFF5C00CC)],
-                  onTap: () { Navigator.pop(context); onStatus(); },
+                  onTap: () {
+                    Navigator.pop(context);
+                    onStatus();
+                  },
                 ),
               ),
             ],
@@ -1179,8 +1272,11 @@ class _CreateOption extends StatelessWidget {
   final List<Color> gradient;
   final VoidCallback onTap;
   const _CreateOption({
-    required this.icon, required this.label, required this.subtitle,
-    required this.gradient, required this.onTap,
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.gradient,
+    required this.onTap,
   });
 
   @override
@@ -1190,8 +1286,11 @@ class _CreateOption extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: gradient,
-              begin: Alignment.topLeft, end: Alignment.bottomRight),
+          gradient: LinearGradient(
+            colors: gradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -1199,14 +1298,19 @@ class _CreateOption extends StatelessWidget {
           children: [
             Icon(icon, color: Colors.white, size: 32),
             const SizedBox(height: 12),
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(subtitle,
-                style: const TextStyle(color: Colors.white60, fontSize: 11)),
+            Text(
+              subtitle,
+              style: const TextStyle(color: Colors.white60, fontSize: 11),
+            ),
           ],
         ),
       ),
@@ -1236,20 +1340,29 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
 
   Future<void> _load() async {
     final cols = await FeedService().loadCollections();
-    if (mounted) setState(() { _collections = cols; _loading = false; });
+    if (mounted)
+      setState(() {
+        _collections = cols;
+        _loading = false;
+      });
   }
 
-  Future<void> _saveToCollection(String collectionId, String collectionName) async {
+  Future<void> _saveToCollection(
+    String collectionId,
+    String collectionName,
+  ) async {
     await FeedService().toggleSave(widget.post.id);
     await FeedService().savePostToCollection(widget.post.id, collectionId);
     if (!mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Saved to $collectionName'),
-      backgroundColor: const Color(0xFF1E1E1E),
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 2),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved to $collectionName'),
+        backgroundColor: const Color(0xFF1E1E1E),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _createCollection() async {
@@ -1258,8 +1371,10 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('New Collection',
-            style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'New Collection',
+          style: TextStyle(color: Colors.white),
+        ),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -1268,20 +1383,28 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
             hintText: 'Collection name',
             hintStyle: TextStyle(color: Colors.white38),
             enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.white24)),
+              borderSide: BorderSide(color: Colors.white24),
+            ),
             focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: AppColors.primary)),
+              borderSide: BorderSide(color: AppColors.primary),
+            ),
           ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Colors.white54))),
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-              child: const Text('Create',
-                  style: TextStyle(color: AppColors.primary))),
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text(
+              'Create',
+              style: TextStyle(color: AppColors.primary),
+            ),
+          ),
         ],
       ),
     );
@@ -1299,16 +1422,22 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.fromLTRB(
-          0, 0, 0, MediaQuery.of(context).viewInsets.bottom + 16),
+        0,
+        0,
+        0,
+        MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             margin: const EdgeInsets.only(top: 10, bottom: 16),
             decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2)),
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20),
@@ -1316,11 +1445,14 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
               children: [
                 Icon(Icons.bookmark_outline, color: Colors.white, size: 22),
                 SizedBox(width: 10),
-                Text('Save to Collection',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700)),
+                Text(
+                  'Save to Collection',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1330,7 +1462,9 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
             const Padding(
               padding: EdgeInsets.all(24),
               child: CircularProgressIndicator(
-                  color: AppColors.primary, strokeWidth: 2),
+                color: AppColors.primary,
+                strokeWidth: 2,
+              ),
             )
           else ...[
             if (_collections.isEmpty)
@@ -1342,36 +1476,46 @@ class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
                 ),
               )
             else
-              ..._collections.map((col) => ListTile(
-                    leading: Container(
-                      width: 44, height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.bookmark,
-                          color: AppColors.primary, size: 22),
+              ..._collections.map(
+                (col) => ListTile(
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    title: Text(col.name,
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 14)),
-                    subtitle: Text(
-                        '${col.postIds.length} saved',
-                        style: const TextStyle(
-                            color: Colors.white38, fontSize: 12)),
-                    onTap: () => _saveToCollection(col.id, col.name),
-                  )),
+                    child: const Icon(
+                      Icons.bookmark,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    col.name,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    '${col.postIds.length} saved',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                  onTap: () => _saveToCollection(col.id, col.name),
+                ),
+              ),
             ListTile(
               leading: Container(
-                width: 44, height: 44,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.add, color: Colors.white70, size: 22),
               ),
-              title: const Text('Create New Collection',
-                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              title: const Text(
+                'Create New Collection',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
               onTap: _createCollection,
             ),
           ],
@@ -1390,33 +1534,33 @@ class _UserSearchDelegate extends SearchDelegate<void> {
 
   @override
   ThemeData appBarTheme(BuildContext context) => ThemeData.dark().copyWith(
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF111111),
-          elevation: 0,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: InputBorder.none,
-          hintStyle: TextStyle(color: Colors.white38),
-        ),
-        textTheme: const TextTheme(
-          titleLarge: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-      );
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF111111),
+      elevation: 0,
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      border: InputBorder.none,
+      hintStyle: TextStyle(color: Colors.white38),
+    ),
+    textTheme: const TextTheme(
+      titleLarge: TextStyle(color: Colors.white, fontSize: 16),
+    ),
+  );
 
   @override
   List<Widget> buildActions(BuildContext context) => [
-        if (query.isNotEmpty)
-          IconButton(
-            icon: const Icon(Icons.clear, color: Colors.white),
-            onPressed: () => query = '',
-          ),
-      ];
+    if (query.isNotEmpty)
+      IconButton(
+        icon: const Icon(Icons.clear, color: Colors.white),
+        onPressed: () => query = '',
+      ),
+  ];
 
   @override
   Widget buildLeading(BuildContext context) => IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => close(context, null),
-      );
+    icon: const Icon(Icons.arrow_back, color: Colors.white),
+    onPressed: () => close(context, null),
+  );
 
   @override
   Widget buildResults(BuildContext context) => _buildBody(context);
@@ -1431,8 +1575,7 @@ class _UserSearchDelegate extends SearchDelegate<void> {
     final localUsers = <String, String?>{};
     for (final p in FeedService().posts) {
       if (!localUsers.containsKey(p.userId) &&
-          (q.isEmpty ||
-              p.userName.toLowerCase().contains(q.toLowerCase()))) {
+          (q.isEmpty || p.userName.toLowerCase().contains(q.toLowerCase()))) {
         localUsers[p.userId] = p.userImageUrl;
       }
     }
@@ -1441,16 +1584,20 @@ class _UserSearchDelegate extends SearchDelegate<void> {
       if (localUsers.isEmpty) {
         return _hint('Search for sports buddies by name');
       }
-      return _userList(context, localUsers.entries
-          .map((e) => _UserResult(
+      return _userList(
+        context,
+        localUsers.entries
+            .map(
+              (e) => _UserResult(
                 userId: e.key,
-                name: FeedService()
-                    .posts
+                name: FeedService().posts
                     .firstWhere((p) => p.userId == e.key)
                     .userName,
                 imageUrl: e.value,
-              ))
-          .toList());
+              ),
+            )
+            .toList(),
+      );
     }
 
     // For typed queries, also hit Firestore prefix search
@@ -1472,14 +1619,15 @@ class _UserSearchDelegate extends SearchDelegate<void> {
   }
 
   Future<List<_UserResult>> _searchFirestore(
-      String q, Map<String, String?> localUsers) async {
+    String q,
+    Map<String, String?> localUsers,
+  ) async {
     final results = <_UserResult>[];
-    final seen    = <String>{};
+    final seen = <String>{};
 
     // Local results first (instant)
     for (final e in localUsers.entries) {
-      final name = FeedService()
-          .posts
+      final name = FeedService().posts
           .firstWhere((p) => p.userId == e.key)
           .userName;
       if (name.toLowerCase().contains(q.toLowerCase())) {
@@ -1500,11 +1648,13 @@ class _UserSearchDelegate extends SearchDelegate<void> {
       for (final doc in snap.docs) {
         if (seen.contains(doc.id)) continue;
         final data = doc.data();
-        results.add(_UserResult(
-          userId: doc.id,
-          name: (data['name'] as String?) ?? 'Sports Buddy',
-          imageUrl: data['imageUrl'] as String?,
-        ));
+        results.add(
+          _UserResult(
+            userId: doc.id,
+            name: (data['name'] as String?) ?? 'Sports Buddy',
+            imageUrl: data['imageUrl'] as String?,
+          ),
+        );
         seen.add(doc.id);
       }
     } catch (_) {}
@@ -1525,33 +1675,44 @@ class _UserSearchDelegate extends SearchDelegate<void> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => UserProfileScreen(userId: u.userId)),
+                  builder: (_) => UserProfileScreen(userId: u.userId),
+                ),
               );
             },
             leading: CircleAvatar(
               radius: 24,
               backgroundColor: const Color(0xFF2A2A2A),
-              backgroundImage:
-                  u.imageUrl != null ? NetworkImage(u.imageUrl!) : null,
+              backgroundImage: u.imageUrl != null
+                  ? NetworkImage(u.imageUrl!)
+                  : null,
               child: u.imageUrl == null
                   ? Text(
                       u.name.isNotEmpty ? u.name[0].toUpperCase() : 'U',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 18),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
                     )
                   : null,
             ),
-            title: Text(u.name,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600)),
-            subtitle: const Text('Sports Buddy',
-                style: TextStyle(color: Colors.white38, fontSize: 12)),
-            trailing: const Icon(Icons.arrow_forward_ios,
-                color: Colors.white24, size: 14),
+            title: Text(
+              u.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Sports Buddy',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white24,
+              size: 14,
+            ),
           );
         },
       ),
@@ -1559,26 +1720,1834 @@ class _UserSearchDelegate extends SearchDelegate<void> {
   }
 
   Widget _hint(String text) => Container(
-        color: Colors.black,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.person_search_outlined,
-                  color: Colors.white24, size: 56),
-              const SizedBox(height: 16),
-              Text(text,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white38, fontSize: 14)),
-            ],
+    color: Colors.black,
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.person_search_outlined,
+            color: Colors.white24,
+            size: 56,
           ),
-        ),
-      );
+          const SizedBox(height: 16),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white38, fontSize: 14),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _UserResult {
   final String userId, name;
   final String? imageUrl;
-  const _UserResult(
-      {required this.userId, required this.name, required this.imageUrl});
+  const _UserResult({
+    required this.userId,
+    required this.name,
+    required this.imageUrl,
+  });
+}
+
+// ── Palette ───────────────────────────────────────────────────────────────────
+const _kBg = Color(0xFF0D0D0D);
+const _kCard = Color(0xFF1C1C1E);
+const _kDivider = Color(0xFF2C2C2C);
+const _kMuted = Color(0xFF8E8E93);
+const _kBadgeBg = Color(0xFF1A3A1A);
+const _kBadgeFg = Color(0xFF4CD964);
+
+const _kAvatarGradient = LinearGradient(
+  colors: [AppColors.primaryDark, AppColors.primary],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+String _initials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  return name.isNotEmpty ? name[0].toUpperCase() : 'S';
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
+class CommunityFeedScreen extends StatefulWidget {
+  final bool allowBack;
+  const CommunityFeedScreen({super.key, this.allowBack = false});
+
+  @override
+  State<CommunityFeedScreen> createState() => _CommunityFeedScreenState();
+}
+
+class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
+  final ScrollController _scrollCtrl = ScrollController();
+  bool _showFab = false;
+
+  // Approx px before the create-post bar fully scrolls off screen
+  // (stories bar ~110 + create bar ~72)
+  static const double _fabThreshold = 160.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<FeedService>().loadPosts();
+      MessageService().listenToConversations();
+    });
+  }
+
+  void _onScrollNotification(ScrollNotification n) {
+    final show = n.metrics.pixels > _fabThreshold;
+    if (show != _showFab) setState(() => _showFab = show);
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _openCreatePost() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const CreatePostSheet(),
+    );
+  }
+
+  void _openCreateStory() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const CreateStorySheet(),
+    );
+  }
+
+  void _openMessages() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MessagesScreen()),
+    );
+  }
+
+  void _openSearch() {
+    showSearch(context: context, delegate: _UserSearchDelegate());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: widget.allowBack,
+      child: Scaffold(
+        backgroundColor: _kBg,
+        appBar: _buildAppBar(),
+        floatingActionButton: AnimatedScale(
+          scale: _showFab ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          child: AnimatedOpacity(
+            opacity: _showFab ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 150),
+            child: FloatingActionButton(
+              onPressed: _openCreatePost,
+              backgroundColor: AppColors.primary,
+              elevation: 4,
+              child: const Icon(Icons.add, color: Colors.white, size: 28),
+            ),
+          ),
+        ),
+        body: Consumer<FeedService>(
+          builder: (ctx, feedSvc, _) {
+            if (feedSvc.loading && feedSvc.posts.isEmpty) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+
+            return NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                _onScrollNotification(n);
+                return false;
+              },
+              child: RefreshIndicator(
+                color: AppColors.primary,
+                backgroundColor: _kCard,
+                onRefresh: () => feedSvc.loadPosts(),
+                child: CustomScrollView(
+                  controller: _scrollCtrl,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: _StoriesBar(
+                        feedSvc: feedSvc,
+                        onAddStory: _openCreateStory,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _CreatePostBar(onTap: _openCreatePost),
+                    ),
+                    if (feedSvc.posts.isEmpty)
+                      SliverFillRemaining(
+                        child: _EmptyState(onCreatePost: _openCreatePost),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.only(bottom: 100),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) => _PostCard(post: feedSvc.posts[i]),
+                            childCount: feedSvc.posts.length,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: _kBg,
+      elevation: 0,
+      automaticallyImplyLeading: widget.allowBack,
+      iconTheme: const IconThemeData(color: Colors.white),
+      title: const Text(
+        'Sport Club.',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: 24,
+          fontStyle: FontStyle.italic,
+          letterSpacing: -0.5,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              shape: BoxShape.circle,
+              border: Border.all(color: _kDivider),
+            ),
+            child: const Icon(Icons.search, color: Colors.white, size: 20),
+          ),
+          onPressed: _openSearch,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ListenableBuilder(
+            listenable: MessageService(),
+            builder: (ctx, _) {
+              final unread = MessageService().totalUnread;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1C1C1E),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _kDivider),
+                      ),
+                      child: const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    onPressed: _openMessages,
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          unread > 9 ? '9+' : '$unread',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Stories Bar ───────────────────────────────────────────────────────────────
+
+class _StoriesBar extends StatelessWidget {
+  final FeedService feedSvc;
+  final VoidCallback onAddStory;
+  const _StoriesBar({required this.feedSvc, required this.onAddStory});
+
+  @override
+  Widget build(BuildContext context) {
+    final myId = UserService().userId ?? '';
+    final groups = feedSvc.groupedStories;
+    final myStories = feedSvc.storiesByUser(myId);
+    final hasMyStory = myStories.isNotEmpty;
+    final others = groups.where((g) => g.first.userId != myId).toList();
+
+    // Always show profile image URL for own circle
+    final myImageUrl =
+        context.watch<ProfileController>().networkImageUrl ??
+        UserService().profile?.imageUrl;
+    final myName = UserService().profile?.name ?? 'Me';
+
+    return Container(
+      color: _kBg,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 102,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              children: [
+                // ── Your Story — always shows profile pic + red + badge ──
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: _StoryCircle(
+                    label: 'Your story',
+                    imageUrl: myImageUrl,
+                    initials: _initials(myName),
+                    isOwn: true,
+                    isViewed: false,
+                    hasStory: hasMyStory,
+                    onTap: () {
+                      if (hasMyStory) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => StoryViewerScreen(
+                              storyGroups: [myStories, ...others],
+                              initialGroupIndex: 0,
+                            ),
+                          ),
+                        );
+                      } else if (myImageUrl != null) {
+                        // View profile picture fullscreen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _FullscreenImageViewer(
+                              url: myImageUrl,
+                              heroTag: 'my_story_avatar',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    onAddTap: onAddStory,
+                  ),
+                ),
+                ...others.asMap().entries.map((e) {
+                  final idx = e.key;
+                  final grp = e.value;
+                  final first = grp.first;
+                  final name = first.userName;
+                  final viewed = grp.every((s) => s.isViewedBy(myId));
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: _StoryCircle(
+                      label: name.length > 9
+                          ? '${name.substring(0, 9)}…'
+                          : name,
+                      imageUrl: first.userImageUrl,
+                      initials: _initials(name),
+                      isOwn: false,
+                      isViewed: viewed,
+                      hasStory: true,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StoryViewerScreen(
+                            storyGroups: hasMyStory
+                                ? [myStories, ...others]
+                                : others,
+                            initialGroupIndex: hasMyStory ? idx + 1 : idx,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: _kDivider),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Story Circle ──────────────────────────────────────────────────────────────
+
+class _StoryCircle extends StatelessWidget {
+  final String label;
+  final String? imageUrl;
+  final String initials;
+  final bool isOwn; // shows red + badge at bottom-right
+  final bool isViewed;
+  final bool hasStory;
+  final VoidCallback onTap;
+  final VoidCallback? onAddTap; // only used when isOwn=true
+
+  const _StoryCircle({
+    required this.label,
+    required this.imageUrl,
+    required this.initials,
+    required this.isOwn,
+    required this.isViewed,
+    required this.hasStory,
+    required this.onTap,
+    this.onAddTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 66,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // ── Main circle (profile pic) ──
+              GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: hasStory && !isViewed
+                        ? Border.all(color: AppColors.primary, width: 2.5)
+                        : Border.all(color: Colors.white24, width: 2),
+                    gradient: _kAvatarGradient,
+                  ),
+                  child: ClipOval(
+                    child: imageUrl != null
+                        ? Image.network(
+                            imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _initialsWidget(),
+                          )
+                        : _initialsWidget(),
+                  ),
+                ),
+              ),
+              // ── Red + badge (only for own circle) ──
+              if (isOwn)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: onAddTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _kBg, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 13,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _initialsWidget() => Center(
+    child: Text(
+      initials,
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+        fontSize: 20,
+      ),
+    ),
+  );
+}
+
+// ── Create Post Bar ───────────────────────────────────────────────────────────
+
+class _CreatePostBar extends StatelessWidget {
+  final VoidCallback onTap;
+  const _CreatePostBar({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = UserService().profile;
+    final name = profile?.name ?? 'Me';
+    final imgUrl = UserService().profile?.imageUrl;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: _kAvatarGradient,
+              ),
+              child: ClipOval(
+                child: imgUrl != null
+                    ? Image.network(
+                        imgUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _avatarText(name),
+                      )
+                    : _avatarText(name),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                "What's happening in your game?",
+                style: TextStyle(color: _kMuted, fontSize: 14),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 22),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarText(String name) => Center(
+    child: Text(
+      _initials(name),
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+        fontSize: 14,
+      ),
+    ),
+  );
+}
+
+// ── Post Card ─────────────────────────────────────────────────────────────────
+
+class _PostCard extends StatefulWidget {
+  final FeedPost post;
+  const _PostCard({required this.post});
+
+  @override
+  State<_PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<_PostCard> with TickerProviderStateMixin {
+  bool _showHeart = false;
+  late AnimationController _heartCtrl;
+  late Animation<double> _heartAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _heartCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _heartAnim = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 25),
+    ]).animate(CurvedAnimation(parent: _heartCtrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _heartCtrl.dispose();
+    super.dispose();
+  }
+
+  void _doubleTapLike() {
+    if (!widget.post.likedByMe) {
+      context.read<FeedService>().toggleLike(widget.post.id);
+    }
+    setState(() => _showHeart = true);
+    _heartCtrl.forward(from: 0).then((_) {
+      if (mounted) setState(() => _showHeart = false);
+    });
+  }
+
+  void _openComments() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => CommentsScreen(post: widget.post)),
+  );
+
+  void _openShare() => showModalBottomSheet(
+    context: context,
+    backgroundColor: _kCard,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (_) => _ShareSheet(post: widget.post),
+  );
+
+  void _onBookmark() => showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => _SaveCollectionSheet(post: widget.post),
+  );
+
+  String _timestamp(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return 'Today at ${_fmt12(dt)}';
+    if (diff.inDays < 1) return 'Today at ${_fmt12(dt)}';
+    if (diff.inDays == 1) return 'Yesterday at ${_fmt12(dt)}';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  String _fmt12(DateTime dt) {
+    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final m = dt.minute.toString().padLeft(2, '0');
+    final ap = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$h:$m $ap';
+  }
+
+  String? _badge(FeedPost post) {
+    if (post.sport != null && post.sport!.isNotEmpty) return post.sport;
+    final t = post.text.toLowerCase();
+    if (t.contains('winner') || t.contains('won') || t.contains('champ')) {
+      return 'WINNERS';
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final post = widget.post;
+    final badge = _badge(post);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 10, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Avatar
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserProfileScreen(userId: post.userId),
+                    ),
+                  ),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: _kAvatarGradient,
+                    ),
+                    child: ClipOval(
+                      child: ListenableBuilder(
+                        listenable: UserService(),
+                        builder: (_, _) {
+                          final myId = UserService().userId;
+                          final imgUrl = post.userId == myId
+                              ? (UserService().profile?.imageUrl ??
+                                    post.userImageUrl)
+                              : post.userImageUrl;
+                          if (imgUrl != null) {
+                            return Image.network(
+                              imgUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  _avatarInitials(post.userName),
+                            );
+                          }
+                          return _avatarInitials(post.userName);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Name + badge + timestamp
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              post.userName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (badge != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _kBadgeBg,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                badge.toUpperCase(),
+                                style: const TextStyle(
+                                  color: _kBadgeFg,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _timestamp(post.createdAt),
+                        style: const TextStyle(color: _kMuted, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                // 3-dot menu
+                GestureDetector(
+                  onTap: () => _showOptions(context, post),
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.more_vert,
+                      color: Colors.white60,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Post text ─────────────────────────────────────────────────
+          if (post.text.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Text(
+                post.text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.5,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+
+          // ── Image ─────────────────────────────────────────────────────
+          if (post.imageUrl != null)
+            GestureDetector(
+              onDoubleTap: _doubleTapLike,
+              child: ClipRRect(
+                borderRadius: post.text.isEmpty
+                    ? const BorderRadius.vertical(top: Radius.circular(14))
+                    : BorderRadius.zero,
+                child: Stack(
+                  children: [
+                    _NetworkImageSafe(url: post.imageUrl!),
+                    if (_showHeart)
+                      IgnorePointer(
+                        child: FadeTransition(
+                          opacity: _heartAnim,
+                          child: Container(
+                            height: 260,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.favorite,
+                              color: Colors.white,
+                              size: 88,
+                              shadows: [
+                                Shadow(color: Colors.black54, blurRadius: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+          // ── Action row ────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: Row(
+              children: [
+                // Like
+                _AnimatedLikeButton(post: post),
+                const SizedBox(width: 16),
+                // Comment
+                GestureDetector(
+                  onTap: _openComments,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Colors.white70,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${post.commentCount}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Share
+                GestureDetector(
+                  onTap: _openShare,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.reply_outlined,
+                        color: Colors.white70,
+                        size: 22,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'Share',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                // Bookmark
+                GestureDetector(
+                  onTap: _onBookmark,
+                  child: Icon(
+                    post.savedByMe
+                        ? Icons.bookmark
+                        : Icons.bookmark_border_outlined,
+                    color: post.savedByMe ? AppColors.primary : Colors.white70,
+                    size: 22,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarInitials(String name) => Container(
+    decoration: const BoxDecoration(gradient: _kAvatarGradient),
+    child: Center(
+      child: Text(
+        _initials(name),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
+      ),
+    ),
+  );
+
+  void _showOptions(BuildContext context, FeedPost post) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _kCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.person_outline,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'View Profile',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UserProfileScreen(userId: post.userId),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.copy_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Copy Text',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Clipboard.setData(ClipboardData(text: post.text));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Copied'),
+                    backgroundColor: Color(0xFF1A1A1A),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.flag_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Report',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Post reported'),
+                    backgroundColor: Color(0xFF1A1A1A),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Fullscreen network image viewer ──────────────────────────────────────────
+
+class _FullscreenImageViewer extends StatelessWidget {
+  final String url;
+  final String heroTag;
+  const _FullscreenImageViewer({required this.url, required this.heroTag});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: SizedBox.expand(
+          child: Hero(
+            tag: heroTag,
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                        strokeWidth: 2,
+                      ),
+                    ),
+              errorBuilder: (_, _, _) => const Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white24,
+                  size: 56,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Empty State ───────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  final VoidCallback onCreatePost;
+  const _EmptyState({required this.onCreatePost});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _kCard,
+              border: Border.all(color: _kDivider, width: 2),
+            ),
+            child: const Icon(
+              Icons.photo_camera_outlined,
+              color: Colors.white38,
+              size: 38,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Share Your Game Moments',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 48),
+            child: Text(
+              'Posts from you and your sports buddies will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+          GestureDetector(
+            onTap: onCreatePost,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Create First Post',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Network Image ─────────────────────────────────────────────────────────────
+
+class _NetworkImageSafe extends StatelessWidget {
+  final String url;
+  const _NetworkImageSafe({required this.url});
+
+  bool get _isAsset => url.startsWith('assets/');
+  bool get _isLocal => !url.startsWith('http') && !url.startsWith('assets/');
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isAsset) {
+      return Image.asset(
+        url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (_, _, _) => _broken(),
+      );
+    }
+    if (_isLocal) {
+      return Image.file(
+        dart_io.File(url),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (_, _, _) => _broken(),
+      );
+    }
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      loadingBuilder: (_, child, p) {
+        if (p == null) return child;
+        return Container(
+          height: 220,
+          color: const Color(0xFF111111),
+          child: Center(
+            child: CircularProgressIndicator(
+              value: p.expectedTotalBytes != null
+                  ? p.cumulativeBytesLoaded / p.expectedTotalBytes!
+                  : null,
+              color: AppColors.primary,
+              strokeWidth: 2,
+            ),
+          ),
+        );
+      },
+      errorBuilder: (_, _, _) => _broken(),
+    );
+  }
+
+  Widget _broken() => Container(
+    height: 220,
+    color: const Color(0xFF111111),
+    child: const Center(
+      child: Icon(Icons.broken_image_outlined, color: Colors.white24, size: 40),
+    ),
+  );
+}
+
+// ── Animated Like Button ──────────────────────────────────────────────────────
+
+class _AnimatedLikeButton extends StatefulWidget {
+  final FeedPost post;
+  const _AnimatedLikeButton({required this.post});
+
+  @override
+  State<_AnimatedLikeButton> createState() => _AnimatedLikeButtonState();
+}
+
+class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    );
+    _scale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 50),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onTap() {
+    _ctrl.forward(from: 0);
+    context.read<FeedService>().toggleLike(widget.post.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _onTap,
+      child: ScaleTransition(
+        scale: _scale,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              widget.post.likedByMe ? Icons.favorite : Icons.favorite_border,
+              color: widget.post.likedByMe ? AppColors.primary : Colors.white70,
+              size: 22,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              '${widget.post.likes}',
+              style: TextStyle(
+                color: widget.post.likedByMe
+                    ? AppColors.primary
+                    : Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Share Sheet ───────────────────────────────────────────────────────────────
+
+class _ShareSheet extends StatelessWidget {
+  final FeedPost post;
+  const _ShareSheet({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(top: 10, bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Text(
+            'Share',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.send_outlined,
+                color: AppColors.primary,
+                size: 22,
+              ),
+            ),
+            title: const Text(
+              'Send as Message',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            subtitle: const Text(
+              'Share via DM',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MessagesScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.link_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            title: const Text(
+              'Copy Link',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Clipboard.setData(
+                ClipboardData(text: 'sportsbuddies://post/${post.id}'),
+              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Link copied'),
+                  backgroundColor: Color(0xFF1A1A1A),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.auto_stories_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            title: const Text(
+              'Add to Your Story',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const CreateStorySheet(),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Save to Collection Sheet ──────────────────────────────────────────────────
+
+class _SaveCollectionSheet extends StatefulWidget {
+  final FeedPost post;
+  const _SaveCollectionSheet({required this.post});
+
+  @override
+  State<_SaveCollectionSheet> createState() => _SaveCollectionSheetState();
+}
+
+class _SaveCollectionSheetState extends State<_SaveCollectionSheet> {
+  List<SavedCollection> _collections = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final cols = await FeedService().loadCollections();
+    if (mounted)
+      setState(() {
+        _collections = cols;
+        _loading = false;
+      });
+  }
+
+  Future<void> _saveToCollection(
+    String collectionId,
+    String collectionName,
+  ) async {
+    await FeedService().toggleSave(widget.post.id);
+    await FeedService().savePostToCollection(widget.post.id, collectionId);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved to $collectionName'),
+        backgroundColor: _kCard,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _createCollection() async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _kCard,
+        title: const Text(
+          'New Collection',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Collection name',
+            hintStyle: TextStyle(color: Colors.white38),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white24),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.primary),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text(
+              'Create',
+              style: TextStyle(color: AppColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      final col = await FeedService().createCollection(name);
+      await _saveToCollection(col.id, col.name);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        0,
+        0,
+        0,
+        MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(top: 10, bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Icon(Icons.bookmark_outline, color: Colors.white, size: 22),
+                SizedBox(width: 10),
+                Text(
+                  'Save to Collection',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white10, height: 1),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(
+                color: AppColors.primary,
+                strokeWidth: 2,
+              ),
+            )
+          else ...[
+            if (_collections.isEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'No collections yet. Create one below!',
+                  style: TextStyle(color: Colors.white38, fontSize: 13),
+                ),
+              )
+            else
+              ..._collections.map(
+                (col) => ListTile(
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.bookmark,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    col.name,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    '${col.postIds.length} saved',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                  onTap: () => _saveToCollection(col.id, col.name),
+                ),
+              ),
+            ListTile(
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.add, color: Colors.white70, size: 22),
+              ),
+              title: const Text(
+                'Create New Collection',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              onTap: _createCollection,
+            ),
+          ],
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ── User Search Delegate ──────────────────────────────────────────────────────
+
+class _UserSearchDelegate extends SearchDelegate<void> {
+  _UserSearchDelegate() : super(searchFieldLabel: 'Search people…');
+
+  @override
+  ThemeData appBarTheme(BuildContext context) => ThemeData.dark().copyWith(
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF111111),
+      elevation: 0,
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      border: InputBorder.none,
+      hintStyle: TextStyle(color: Colors.white38),
+    ),
+    textTheme: const TextTheme(
+      titleLarge: TextStyle(color: Colors.white, fontSize: 16),
+    ),
+  );
+
+  @override
+  List<Widget> buildActions(BuildContext context) => [
+    if (query.isNotEmpty)
+      IconButton(
+        icon: const Icon(Icons.clear, color: Colors.white),
+        onPressed: () => query = '',
+      ),
+  ];
+
+  @override
+  Widget buildLeading(BuildContext context) => IconButton(
+    icon: const Icon(Icons.arrow_back, color: Colors.white),
+    onPressed: () => close(context, null),
+  );
+
+  @override
+  Widget buildResults(BuildContext context) => _buildBody(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildBody(context);
+
+  Widget _buildBody(BuildContext context) {
+    final q = query.trim();
+    final localUsers = <String, String?>{};
+    for (final p in FeedService().posts) {
+      if (!localUsers.containsKey(p.userId) &&
+          (q.isEmpty || p.userName.toLowerCase().contains(q.toLowerCase()))) {
+        localUsers[p.userId] = p.userImageUrl;
+      }
+    }
+
+    if (q.isEmpty) {
+      if (localUsers.isEmpty) return _hint('Search for sports buddies by name');
+      return _userList(
+        context,
+        localUsers.entries
+            .map(
+              (e) => _UserResult(
+                userId: e.key,
+                name: FeedService().posts
+                    .firstWhere((p) => p.userId == e.key)
+                    .userName,
+                imageUrl: e.value,
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    return FutureBuilder<List<_UserResult>>(
+      future: _searchFirestore(q, localUsers),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          );
+        }
+        final results = snap.data ?? [];
+        if (results.isEmpty) return _hint('No people found for "$q"');
+        return _userList(context, results);
+      },
+    );
+  }
+
+  Future<List<_UserResult>> _searchFirestore(
+    String q,
+    Map<String, String?> localUsers,
+  ) async {
+    final results = <_UserResult>[];
+    final seen = <String>{};
+
+    for (final e in localUsers.entries) {
+      final name = FeedService().posts
+          .firstWhere((p) => p.userId == e.key)
+          .userName;
+      if (name.toLowerCase().contains(q.toLowerCase())) {
+        results.add(_UserResult(userId: e.key, name: name, imageUrl: e.value));
+        seen.add(e.key);
+      }
+    }
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('name', isGreaterThanOrEqualTo: q)
+          .where('name', isLessThan: '${q}z')
+          .limit(20)
+          .get();
+      for (final doc in snap.docs) {
+        if (seen.contains(doc.id)) continue;
+        final data = doc.data();
+        results.add(
+          _UserResult(
+            userId: doc.id,
+            name: (data['name'] as String?) ?? 'Sports Buddy',
+            imageUrl: data['imageUrl'] as String?,
+          ),
+        );
+        seen.add(doc.id);
+      }
+    } catch (_) {}
+
+    return results;
+  }
+
+  Widget _userList(BuildContext context, List<_UserResult> users) => Container(
+    color: _kBg,
+    child: ListView.builder(
+      itemCount: users.length,
+      itemBuilder: (_, i) {
+        final u = users[i];
+        return ListTile(
+          onTap: () {
+            close(context, null);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UserProfileScreen(userId: u.userId),
+              ),
+            );
+          },
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: _kAvatarGradient,
+            ),
+            child: ClipOval(
+              child: u.imageUrl != null
+                  ? Image.network(
+                      u.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Center(
+                        child: Text(
+                          _initials(u.name),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        _initials(u.name),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          title: Text(
+            u.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: const Text(
+            'Sports Buddy',
+            style: TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+          trailing: const Icon(
+            Icons.arrow_forward_ios,
+            color: Colors.white24,
+            size: 14,
+          ),
+        );
+      },
+    ),
+  );
+
+  Widget _hint(String text) => Container(
+    color: _kBg,
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.person_search_outlined,
+            color: Colors.white24,
+            size: 56,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white38, fontSize: 14),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _UserResult {
+  final String userId, name;
+  final String? imageUrl;
+  const _UserResult({
+    required this.userId,
+    required this.name,
+    required this.imageUrl,
+  });
 }

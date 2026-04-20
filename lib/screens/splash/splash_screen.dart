@@ -28,6 +28,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (role == UserRole.merchant) {
         Navigator.pushReplacementNamed(context, '/merchant-home');
       } else {
+        // player and organizer both use the main home shell
         Navigator.pushReplacementNamed(context, '/home');
       }
     } else {

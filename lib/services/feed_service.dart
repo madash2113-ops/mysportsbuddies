@@ -150,7 +150,6 @@ class FeedService extends ChangeNotifier {
           .map((doc) => FeedPost.fromFirestore(doc, myUserId: myId))
           .toList());
     } catch (e) {
-      debugPrint('FeedService.loadPosts error: $e');
       if (_posts.isEmpty) _posts.addAll(_demoPosts());
     } finally {
       _loading = false;
@@ -213,7 +212,6 @@ class FeedService extends ChangeNotifier {
           notifyListeners();
         }
       } catch (e) {
-        debugPrint('FeedService._persistPost upload error: $e');
         // Keep local path — image still shows from device
       }
     }
@@ -223,7 +221,6 @@ class FeedService extends ChangeNotifier {
       ...post.copyWith(imageUrl: imageUrl).toMap(),
       'createdAt': FieldValue.serverTimestamp(),
     }).catchError((dynamic e) {
-      debugPrint('FeedService._persistPost Firestore error (post kept locally): $e');
     });
   }
 
@@ -252,7 +249,6 @@ class FeedService extends ChangeNotifier {
           'likedBy': FieldValue.arrayRemove([myId]),
         });
       } catch (e) {
-        debugPrint('FeedService.toggleLike unlike error: $e');
         _posts[idx] = post; // rollback
         notifyListeners();
       }
@@ -285,7 +281,6 @@ class FeedService extends ChangeNotifier {
           );
         }
       } catch (e) {
-        debugPrint('FeedService.toggleLike like error: $e');
         _posts[idx] = post; // rollback
         notifyListeners();
       }
@@ -361,7 +356,6 @@ class FeedService extends ChangeNotifier {
         );
       }
     } catch (e) {
-      debugPrint('FeedService.addComment error: $e');
       if (idx >= 0) {
         _posts[idx] = _posts[idx]
             .copyWith(commentCount: _posts[idx].commentCount - 1);
@@ -451,7 +445,6 @@ class FeedService extends ChangeNotifier {
           notifyListeners();
         }
       } catch (e) {
-        debugPrint('FeedService._persistStory upload error: $e');
         // Keep local path — image still shows from device
       }
     }
@@ -470,7 +463,6 @@ class FeedService extends ChangeNotifier {
         : story;
 
     _db.collection(_storiesCol).doc(id).set(storyToSave.toMap()).catchError((dynamic e) {
-      debugPrint('FeedService._persistStory Firestore error (story kept locally): $e');
     });
   }
 
@@ -498,9 +490,7 @@ class FeedService extends ChangeNotifier {
           notifyListeners();
         }
       }
-    } catch (e) {
-      debugPrint('FeedService.markStoryViewed error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── Posts by user ─────────────────────────────────────────────────────────
@@ -520,7 +510,6 @@ class FeedService extends ChangeNotifier {
         ...localDemos,
       ];
     } catch (e) {
-      debugPrint('FeedService.postsByUser error (index missing?): $e');
       return _posts.where((p) => p.userId == userId).toList();
     }
   }
@@ -565,7 +554,6 @@ class FeedService extends ChangeNotifier {
             'savedBy': FieldValue.arrayRemove([myId]),
           });
         } catch (e) {
-          debugPrint('FeedService.toggleSave remove error: $e');
           _posts[idx] = post;
           notifyListeners();
         }
@@ -582,7 +570,6 @@ class FeedService extends ChangeNotifier {
             'savedBy': FieldValue.arrayUnion([myId]),
           });
         } catch (e) {
-          debugPrint('FeedService.toggleSave add error: $e');
           _posts[idx] = post;
           notifyListeners();
         }

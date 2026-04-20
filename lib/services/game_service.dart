@@ -43,9 +43,7 @@ class GameService extends ChangeNotifier {
 
     try {
       await _db.collection(_col).doc(game.id).set(game.toMap());
-    } catch (e) {
-      debugPrint('GameService.addGame Firestore error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Replace an existing game (edit). Matches by ID.
@@ -57,9 +55,7 @@ class GameService extends ChangeNotifier {
 
     try {
       await _db.collection(_col).doc(game.id).set(game.toMap());
-    } catch (e) {
-      debugPrint('GameService.updateGame Firestore error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Update only the RSVP status for a game (opt in / out / tentative).
@@ -129,9 +125,7 @@ class GameService extends ChangeNotifier {
           targetId: id,
         );
       }
-    } catch (e) {
-      debugPrint('GameService.updateGameStatus Firestore error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Delete a game locally and from Firestore.
@@ -140,9 +134,7 @@ class GameService extends ChangeNotifier {
     notifyListeners();
     try {
       await _db.collection(_col).doc(id).delete();
-    } catch (e) {
-      debugPrint('GameService.deleteGame Firestore error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Upload a photo for a game, store in Firebase Storage and update Firestore.
@@ -183,9 +175,7 @@ class GameService extends ChangeNotifier {
         ..clear()
         ..addAll(remote);
       notifyListeners();
-    } catch (e) {
-      debugPrint('GameService.loadFromFirestore error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Fetch a single game from Firestore by ID (used for notification deep-links).
@@ -195,7 +185,6 @@ class GameService extends ChangeNotifier {
       if (!doc.exists) return null;
       return Game.fromFirestore(doc);
     } catch (e) {
-      debugPrint('GameService.fetchById error: $e');
       return null;
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +9,6 @@ import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/game_service.dart';
 import '../../services/location_service.dart';
-import '../../services/user_service.dart';
 import '../../widgets/map_picker_sheet.dart';
 import '../home/scheduled_matches_screen.dart';
 import '../register/register_game_screen.dart';
@@ -25,7 +26,7 @@ class NearbyGamesScreen extends StatefulWidget {
 class _NearbyGamesScreenState extends State<NearbyGamesScreen>
     with SingleTickerProviderStateMixin {
   Position? _userPos;
-  bool      _locating = true;
+  bool _locating = true;
   late TabController _tabCtrl;
   final _searchCtrl = TextEditingController();
   String _locationQuery = '';
@@ -55,17 +56,21 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
 
     // Accurate: full GPS fix
     final precise = await LocationService().getCurrentPosition();
-    if (mounted) setState(() { _userPos = precise ?? quick; _locating = false; });
+    if (mounted)
+      setState(() {
+        _userPos = precise ?? quick;
+        _locating = false;
+      });
   }
 
   // ── Classify games into tabs ──────────────────────────────────────────────
 
   List<List<Game>> _split(List<Game> raw) {
-    final now   = DateTime.now();
+    final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final upcoming = <Game>[];
-    final todayGs  = <Game>[];
-    final past     = <Game>[];
+    final todayGs = <Game>[];
+    final past = <Game>[];
 
     for (final g in raw) {
       final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
@@ -94,49 +99,80 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
     final svc = LocationService();
     return [...raw]..sort((a, b) {
       final dA = (a.latitude != null && a.longitude != null)
-          ? svc.distanceInKm(_userPos!.latitude, _userPos!.longitude,
-              a.latitude!, a.longitude!)
+          ? svc.distanceInKm(
+              _userPos!.latitude,
+              _userPos!.longitude,
+              a.latitude!,
+              a.longitude!,
+            )
           : double.infinity;
       final dB = (b.latitude != null && b.longitude != null)
-          ? svc.distanceInKm(_userPos!.latitude, _userPos!.longitude,
-              b.latitude!, b.longitude!)
+          ? svc.distanceInKm(
+              _userPos!.latitude,
+              _userPos!.longitude,
+              b.latitude!,
+              b.longitude!,
+            )
           : double.infinity;
       return dA.compareTo(dB);
     });
   }
 
   double? _distanceTo(Game g) {
-    if (_userPos == null || g.latitude == null || g.longitude == null) return null;
+    if (_userPos == null || g.latitude == null || g.longitude == null)
+      return null;
     return LocationService().distanceInKm(
-        _userPos!.latitude, _userPos!.longitude, g.latitude!, g.longitude!);
+      _userPos!.latitude,
+      _userPos!.longitude,
+      g.latitude!,
+      g.longitude!,
+    );
   }
 
   String _emoji(String sport) {
     const m = {
-      'Cricket': '🏏', 'Football': '⚽', 'Basketball': '🏀',
-      'Badminton': '🏸', 'Tennis': '🎾', 'Volleyball': '🏐',
-      'Table Tennis': '🏓', 'Boxing': '🥊', 'Baseball': '⚾',
-      'Hockey': '🏑', 'Running': '🏃', 'Swimming': '🏊',
-      'Cycling': '🚴', 'MMA': '🥋', 'Wrestling': '🤼',
-      'Kabaddi': '🤸', 'Kho Kho': '🏃', 'CS:GO': '🎮', 'Valorant': '🎮',
+      'Cricket': '🏏',
+      'Football': '⚽',
+      'Basketball': '🏀',
+      'Badminton': '🏸',
+      'Tennis': '🎾',
+      'Squash': '🎾',
+      'Volleyball': '🏐',
+      'Table Tennis': '🏓',
+      'Boxing': '🥊',
+      'Baseball': '⚾',
+      'Hockey': '🏑',
+      'Rugby': '🏉',
+      'Swimming': '🏊',
+      'Cycling': '🚴',
+      'MMA': '🥋',
+      'Wrestling': '🤼',
+      'Kabaddi': '🤼',
+      'Throwball': '🎯',
+      'Handball': '🤾',
+      'Golf': '⛳',
+      'Athletics': '🏃',
+      'Archery': '🏹',
+      'CS:GO': '🎮',
+      'Valorant': '🎮',
     };
     return m[sport] ?? '🏅';
   }
 
   String _formatDate(DateTime dt) {
-    final now   = DateTime.now();
+    final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final date  = DateTime(dt.year, dt.month, dt.day);
-    final diff  = date.difference(today).inDays;
-    if (diff == 0)  return 'Today';
-    if (diff == 1)  return 'Tomorrow';
+    final date = DateTime(dt.year, dt.month, dt.day);
+    final diff = date.difference(today).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
     if (diff == -1) return 'Yesterday';
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
   String _formatTime(DateTime dt) {
-    final h  = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final m  = dt.minute.toString().padLeft(2, '0');
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
     final ap = dt.hour < 12 ? 'AM' : 'PM';
     return '$h:$m $ap';
   }
@@ -144,7 +180,11 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
   Future<void> _onGpsTap() async {
     setState(() => _locating = true);
     final pos = await LocationService().getCurrentPosition();
-    if (mounted) setState(() { _userPos = pos; _locating = false; });
+    if (mounted)
+      setState(() {
+        _userPos = pos;
+        _locating = false;
+      });
   }
 
   void _showRadiusSheet() {
@@ -153,7 +193,8 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1A1A1A),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => _RadiusSheet(
         initial: _radiusMiles ?? 10,
         onApply: (miles) {
@@ -166,19 +207,24 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final myId = UserService().userId;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => HostAGameScreen(sport: widget.sport),
-        )),
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => widget.sport != null
+                ? RegisterGameScreen(sport: widget.sport!)
+                : const HostAGameScreen(),
+          ),
+        ),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.sports_handball_outlined, color: Colors.white),
         label: const Text(
           'Host a Game',
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       appBar: AppBar(
@@ -187,15 +233,19 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
         iconTheme: const IconThemeData(color: Colors.white),
         title: Row(
           children: [
-            Text(_emoji(widget.sport ?? ''), style: const TextStyle(fontSize: 20)),
+            Text(
+              _emoji(widget.sport ?? ''),
+              style: const TextStyle(fontSize: 20),
+            ),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
                 'Nearby${widget.sport != null ? ' ${widget.sport}' : ''} Games',
                 style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600),
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -203,12 +253,16 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_today_outlined,
-                color: AppColors.primary),
+            icon: const Icon(
+              Icons.calendar_today_outlined,
+              color: AppColors.primary,
+            ),
             tooltip: 'My Schedule',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => ScheduledMatchesScreen(sport: widget.sport),
-            )),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ScheduledMatchesScreen(sport: widget.sport),
+              ),
+            ),
           ),
         ],
         bottom: TabBar(
@@ -217,7 +271,9 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
           labelColor: AppColors.primary,
           unselectedLabelColor: Colors.white38,
           labelStyle: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w600),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
           tabs: const [
             Tab(text: 'Upcoming'),
             Tab(text: 'Today'),
@@ -227,17 +283,21 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
       ),
       body: Consumer<GameService>(
         builder: (ctx, gameSvc, _) {
-          final allSorted = _sorted(widget.sport != null ? gameSvc.bySport(widget.sport!) : gameSvc.all);
+          final allSorted = _sorted(
+            widget.sport != null ? gameSvc.bySport(widget.sport!) : gameSvc.all,
+          );
           final filtered = allSorted.where((g) {
-            final matchText = _locationQuery.isEmpty ||
+            final matchText =
+                _locationQuery.isEmpty ||
                 g.location.toLowerCase().contains(_locationQuery.toLowerCase());
             // convert miles → km for distance comparison
-            final matchRadius = _radiusMiles == null ||
+            final matchRadius =
+                _radiusMiles == null ||
                 (_distanceTo(g) != null &&
                     _distanceTo(g)! <= _radiusMiles! * 1.60934);
             return matchText && matchRadius;
           }).toList();
-          final splits = _split(filtered);   // [upcoming, today, past]
+          final splits = _split(filtered); // [upcoming, today, past]
 
           return Column(
             children: [
@@ -252,17 +312,27 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                         onChanged: (v) =>
                             setState(() => _locationQuery = v.trim()),
                         style: const TextStyle(
-                            color: AppColors.textPrimary, fontSize: 14),
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                        ),
                         decoration: InputDecoration(
                           hintText: 'Search by location…',
                           hintStyle: const TextStyle(
-                              color: AppColors.textHint, fontSize: 13),
-                          prefixIcon: const Icon(Icons.search_rounded,
-                              color: AppColors.textHint, size: 18),
+                            color: AppColors.textHint,
+                            fontSize: 13,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: AppColors.textHint,
+                            size: 18,
+                          ),
                           suffixIcon: _locationQuery.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.close,
-                                      color: AppColors.textHint, size: 18),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: AppColors.textHint,
+                                    size: 18,
+                                  ),
                                   onPressed: () {
                                     _searchCtrl.clear();
                                     setState(() => _locationQuery = '');
@@ -272,21 +342,27 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                           filled: true,
                           fillColor: const Color(0xFF1A1A1A),
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: AppColors.border),
+                            borderSide: const BorderSide(
+                              color: AppColors.border,
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: AppColors.border),
+                            borderSide: const BorderSide(
+                              color: AppColors.border,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                                color: AppColors.primary, width: 1.5),
+                              color: AppColors.primary,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
@@ -315,14 +391,16 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                             onTap: _locating ? null : _onGpsTap,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12),
+                                horizontal: 12,
+                              ),
                               child: _locating
                                   ? const SizedBox(
                                       width: 16,
                                       height: 16,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppColors.primary),
+                                        strokeWidth: 2,
+                                        color: AppColors.primary,
+                                      ),
                                     )
                                   : Icon(
                                       Icons.my_location_rounded,
@@ -335,13 +413,17 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                           ),
                           // Divider
                           Container(
-                              width: 1, height: 22, color: AppColors.border),
+                            width: 1,
+                            height: 22,
+                            color: AppColors.border,
+                          ),
                           // Radius dropdown arrow
                           GestureDetector(
                             onTap: _showRadiusSheet,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10),
+                                horizontal: 10,
+                              ),
                               child: Icon(
                                 Icons.expand_more_rounded,
                                 color: _radiusMiles != null
@@ -365,26 +447,32 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                              color:
-                                  AppColors.primary.withValues(alpha: 0.4)),
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.radio_button_checked,
-                                color: AppColors.primary, size: 12),
+                            const Icon(
+                              Icons.radio_button_checked,
+                              color: AppColors.primary,
+                              size: 12,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'Within ${_radiusMiles!.toStringAsFixed(_radiusMiles! == _radiusMiles!.roundToDouble() ? 0 : 1)} mi',
                               style: const TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600),
+                                color: AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -392,8 +480,11 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                       const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () => setState(() => _radiusMiles = null),
-                        child: const Icon(Icons.close,
-                            color: AppColors.textHint, size: 16),
+                        child: const Icon(
+                          Icons.close,
+                          color: AppColors.textHint,
+                          size: 16,
+                        ),
                       ),
                     ],
                   ),
@@ -431,26 +522,12 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                               distance: _distanceTo(game),
                               formatDate: _formatDate,
                               formatTime: _formatTime,
-                              isOwner: myId != null &&
-                                  game.registeredBy == myId,
                               onTap: () => Navigator.push(
                                 ctx,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      GameDetailScreen(game: game),
+                                  builder: (_) => GameDetailScreen(game: game),
                                 ),
                               ),
-                              onEdit: () async {
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => RegisterGameScreen(
-                                      sport: game.sport,
-                                      existingGame: game,
-                                    ),
-                                  ),
-                                );
-                                setState(() {});
-                              },
                             );
                           },
                         ),
@@ -473,8 +550,7 @@ class _EmptyTab extends StatelessWidget {
   final String label;
   final String sport;
   final VoidCallback? onAdd;
-  const _EmptyTab(
-      {required this.label, required this.sport, this.onAdd});
+  const _EmptyTab({required this.label, required this.sport, this.onAdd});
 
   @override
   Widget build(BuildContext context) {
@@ -485,19 +561,19 @@ class _EmptyTab extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(isPast ? '📋' : '🏟️',
-                style: const TextStyle(fontSize: 56)),
+            Text(isPast ? '📋' : '🏟️', style: const TextStyle(fontSize: 56)),
             const SizedBox(height: AppSpacing.md),
             Text(
               isPast
                   ? 'No past $sport games'
                   : label == 'Today'
-                      ? 'No $sport games today'
-                      : 'No upcoming $sport games',
+                  ? 'No $sport games today'
+                  : 'No upcoming $sport games',
               style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600),
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
@@ -506,7 +582,10 @@ class _EmptyTab extends StatelessWidget {
                   : 'Be the first to add one in your area!',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 14, height: 1.5),
+                color: AppColors.textMuted,
+                fontSize: 14,
+                height: 1.5,
+              ),
             ),
             if (onAdd != null) ...[
               const SizedBox(height: AppSpacing.xl),
@@ -515,17 +594,19 @@ class _EmptyTab extends StatelessWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppSpacing.sm)),
+                      borderRadius: BorderRadius.circular(AppSpacing.sm),
+                    ),
                   ),
                   onPressed: onAdd,
-                  child: const Text('Add a Game',
-                      style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Add a Game',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -541,27 +622,66 @@ class _EmptyTab extends StatelessWidget {
 class _GameCard extends StatelessWidget {
   final Game game;
   final double? distance;
-  final bool isOwner;
   final VoidCallback onTap;
-  final VoidCallback onEdit;
   final String Function(DateTime) formatDate;
   final String Function(DateTime) formatTime;
 
   const _GameCard({
     required this.game,
     required this.distance,
-    required this.isOwner,
     required this.onTap,
-    required this.onEdit,
     required this.formatDate,
     required this.formatTime,
   });
 
+  Widget _glassPill({
+    required IconData icon,
+    required String text,
+    Color? iconColor,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.65),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 11,
+                color: iconColor ?? Colors.white.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateLabel  = formatDate(game.dateTime);
-    final timeLabel  = formatTime(game.dateTime);
-    final isToday    = dateLabel == 'Today';
+    final dateLabel = formatDate(game.dateTime);
+    final timeLabel = formatTime(game.dateTime);
+    final isToday = dateLabel == 'Today';
     final isTomorrow = dateLabel == 'Tomorrow';
 
     return GestureDetector(
@@ -569,47 +689,138 @@ class _GameCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.md),
         decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF161616),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isToday
-                ? AppColors.primary.withValues(alpha: 0.5)
-                : AppColors.textPrimary.withValues(alpha: 0.06),
-            width: isToday ? 1.2 : 0.8,
+                ? AppColors.primary.withValues(alpha: 0.35)
+                : Colors.white.withValues(alpha: 0.09),
+            width: 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.10),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
+        clipBehavior: Clip.hardEdge,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Top half: uploaded photo or sport gradient banner ─────────
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(15)),
-              child: game.photoUrls.isNotEmpty
-                  ? Image.network(
-                      game.photoUrls.first,
-                      height: 160,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (_, child, prog) => prog == null
-                          ? child
-                          : const SizedBox(
-                              height: 160,
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primary),
+            // ── Banner ────────────────────────────────────────────────────
+            SizedBox(
+              height: 200,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  game.photoUrls.isNotEmpty
+                      ? Image.network(
+                          game.photoUrls.first,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (_, child, prog) => prog == null
+                              ? child
+                              : const SizedBox(
+                                  height: 200,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                          errorBuilder: (context, e, s) =>
+                              _SportBanner(sport: game.sport),
+                        )
+                      : _SportBanner(sport: game.sport),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.black.withValues(alpha: 0.55),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.45),
+                            Colors.black.withValues(alpha: 0.85),
+                          ],
+                          stops: const [0.0, 0.28, 0.62, 1.0],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 10,
+                    left: 12,
+                    child: _glassPill(
+                      icon: Icons.calendar_today_outlined,
+                      text: dateLabel,
+                      iconColor: isToday
+                          ? AppColors.primary
+                          : isTomorrow
+                          ? AppColors.warning
+                          : Colors.white,
+                    ),
+                  ),
+                  if (distance != null)
+                    Positioned(
+                      top: 10,
+                      right: 12,
+                      child: _glassPill(
+                        icon: Icons.near_me_outlined,
+                        text: LocationService().formatDistance(distance!),
+                        iconColor: const Color(0xFF42A5F5),
+                      ),
+                    ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 12,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          game.sport,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black,
+                                blurRadius: 6,
+                                offset: Offset(0, 1),
                               ),
-                            ),
-                      errorBuilder: (context, e, s) =>
-                          _SportBanner(sport: game.sport),
-                    )
-                  : _SportBanner(sport: game.sport),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          timeLabel,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.78),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            shadows: const [
+                              Shadow(color: Colors.black, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
 
-            // ── Bottom half: match details ────────────────────────────────
+            // ── Body ──────────────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -623,85 +834,97 @@ class _GameCard extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.location_on_outlined,
-                            color: AppColors.primary, size: 16),
+                        const Icon(
+                          Icons.location_on_outlined,
+                          color: AppColors.textHint,
+                          size: 15,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             game.location,
                             style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                decoration: TextDecoration.none),
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.none,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (distance != null) ...[
-                          const SizedBox(width: 4),
-                          _DistanceChip(km: distance!),
-                        ],
-                        const SizedBox(width: 4),
-                        _DateChip(
-                            label: dateLabel,
-                            isToday: isToday,
-                            isTomorrow: isTomorrow),
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.access_time_outlined,
-                          color: AppColors.textHint, size: 14),
+                      const Icon(
+                        Icons.access_time_outlined,
+                        color: AppColors.textHint,
+                        size: 14,
+                      ),
                       const SizedBox(width: 5),
-                      Text(timeLabel,
-                          style: const TextStyle(
-                              color: AppColors.textMuted, fontSize: 13)),
+                      Text(
+                        timeLabel,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 13,
+                        ),
+                      ),
                       if (game.maxPlayers != null) ...[
                         const SizedBox(width: 14),
-                        const Icon(Icons.group_outlined,
-                            color: AppColors.textHint, size: 14),
+                        const Icon(
+                          Icons.group_outlined,
+                          color: AppColors.textHint,
+                          size: 14,
+                        ),
                         const SizedBox(width: 5),
-                        Text('${game.maxPlayers} players',
-                            style: const TextStyle(
-                                color: AppColors.textMuted, fontSize: 13)),
+                        Text(
+                          '${game.maxPlayers} players',
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ],
                   ),
+
                   if (game.skillLevel != null ||
                       game.format != null ||
                       game.ballType != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
                       children: [
                         if (game.skillLevel != null)
                           _InfoChip(
-                              label: game.skillLevel!,
-                              color: Colors.white24),
+                            label: game.skillLevel!,
+                            color: Colors.white24,
+                          ),
                         if (game.format != null)
                           _InfoChip(
-                              label: game.format!,
-                              color: AppColors.primary
-                                  .withValues(alpha: 0.25)),
+                            label: game.format!,
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                          ),
                         if (game.ballType != null)
                           _InfoChip(
-                              label: game.ballType!,
-                              color: AppColors.border),
+                            label: game.ballType!,
+                            color: AppColors.border,
+                          ),
                       ],
                     ),
                   ],
-                  if (game.notes != null &&
-                      game.notes!.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
+                  if (game.notes != null && game.notes!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
                     Text(
                       game.notes!,
                       style: const TextStyle(
-                          color: AppColors.textHint,
-                          fontSize: 12,
-                          height: 1.4),
+                        color: AppColors.textHint,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -709,141 +932,6 @@ class _GameCard extends StatelessWidget {
                 ],
               ),
             ),
-
-            // RSVP + Edit row
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              decoration: BoxDecoration(
-                color: AppColors.textPrimary.withValues(alpha: 0.03),
-                borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  const Text('RSVP:',
-                      style: TextStyle(
-                          color: AppColors.textHint, fontSize: 11)),
-                  const SizedBox(width: 8),
-                  _RsvpButton(
-                    label: 'In',
-                    icon: Icons.check_circle_outline,
-                    status: ParticipationStatus.inGame,
-                    current: game.status,
-                    activeColor: AppColors.success,
-                    gameId: game.id,
-                  ),
-                  const SizedBox(width: 6),
-                  _RsvpButton(
-                    label: '?',
-                    icon: Icons.help_outline,
-                    status: ParticipationStatus.tentative,
-                    current: game.status,
-                    activeColor: AppColors.warning,
-                    gameId: game.id,
-                  ),
-                  const SizedBox(width: 6),
-                  _RsvpButton(
-                    label: 'Out',
-                    icon: Icons.cancel_outlined,
-                    status: ParticipationStatus.out,
-                    current: game.status,
-                    activeColor: AppColors.primary,
-                    gameId: game.id,
-                  ),
-                  const Spacer(),
-                  if (isOwner)
-                    GestureDetector(
-                      onTap: onEdit,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.textPrimary.withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.edit_outlined,
-                                color: AppColors.textMuted, size: 14),
-                            SizedBox(width: 4),
-                            Text('Edit',
-                                style: TextStyle(
-                                    color: AppColors.textMuted,
-                                    fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── RSVP Button ───────────────────────────────────────────────────────────────
-
-class _RsvpButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final ParticipationStatus status;
-  final ParticipationStatus current;
-  final Color activeColor;
-  final String gameId;
-
-  const _RsvpButton({
-    required this.label,
-    required this.icon,
-    required this.status,
-    required this.current,
-    required this.activeColor,
-    required this.gameId,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = current == status;
-    return GestureDetector(
-      onTap: () {
-        if (!isActive) {
-          context.read<GameService>().updateGameStatus(gameId, status);
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isActive
-              ? activeColor.withValues(alpha: 0.18)
-              : AppColors.textPrimary.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isActive
-                ? activeColor.withValues(alpha: 0.7)
-                : AppColors.border,
-            width: isActive ? 1.2 : 0.8,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon,
-                color: isActive ? activeColor : Colors.white38,
-                size: 13),
-            const SizedBox(width: 4),
-            Text(label,
-                style: TextStyle(
-                  color: isActive ? activeColor : Colors.white38,
-                  fontSize: 12,
-                  fontWeight:
-                      isActive ? FontWeight.w700 : FontWeight.normal,
-                )),
           ],
         ),
       ),
@@ -853,85 +941,6 @@ class _RsvpButton extends StatelessWidget {
 
 // ── Helper Widgets ─────────────────────────────────────────────────────────────
 
-class _DistanceChip extends StatelessWidget {
-  final double km;
-  const _DistanceChip({required this.km});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.info.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border:
-            Border.all(color: AppColors.info.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.near_me_outlined,
-              color: AppColors.info, size: 11),
-          const SizedBox(width: 3),
-          Text(
-            LocationService().formatDistance(km),
-            style: const TextStyle(
-                color: AppColors.info,
-                fontSize: 11,
-                fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DateChip extends StatelessWidget {
-  final String label;
-  final bool isToday;
-  final bool isTomorrow;
-  const _DateChip(
-      {required this.label,
-      required this.isToday,
-      required this.isTomorrow});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: isToday
-            ? AppColors.primary.withValues(alpha: 0.15)
-            : isTomorrow
-                ? AppColors.warning.withValues(alpha: 0.12)
-                : AppColors.textPrimary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isToday
-              ? AppColors.primary.withValues(alpha: 0.5)
-              : isTomorrow
-                  ? AppColors.warning.withValues(alpha: 0.4)
-                  : AppColors.border,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isToday
-              ? AppColors.primary
-              : isTomorrow
-                  ? AppColors.warning
-                  : Colors.white54,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
 class _InfoChip extends StatelessWidget {
   final String label;
   final Color color;
@@ -940,12 +949,15 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration:
-          BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
-      child: Text(label,
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+      ),
     );
   }
 }
@@ -981,8 +993,7 @@ class _RadiusSheetState extends State<_RadiusSheet> {
   void _onSlider(double v) {
     setState(() => _miles = v);
     _ctrl.text = v.toInt().toString();
-    _ctrl.selection =
-        TextSelection.collapsed(offset: _ctrl.text.length);
+    _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
   }
 
   void _onText(String v) {
@@ -996,46 +1007,55 @@ class _RadiusSheetState extends State<_RadiusSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 28),
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 28,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Handle
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
-                  color: AppColors.textHint,
-                  borderRadius: BorderRadius.circular(2)),
+                color: AppColors.textHint,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           const SizedBox(height: 18),
-          const Text('Search Radius',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700)),
+          const Text(
+            'Search Radius',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 20),
 
           // Slider row
           Row(
             children: [
-              const Text('0',
-                  style: TextStyle(color: AppColors.textHint, fontSize: 12)),
+              const Text(
+                '0',
+                style: TextStyle(color: AppColors.textHint, fontSize: 12),
+              ),
               Expanded(
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     activeTrackColor: AppColors.primary,
-                    inactiveTrackColor:
-                        AppColors.primary.withValues(alpha: 0.2),
+                    inactiveTrackColor: AppColors.primary.withValues(
+                      alpha: 0.2,
+                    ),
                     thumbColor: AppColors.primary,
-                    overlayColor:
-                        AppColors.primary.withValues(alpha: 0.15),
+                    overlayColor: AppColors.primary.withValues(alpha: 0.15),
                     thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 10),
+                      enabledThumbRadius: 10,
+                    ),
                     trackHeight: 4,
                   ),
                   child: Slider(
@@ -1047,8 +1067,10 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                   ),
                 ),
               ),
-              const Text('100',
-                  style: TextStyle(color: AppColors.textHint, fontSize: 12)),
+              const Text(
+                '100',
+                style: TextStyle(color: AppColors.textHint, fontSize: 12),
+              ),
             ],
           ),
 
@@ -1065,14 +1087,17 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700),
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: const Color(0xFF252525),
                     contentPadding: const EdgeInsets.symmetric(
-                        vertical: 10, horizontal: 8),
+                      vertical: 10,
+                      horizontal: 8,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -1080,18 +1105,23 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: const BorderSide(
-                          color: AppColors.primary, width: 1.5),
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                   onChanged: _onText,
                 ),
               ),
               const SizedBox(width: 8),
-              const Text('miles',
-                  style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500)),
+              const Text(
+                'miles',
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
 
@@ -1105,14 +1135,18 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.white24),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () => widget.onApply(0), // 0 = clear filter
-                  child: const Text('Clear',
-                      style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Clear',
+                    style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1122,14 +1156,18 @@ class _RadiusSheetState extends State<_RadiusSheet> {
                     backgroundColor: AppColors.primary,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () => widget.onApply(_miles),
-                  child: const Text('Apply',
-                      style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700)),
+                  child: const Text(
+                    'Apply',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1148,31 +1186,47 @@ class _SportBanner extends StatelessWidget {
 
   static (List<Color>, String) _theme(String sport) {
     final s = sport.toLowerCase();
-    if (s.contains('cricket')) {
+    if (s.contains('cricket'))
       return ([const Color(0xFF1B5E20), const Color(0xFF388E3C)], '🏏');
-    } else if (s.contains('football') || s.contains('soccer')) {
+    if (s.contains('football') || s.contains('soccer'))
       return ([const Color(0xFF0D47A1), const Color(0xFF1976D2)], '⚽');
-    } else if (s.contains('basketball')) {
+    if (s.contains('basketball'))
       return ([const Color(0xFFE65100), const Color(0xFFF57C00)], '🏀');
-    } else if (s.contains('badminton')) {
+    if (s.contains('badminton'))
       return ([const Color(0xFF4A148C), const Color(0xFF7B1FA2)], '🏸');
-    } else if (s.contains('tennis')) {
+    if (s.contains('table tennis'))
+      return ([const Color(0xFF01579B), const Color(0xFF0288D1)], '🏓');
+    if (s.contains('tennis') || s.contains('squash'))
       return ([const Color(0xFF33691E), const Color(0xFF689F38)], '🎾');
-    } else if (s.contains('volleyball')) {
+    if (s.contains('volleyball'))
       return ([const Color(0xFF1A237E), const Color(0xFF3949AB)], '🏐');
-    } else if (s.contains('hockey')) {
+    if (s.contains('hockey'))
       return ([const Color(0xFF37474F), const Color(0xFF546E7A)], '🏑');
-    } else if (s.contains('rugby')) {
+    if (s.contains('rugby'))
       return ([const Color(0xFF3E2723), const Color(0xFF6D4C41)], '🏉');
-    } else if (s.contains('swimming')) {
+    if (s.contains('swimming'))
       return ([const Color(0xFF006064), const Color(0xFF00838F)], '🏊');
-    } else if (s.contains('boxing') || s.contains('mma')) {
+    if (s.contains('boxing') || s.contains('mma'))
       return ([const Color(0xFFB71C1C), const Color(0xFFD32F2F)], '🥊');
-    } else if (s.contains('esport') || s.contains('gaming')) {
+    if (s.contains('cycling'))
+      return ([const Color(0xFF1565C0), const Color(0xFF42A5F5)], '🚴');
+    if (s.contains('kabaddi'))
+      return ([const Color(0xFFBF360C), const Color(0xFFE64A19)], '🤼');
+    if (s.contains('throwball'))
+      return ([const Color(0xFF6A1B9A), const Color(0xFF8E24AA)], '🎯');
+    if (s.contains('handball'))
+      return ([const Color(0xFF00695C), const Color(0xFF00897B)], '🤾');
+    if (s.contains('golf'))
+      return ([const Color(0xFF2E7D32), const Color(0xFF66BB6A)], '⛳');
+    if (s.contains('wrestling'))
+      return ([const Color(0xFF4A148C), const Color(0xFF7B1FA2)], '🤼');
+    if (s.contains('athletics') || s.contains('running'))
+      return ([const Color(0xFFE65100), const Color(0xFFFFA000)], '🏃');
+    if (s.contains('archery'))
+      return ([const Color(0xFF1B5E20), const Color(0xFF558B2F)], '🏹');
+    if (s.contains('esport') || s.contains('gaming'))
       return ([const Color(0xFF1A237E), const Color(0xFF283593)], '🎮');
-    } else {
-      return ([const Color(0xFF212121), const Color(0xFF424242)], '🏆');
-    }
+    return ([const Color(0xFF212121), const Color(0xFF424242)], '🏆');
   }
 
   @override
@@ -1194,10 +1248,10 @@ class _SportBanner extends StatelessWidget {
           Positioned(
             right: -10,
             bottom: -10,
-            child: Text(emoji,
-                style: TextStyle(
-                    fontSize: 110,
-                    color: AppColors.border)),
+            child: Text(
+              emoji,
+              style: TextStyle(fontSize: 110, color: AppColors.border),
+            ),
           ),
           // Sport label + emoji centred
           Center(
@@ -1209,10 +1263,11 @@ class _SportBanner extends StatelessWidget {
                 Text(
                   sport,
                   style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5),
+                    color: AppColors.textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ],
             ),

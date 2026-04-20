@@ -57,6 +57,17 @@ class UserService extends ChangeNotifier {
     return _profile?.isPremium == true;
   }
 
+  /// Returns true if the current user holds [key] in their entitlements set.
+  /// Owners, admins, and dev-mode users are granted every entitlement.
+  /// Falls back to [hasFullAccess] so existing `isPremium` grants still work.
+  bool hasEntitlement(String key) {
+    if (hasFullAccess) return true;
+    return _profile?.entitlements.contains(key) ?? false;
+  }
+
+  /// Convenience — which plan tier the signed-in user is on.
+  PlanTier get planTier => _profile?.planTier ?? PlanTier.free;
+
   // ── Numeric ID generation ─────────────────────────────────────────────────
 
   static const _counterDoc = 'config/numericIdCounter';
@@ -116,9 +127,7 @@ class UserService extends ChangeNotifier {
           .set({'numericId': newId, 'numericIdStr': newId.toString()}, SetOptions(merge: true));
       final base = _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
       _profile = base.copyWith(numericId: newId);
-    } catch (e) {
-      debugPrint('UserService._ensureNumericId error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Backfills all search index fields for the current user's Firestore doc.
@@ -148,10 +157,7 @@ class UserService extends ChangeNotifier {
         'emailLower':   p.emailLower,
         if (p.numericIdStr != null) 'numericIdStr': p.numericIdStr,
       });
-      debugPrint('✅ Search fields backfilled for ${p.name}');
-    } catch (e) {
-      debugPrint('UserService._backfillSearchFields error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Global backfill — writes search index fields for all users who are
@@ -204,11 +210,8 @@ class UserService extends ChangeNotifier {
 
       if (count > 0) {
         await batch.commit();
-        debugPrint('✅ Global search backfill: indexed $count user(s)');
       }
-    } catch (e) {
-      debugPrint('UserService._globalBackfillSearchFields error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Signs in anonymously (or reuses existing session) and returns the UID.
@@ -221,14 +224,11 @@ class UserService extends ChangeNotifier {
         user = cred.user;
       }
       if (user != null) {
-        debugPrint('✅ Firebase anonymous auth UID: ${user.uid}');
         // Migrate old device-ID based data if needed
         await _migrateOldId(user.uid);
         return user.uid;
       }
-    } catch (e) {
-      debugPrint('UserService._signInAndGetId error: $e');
-    }
+    } catch (e) { /* ignored */ }
     // Fallback: use SharedPreferences-based device ID
     return _loadOrCreateDeviceId();
   }
@@ -248,7 +248,7 @@ class UserService extends ChangeNotifier {
         // Clear old pref so we don't migrate again
         await prefs.remove(_prefKey);
       }
-    } catch (_) {}
+    } catch (_) { /* ignored */ }
   }
 
   Future<String> _loadOrCreateDeviceId() async {
@@ -341,13 +341,10 @@ class UserService extends ChangeNotifier {
               {'membershipId': mid},
               SetOptions(merge: true),
             );
-          } catch (e) {
-            debugPrint('UserService: membershipId generation error: $e');
-          }
+          } catch (e) { /* ignored */ }
         }
       },
       onError: (dynamic e) {
-        debugPrint('UserService profile listener error: $e');
       },
     );
   }
@@ -362,9 +359,7 @@ class UserService extends ChangeNotifier {
         _profile = UserProfile.fromFirestore(doc);
         notifyListeners();
       }
-    } catch (e) {
-      debugPrint('UserService._loadProfile error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
@@ -380,7 +375,6 @@ class UserService extends ChangeNotifier {
       _profile = profile;
       notifyListeners();
     } catch (e) {
-      debugPrint('UserService.saveProfile error: $e');
       rethrow;
     }
   }
@@ -392,7 +386,6 @@ class UserService extends ChangeNotifier {
       if (!doc.exists) return null;
       return UserProfile.fromFirestore(doc);
     } catch (e) {
-      debugPrint('UserService.loadProfileById error: $e');
       return null;
     }
   }
@@ -403,13 +396,6 @@ class UserService extends ChangeNotifier {
     final id       = _userId ?? authUser?.uid ?? 'unknown';
 
     // ── Diagnostics ──────────────────────────────────────────────────────────
-    debugPrint('📸 UPLOAD START');
-    debugPrint('   userId      : $id');
-    debugPrint('   authUid     : ${authUser?.uid}');
-    debugPrint('   isAnonymous : ${authUser?.isAnonymous}');
-    debugPrint('   bytes       : ${bytes.length}');
-    debugPrint('   bucket      : ${_storage.bucket}');
-    debugPrint('   path        : profile_images/$id.jpg');
 
     if (authUser == null) {
       throw FirebaseException(
@@ -436,11 +422,9 @@ class UserService extends ChangeNotifier {
         SettableMetadata(contentType: 'image/jpeg'),
       );
     } catch (e) {
-      debugPrint('📸 putData FAILED: $e');
       rethrow;
     }
 
-    debugPrint('📸 putData state: ${snapshot.state}');
 
     if (snapshot.state != TaskState.success) {
       throw FirebaseException(
@@ -451,7 +435,6 @@ class UserService extends ChangeNotifier {
     }
 
     final url = await snapshot.ref.getDownloadURL();
-    debugPrint('📸 UPLOAD SUCCESS: $url');
     return url;
   }
 
@@ -469,7 +452,6 @@ class UserService extends ChangeNotifier {
       if (snap.docs.isEmpty) return null;
       return UserProfile.fromFirestore(snap.docs.first);
     } catch (e) {
-      debugPrint('UserService.searchByNumericId error: $e');
       return null;
     }
   }
@@ -501,9 +483,7 @@ class UserService extends ChangeNotifier {
           .collection(_col)
           .doc(userId)
           .set(data, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('UserService.incrementStats error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Search registered players by name.
@@ -551,7 +531,6 @@ class UserService extends ChangeNotifier {
           .where((p) => seen.add(p.id))
           .toList();
     } catch (e) {
-      debugPrint('UserService.searchByName error: $e');
       return [];
     }
   }
@@ -569,7 +548,6 @@ class UserService extends ChangeNotifier {
       if (snap.docs.isEmpty) return null;
       return UserProfile.fromFirestore(snap.docs.first);
     } catch (e) {
-      debugPrint('UserService.searchByEmail error: $e');
       return null;
     }
   }
@@ -578,7 +556,12 @@ class UserService extends ChangeNotifier {
   Future<void> cancelPremium() async {
     if (_userId == null) return;
     await _db.collection(_col).doc(_userId).set(
-      {'isPremium': false},
+      {
+        'isPremium': false,
+        'planTier': PlanTier.free.name,
+        'subscriptionStatus': SubscriptionStatus.cancelled.name,
+        'entitlements': <String>[],
+      },
       SetOptions(merge: true),
     );
   }
@@ -630,7 +613,6 @@ class UserService extends ChangeNotifier {
       }
       return null;
     } catch (e) {
-      debugPrint('UserService.searchByPhone error: $e');
       return null;
     }
   }

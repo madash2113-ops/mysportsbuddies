@@ -502,7 +502,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         try {
           imageUrl = await userSvc.uploadProfileImageBytes(_imageBytes!);
         } catch (e) {
-          debugPrint('EditProfileScreen: image upload FAILED: $e');
           if (mounted) {
             await showDialog<void>(
               context: context,
@@ -544,7 +543,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               );
             }
           } catch (e) {
-            debugPrint('EditProfileScreen: saving imageUrl to Firestore failed: $e');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -568,7 +566,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       Navigator.pop(context);
     } catch (e) {
-      debugPrint('EditProfileScreen._save error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

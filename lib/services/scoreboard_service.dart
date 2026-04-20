@@ -45,15 +45,11 @@ class ScoreboardService extends ChangeNotifier {
         try {
           final m = LiveMatch.fromMap(doc.data());
           if (!_matches.any((x) => x.id == m.id)) _matches.add(m);
-        } catch (e) {
-          debugPrint('Match parse error ${doc.id}: $e');
-        }
+        } catch (e) { /* ignored */ }
       }
       if (_matches.any((m) => m.status == MatchStatus.live)) _ensureClock();
       notifyListeners();
-    } catch (e) {
-      debugPrint('Firestore load error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   /// Real-time listener — keeps My Matches screen always up-to-date.
@@ -68,9 +64,7 @@ class ScoreboardService extends ChangeNotifier {
           } else {
             _matches.add(m);
           }
-        } catch (e) {
-          debugPrint('ScoreboardService.listenToFirestore parse error: $e');
-        }
+        } catch (e) { /* ignored */ }
       }
       notifyListeners();
     }, onError: (e) => debugPrint('ScoreboardService.listenToFirestore error: $e'));
@@ -119,13 +113,13 @@ class ScoreboardService extends ChangeNotifier {
     final snap = stack.removeLast();
     if (m.rally        != null) {
       m.rally!.restoreSnapshot(snap);
-    } else if (m.cricket != null) m.cricket!.restoreSnapshot(snap);
-    else if (m.football    != null) m.football!.restoreSnapshot(snap);
-    else if (m.basketball  != null) m.basketball!.restoreSnapshot(snap);
-    else if (m.hockey      != null) m.hockey!.restoreSnapshot(snap);
-    else if (m.combat      != null) m.combat!.restoreSnapshot(snap);
-    else if (m.esports     != null) m.esports!.restoreSnapshot(snap);
-    else if (m.genericScore != null) m.genericScore!.restoreSnapshot(snap);
+    } else if (m.cricket != null) { m.cricket!.restoreSnapshot(snap);
+    } else if (m.football    != null) { m.football!.restoreSnapshot(snap);
+    } else if (m.basketball  != null) { m.basketball!.restoreSnapshot(snap);
+    } else if (m.hockey      != null) { m.hockey!.restoreSnapshot(snap);
+    } else if (m.combat      != null) { m.combat!.restoreSnapshot(snap);
+    } else if (m.esports     != null) { m.esports!.restoreSnapshot(snap);
+    } else if (m.genericScore != null) { m.genericScore!.restoreSnapshot(snap); }
     _persist(m);
     notifyListeners();
   }
@@ -208,7 +202,6 @@ class ScoreboardService extends ChangeNotifier {
     final tid  = m.tournamentId;
     final tmid = m.tournamentMatchId;
     if (tid == null || tmid == null) {
-      debugPrint('[scoreboard] _syncResultToTournament: no tournamentId/matchId stored — skipping');
       return;
     }
 
@@ -255,7 +248,6 @@ class ScoreboardService extends ChangeNotifier {
       winnerName = 'Draw';
     }
 
-    debugPrint('[scoreboard] syncing result → tournament $tid match $tmid  $sA-$sB  winner=$winnerName');
     TournamentService().updateMatchResult(
       tournamentId: tid,
       matchId:      tmid,

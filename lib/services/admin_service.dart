@@ -64,7 +64,6 @@ class AdminService extends ChangeNotifier {
       _loaded = true;
       notifyListeners();
     }, onError: (dynamic e) {
-      debugPrint('AdminService.listen error: $e');
     });
   }
 
@@ -84,7 +83,6 @@ class AdminService extends ChangeNotifier {
         SetOptions(merge: true),
       ),
     ]);
-    debugPrint('AdminService: granted admin to $userId');
   }
 
   /// Removes [userId] from the Firestore admin list.
@@ -100,7 +98,6 @@ class AdminService extends ChangeNotifier {
         SetOptions(merge: true),
       ),
     ]);
-    debugPrint('AdminService: revoked admin from $userId');
   }
 
   // ── Grant / revoke premium ─────────────────────────────────────────────────
@@ -125,7 +122,6 @@ class AdminService extends ChangeNotifier {
       fields,
       SetOptions(merge: true),
     );
-    debugPrint('AdminService: granted premium to $userId');
   }
 
   /// Sets isPremium = false on any user's Firestore doc.
@@ -135,7 +131,6 @@ class AdminService extends ChangeNotifier {
       {'isPremium': false},
       SetOptions(merge: true),
     );
-    debugPrint('AdminService: revoked premium from $userId');
   }
 
   // ── User search / load ──────────────────────────────────────────────────────
@@ -151,7 +146,6 @@ class AdminService extends ChangeNotifier {
           .get();
       return snap.docs.map(UserProfile.fromFirestore).toList();
     } catch (e) {
-      debugPrint('AdminService.loadRecentUsers error: $e');
       return [];
     }
   }
@@ -184,7 +178,6 @@ class AdminService extends ChangeNotifier {
         .collection('users')
         .doc(userId)
         .set(fields, SetOptions(merge: true));
-    debugPrint('AdminService: updated fields for $userId: ${fields.keys}');
   }
 
   // ── Internal ────────────────────────────────────────────────────────────────

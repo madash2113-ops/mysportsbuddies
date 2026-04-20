@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 import '../models/player_entry.dart';
 import '../models/user_profile.dart';
@@ -172,9 +171,7 @@ class PlayerSearchService {
             .limit(_limit)
             .get();
         absorb(snap.docs.map(UserProfile.fromFirestore).toList());
-      } catch (e) {
-        debugPrint('PlayerSearchService prefix($field) error: $e');
-      }
+      } catch (e) { /* ignored */ }
     }
 
     Future<void> exactQuery(String field, Object value) async {
@@ -185,9 +182,7 @@ class PlayerSearchService {
             .limit(1)
             .get();
         absorb(snap.docs.map(UserProfile.fromFirestore).toList());
-      } catch (e) {
-        debugPrint('PlayerSearchService exact($field) error: $e');
-      }
+      } catch (e) { /* ignored */ }
     }
 
     Future<void> arrayQuery(String field, String value) async {
@@ -198,9 +193,7 @@ class PlayerSearchService {
             .limit(_limit)
             .get();
         absorb(snap.docs.map(UserProfile.fromFirestore).toList());
-      } catch (e) {
-        debugPrint('PlayerSearchService array($field) error: $e');
-      }
+      } catch (e) { /* ignored */ }
     }
 
     final qUpper = q.toUpperCase();

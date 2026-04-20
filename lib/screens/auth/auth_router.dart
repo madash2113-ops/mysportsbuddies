@@ -10,7 +10,11 @@ import 'sports_interest_screen.dart';
 Future<void> navigateAfterLogin(BuildContext context) async {
   final prefs       = await SharedPreferences.getInstance();
   final pendingRole = prefs.getString('pending_role') ?? 'player';
-  final role        = pendingRole == 'merchant' ? UserRole.merchant : UserRole.player;
+  final role = pendingRole == 'merchant'
+      ? UserRole.merchant
+      : pendingRole == 'organizer'
+          ? UserRole.organizer
+          : UserRole.player;
 
   // Persist role into the user's Firestore profile
   final svc      = UserService();

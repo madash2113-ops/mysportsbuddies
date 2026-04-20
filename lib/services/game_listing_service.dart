@@ -26,22 +26,18 @@ class GameListingService extends ChangeNotifier {
         .where('status', isEqualTo: GameListingStatus.open.name)
         .orderBy('scheduledAt')
         .snapshots()
-        .listen(
-          (snap) {
-            _openGames
-              ..clear()
-              ..addAll(snap.docs.map(GameListing.fromFirestore));
-            notifyListeners();
-          },
-          onError: (e) => debugPrint('GameListingService error: $e'),
-        );
+        .listen((snap) {
+          _openGames
+            ..clear()
+            ..addAll(snap.docs.map(GameListing.fromFirestore));
+          notifyListeners();
+        }, onError: (e) => debugPrint('GameListingService error: $e'));
   }
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
   Future<String?> uploadGamePhoto(File photo, String listingId) async {
-    final ref = FirebaseStorage.instance
-        .ref('game_photos/$listingId.jpg');
+    final ref = FirebaseStorage.instance.ref('game_photos/$listingId.jpg');
     await ref.putFile(photo);
     return ref.getDownloadURL();
   }
@@ -57,72 +53,80 @@ class GameListingService extends ChangeNotifier {
     String address = '',
     String? note,
     String? photoUrl,
+    double? latitude,
+    double? longitude,
   }) async {
-    final svc    = UserService();
-    final myId   = svc.userId ?? '';
+    final svc = UserService();
+    final myId = svc.userId ?? '';
     final myName = svc.profile?.name ?? 'Player';
-    final myImg  = svc.profile?.imageUrl;
+    final myImg = svc.profile?.imageUrl;
 
     final docRef = _db.collection(_col).doc();
     final listing = GameListing(
-      id:                docRef.id,
-      organizerId:       myId,
-      organizerName:     myName,
+      id: docRef.id,
+      organizerId: myId,
+      organizerName: myName,
       organizerImageUrl: myImg,
-      venueId:           venueId,
-      venueName:         venueName,
-      address:           address,
-      sport:             sport,
-      scheduledAt:       scheduledAt,
-      maxPlayers:        maxPlayers,
-      playerIds:         [myId],
-      playerNames:       [myName],
-      splitCost:         splitCost,
-      totalCost:         totalCost,
-      status:            GameListingStatus.open,
-      note:              note,
-      photoUrl:          photoUrl,
-      createdAt:         DateTime.now(),
+      venueId: venueId,
+      venueName: venueName,
+      address: address,
+      sport: sport,
+      scheduledAt: scheduledAt,
+      maxPlayers: maxPlayers,
+      playerIds: [myId],
+      playerNames: [myName],
+      splitCost: splitCost,
+      totalCost: totalCost,
+      status: GameListingStatus.open,
+      note: note,
+      photoUrl: photoUrl,
+      latitude: latitude,
+      longitude: longitude,
+      createdAt: DateTime.now(),
     );
     await docRef.set(listing.toMap());
     return listing;
   }
 
   Future<void> joinListing(GameListing listing) async {
-    final svc    = UserService();
-    final myId   = svc.userId ?? '';
+    final svc = UserService();
+    final myId = svc.userId ?? '';
     final myName = svc.profile?.name ?? 'Player';
 
     if (listing.playerIds.contains(myId)) return;
     if (listing.isFull) return;
 
-    final newIds   = [...listing.playerIds,   myId];
+    final newIds = [...listing.playerIds, myId];
     final newNames = [...listing.playerNames, myName];
     final newStatus = newIds.length >= listing.maxPlayers
         ? GameListingStatus.full.name
         : GameListingStatus.open.name;
 
     await _db.collection(_col).doc(listing.id).update({
-      'playerIds':   newIds,
+      'playerIds': newIds,
       'playerNames': newNames,
-      'status':      newStatus,
+      'status': newStatus,
     });
   }
 
   Future<void> leaveListing(GameListing listing) async {
     final myId = UserService().userId ?? '';
-    if (listing.organizerId == myId) return; // organizer can't leave, only cancel
+    if (listing.organizerId == myId) {
+      return; // organizer can't leave, only cancel
+    }
 
-    final newIds   = listing.playerIds.where((id) => id != myId).toList();
+    final newIds = listing.playerIds.where((id) => id != myId).toList();
     final newNames = <String>[];
     for (int i = 0; i < listing.playerIds.length; i++) {
-      if (listing.playerIds[i] != myId) newNames.add(listing.playerNames[i]);
+      if (listing.playerIds[i] != myId) {
+        newNames.add(listing.playerNames[i]);
+      }
     }
 
     await _db.collection(_col).doc(listing.id).update({
-      'playerIds':   newIds,
+      'playerIds': newIds,
       'playerNames': newNames,
-      'status':      GameListingStatus.open.name,
+      'status': GameListingStatus.open.name,
     });
   }
 

@@ -5,12 +5,88 @@ import '../../design/colors.dart';
 import '../../design/spacing.dart';
 import '../../services/scoreboard_service.dart';
 import '../../services/match_report_pdf.dart';
+import '../../core/models/entitlements.dart';
 import '../../services/user_service.dart';
 import '../premium/premium_screen.dart';
 
 class MatchReportScreen extends StatelessWidget {
   final String matchId;
   const MatchReportScreen({super.key, required this.matchId});
+
+  static void _showPdfPaywall(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.picture_as_pdf_outlined,
+                      color: AppColors.primary, size: 22),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text('Export PDF Report',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              const Text(
+                'Export this match as a formatted PDF scorecard — batting, bowling, fall of wickets and result on one page.',
+                style: TextStyle(
+                    color: Colors.white60, fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PremiumScreen(
+                          context: PremiumContext.player,
+                          reason: 'Export this match as a PDF report.',
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Unlock PDF Export',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,14 +122,10 @@ class MatchReportScreen extends StatelessWidget {
                     color: Colors.white70),
                 tooltip: 'Download PDF',
                 onPressed: () {
-                  if (UserService().hasFullAccess) {
+                  if (UserService().hasEntitlement(Entitlements.pdfReports)) {
                     MatchReportPdf.printReport(match);
                   } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PremiumScreen()),
-                    );
+                    _showPdfPaywall(context);
                   }
                 },
               ),

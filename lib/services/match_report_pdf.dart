@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'package:flutter/material.dart' show debugPrint;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -14,9 +13,7 @@ class MatchReportPdf {
         name: '${match.teamA} vs ${match.teamB}',
         onLayout: (_) async => generate(match),
       );
-    } catch (e) {
-      debugPrint('MatchReportPdf.printReport error: $e');
-    }
+    } catch (e) { /* ignored */ }
   }
 
   static Future<Uint8List> generate(LiveMatch match) async {

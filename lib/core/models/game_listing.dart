@@ -20,6 +20,8 @@ class GameListing {
   final GameListingStatus status;
   final String? note;
   final String? photoUrl;
+  final double? latitude;
+  final double? longitude;
   final DateTime createdAt;
 
   const GameListing({
@@ -40,6 +42,8 @@ class GameListing {
     this.status = GameListingStatus.open,
     this.note,
     this.photoUrl,
+    this.latitude,
+    this.longitude,
     required this.createdAt,
   });
 
@@ -48,56 +52,60 @@ class GameListing {
       splitCost && maxPlayers > 1 ? totalCost / maxPlayers : 0;
 
   int get spotsLeft => maxPlayers - playerIds.length;
-  bool get isFull   => playerIds.length >= maxPlayers;
+  bool get isFull => playerIds.length >= maxPlayers;
 
   Map<String, dynamic> toMap() => {
-        'id':                id,
-        'organizerId':       organizerId,
-        'organizerName':     organizerName,
-        'organizerImageUrl': organizerImageUrl,
-        'venueId':           venueId,
-        'venueName':         venueName,
-        'address':           address,
-        'sport':             sport,
-        'scheduledAt':       Timestamp.fromDate(scheduledAt),
-        'maxPlayers':        maxPlayers,
-        'playerIds':         playerIds,
-        'playerNames':       playerNames,
-        'splitCost':         splitCost,
-        'totalCost':         totalCost,
-        'status':            status.name,
-        'note':              note,
-        'photoUrl':          photoUrl,
-        'createdAt':         Timestamp.fromDate(createdAt),
-      };
+    'id': id,
+    'organizerId': organizerId,
+    'organizerName': organizerName,
+    'organizerImageUrl': organizerImageUrl,
+    'venueId': venueId,
+    'venueName': venueName,
+    'address': address,
+    'sport': sport,
+    'scheduledAt': Timestamp.fromDate(scheduledAt),
+    'maxPlayers': maxPlayers,
+    'playerIds': playerIds,
+    'playerNames': playerNames,
+    'splitCost': splitCost,
+    'totalCost': totalCost,
+    'status': status.name,
+    'note': note,
+    'photoUrl': photoUrl,
+    'latitude': latitude,
+    'longitude': longitude,
+    'createdAt': Timestamp.fromDate(createdAt),
+  };
 
   factory GameListing.fromMap(Map<String, dynamic> m) => GameListing(
-        id:                m['id']            as String? ?? '',
-        organizerId:       m['organizerId']   as String? ?? '',
-        organizerName:     m['organizerName'] as String? ?? '',
-        organizerImageUrl: m['organizerImageUrl'] as String?,
-        venueId:           m['venueId']       as String?,
-        venueName:         m['venueName']     as String? ?? '',
-        address:           m['address']       as String? ?? '',
-        sport:             m['sport']         as String? ?? '',
-        scheduledAt: m['scheduledAt'] != null
-            ? (m['scheduledAt'] as Timestamp).toDate()
-            : DateTime.now(),
-        maxPlayers:  (m['maxPlayers']  as num?)?.toInt()    ?? 10,
-        playerIds:   List<String>.from(m['playerIds']   as List? ?? []),
-        playerNames: List<String>.from(m['playerNames'] as List? ?? []),
-        splitCost:   m['splitCost']   as bool?   ?? false,
-        totalCost:   (m['totalCost']  as num?)?.toDouble() ?? 0,
-        status: GameListingStatus.values.firstWhere(
-          (s) => s.name == (m['status'] as String? ?? 'open'),
-          orElse: () => GameListingStatus.open,
-        ),
-        note:      m['note']      as String?,
-        photoUrl:  m['photoUrl']  as String?,
-        createdAt: m['createdAt'] != null
-            ? (m['createdAt'] as Timestamp).toDate()
-            : DateTime.now(),
-      );
+    id: m['id'] as String? ?? '',
+    organizerId: m['organizerId'] as String? ?? '',
+    organizerName: m['organizerName'] as String? ?? '',
+    organizerImageUrl: m['organizerImageUrl'] as String?,
+    venueId: m['venueId'] as String?,
+    venueName: m['venueName'] as String? ?? '',
+    address: m['address'] as String? ?? '',
+    sport: m['sport'] as String? ?? '',
+    scheduledAt: m['scheduledAt'] != null
+        ? (m['scheduledAt'] as Timestamp).toDate()
+        : DateTime.now(),
+    maxPlayers: (m['maxPlayers'] as num?)?.toInt() ?? 10,
+    playerIds: List<String>.from(m['playerIds'] as List? ?? []),
+    playerNames: List<String>.from(m['playerNames'] as List? ?? []),
+    splitCost: m['splitCost'] as bool? ?? false,
+    totalCost: (m['totalCost'] as num?)?.toDouble() ?? 0,
+    status: GameListingStatus.values.firstWhere(
+      (s) => s.name == (m['status'] as String? ?? 'open'),
+      orElse: () => GameListingStatus.open,
+    ),
+    note: m['note'] as String?,
+    photoUrl: m['photoUrl'] as String?,
+    latitude: (m['latitude'] as num?)?.toDouble(),
+    longitude: (m['longitude'] as num?)?.toDouble(),
+    createdAt: m['createdAt'] != null
+        ? (m['createdAt'] as Timestamp).toDate()
+        : DateTime.now(),
+  );
 
   factory GameListing.fromFirestore(DocumentSnapshot doc) =>
       GameListing.fromMap(doc.data() as Map<String, dynamic>);

@@ -31,14 +31,26 @@ class GameDetailScreen extends StatelessWidget {
   static const Map<String, List<Color>> _sportGradients = {
     'Cricket':       [Color(0xFF1B5E20), Color(0xFF388E3C)],
     'Football':      [Color(0xFF0D47A1), Color(0xFF1976D2)],
-    'Basketball':    [Color(0xFFBF360C), Color(0xFFE64A19)],
+    'Basketball':    [Color(0xFFE65100), Color(0xFFF57C00)],
     'Badminton':     [Color(0xFF4A148C), Color(0xFF7B1FA2)],
-    'Tennis':        [Color(0xFF006064), Color(0xFF00838F)],
-    'Volleyball':    [Color(0xFF880E4F), Color(0xFFC2185B)],
+    'Tennis':        [Color(0xFF33691E), Color(0xFF689F38)],
+    'Squash':        [Color(0xFF33691E), Color(0xFF689F38)],
+    'Volleyball':    [Color(0xFF1A237E), Color(0xFF3949AB)],
     'Table Tennis':  [Color(0xFF01579B), Color(0xFF0288D1)],
-    'Hockey':        [Color(0xFF1A237E), Color(0xFF3949AB)],
-    'Baseball':      [Color(0xFF4E342E), Color(0xFF6D4C41)],
+    'Hockey':        [Color(0xFF37474F), Color(0xFF546E7A)],
+    'Rugby':         [Color(0xFF3E2723), Color(0xFF6D4C41)],
+    'Swimming':      [Color(0xFF006064), Color(0xFF00838F)],
     'Boxing':        [Color(0xFFB71C1C), Color(0xFFE53935)],
+    'Cycling':       [Color(0xFF1565C0), Color(0xFF42A5F5)],
+    'Kabaddi':       [Color(0xFFBF360C), Color(0xFFE64A19)],
+    'Throwball':     [Color(0xFF6A1B9A), Color(0xFF8E24AA)],
+    'Handball':      [Color(0xFF00695C), Color(0xFF00897B)],
+    'Golf':          [Color(0xFF2E7D32), Color(0xFF66BB6A)],
+    'Wrestling':     [Color(0xFF4A148C), Color(0xFF7B1FA2)],
+    'Athletics':     [Color(0xFFE65100), Color(0xFFFFA000)],
+    'Archery':       [Color(0xFF1B5E20), Color(0xFF558B2F)],
+    'Baseball':      [Color(0xFF4E342E), Color(0xFF6D4C41)],
+    'MMA':           [Color(0xFFB71C1C), Color(0xFFD32F2F)],
   };
 
   List<Color> get _gradient {
@@ -50,10 +62,13 @@ class GameDetailScreen extends StatelessWidget {
   String _sportEmoji(String sport) {
     const m = {
       'Cricket': '🏏', 'Football': '⚽', 'Basketball': '🏀',
-      'Badminton': '🏸', 'Tennis': '🎾', 'Volleyball': '🏐',
-      'Table Tennis': '🏓', 'Boxing': '🥊', 'Baseball': '⚾',
-      'Hockey': '🏑', 'Running': '🏃', 'Swimming': '🏊',
-      'Cycling': '🚴', 'MMA': '🥋', 'Wrestling': '🤼',
+      'Badminton': '🏸', 'Tennis': '🎾', 'Squash': '🎾',
+      'Volleyball': '🏐', 'Table Tennis': '🏓', 'Boxing': '🥊',
+      'Baseball': '⚾', 'Hockey': '🏑', 'Rugby': '🏉',
+      'Swimming': '🏊', 'Cycling': '🚴', 'MMA': '🥋',
+      'Wrestling': '🤼', 'Kabaddi': '🤼', 'Throwball': '🎯',
+      'Handball': '🤾', 'Golf': '⛳', 'Athletics': '🏃',
+      'Archery': '🏹',
     };
     return m[sport] ?? '🏅';
   }
