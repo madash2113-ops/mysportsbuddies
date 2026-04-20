@@ -189,6 +189,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (accepted == true) {
       await Permission.locationWhenInUse.request();
       await Permission.notification.request();
+      // Fire-and-forget: warms up LocationService for all screens this session.
+      unawaited(LocationService().getCurrentPosition());
     }
 
     await prefs.setBool('permissions_requested', true);
