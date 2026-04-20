@@ -79,16 +79,20 @@ class LocationCountryService {
   }
 
   Future<String> getCachedOrDetectCountryCode() async {
-    final cachedCode = await getCachedPhoneCode();
-    if (cachedCode != null && cachedCode.isNotEmpty) {
+    try {
       final prefs = await SharedPreferences.getInstance();
-      final tsMillis = prefs.getInt(_cachedPhoneCodeTimestampKey) ?? 0;
-      final cacheAge = DateTime.now().millisecondsSinceEpoch - tsMillis;
-      if (cacheAge < _cacheTTL.inMilliseconds) {
-        debugPrint('✅ Location: Using cached phone code $cachedCode');
-        return cachedCode;
+      final cachedCode = prefs.getString(_cachedPhoneCodeKey);
+      if (cachedCode != null && cachedCode.isNotEmpty) {
+        final tsMillis = prefs.getInt(_cachedPhoneCodeTimestampKey) ?? 0;
+        final cacheAge = DateTime.now().millisecondsSinceEpoch - tsMillis;
+        if (cacheAge < _cacheTTL.inMilliseconds) {
+          debugPrint('✅ Location: Using cached phone code $cachedCode');
+          return cachedCode;
+        }
+        debugPrint('⏱ Location: Cache expired, re-detecting');
       }
-      debugPrint('⏱ Location: Cache expired, re-detecting');
+    } catch (e) {
+      debugPrint('Cache read error: $e');
     }
     return detectCountryCode();
   }
