@@ -2178,9 +2178,25 @@ class _VenuesGrid extends StatelessWidget {
     final isDark  = AppC.isDark(context);
 
     return ListenableBuilder(
-      listenable: VenueService(),
+      listenable: Listenable.merge([VenueService(), LocationService()]),
       builder: (context, _) {
-        final venues = VenueService().venues;
+        final locSvc = LocationService();
+        final pos    = locSvc.lastPosition;
+
+        // Sort by distance when position is available; venue with lat=0/lng=0
+        // is treated as unknown and sorts to the end.
+        final venues = [...VenueService().venues];
+        if (pos != null) {
+          venues.sort((a, b) {
+            final da = (a.lat == 0 && a.lng == 0)
+                ? double.infinity
+                : a.distanceTo(pos.latitude, pos.longitude);
+            final db = (b.lat == 0 && b.lng == 0)
+                ? double.infinity
+                : b.distanceTo(pos.latitude, pos.longitude);
+            return da.compareTo(db);
+          });
+        }
 
         return RefreshIndicator(
           color: AppC.primary(context),
@@ -2256,6 +2272,17 @@ class _VenuesGrid extends StatelessWidget {
                                       fontWeight: FontWeight.w700),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis),
+                              if (pos != null &&
+                                  !(v.lat == 0 && v.lng == 0)) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  locSvc.formatDistance(
+                                      v.distanceTo(pos.latitude, pos.longitude)),
+                                  style: TextStyle(
+                                      color: AppC.muted(context),
+                                      fontSize: 12),
+                                ),
+                              ],
                             ],
                           ),
                         ),
