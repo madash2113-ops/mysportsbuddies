@@ -15,6 +15,7 @@ import '../../core/models/game_listing.dart';
 import '../../core/models/match_score.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
+import '../../services/auth_service.dart';
 
 import '../../services/location_service.dart';
 import '../../services/notification_service.dart';
@@ -797,6 +798,72 @@ class _ProfileTabState extends State<_ProfileTab> {
               ),
             ),
           ),
+
+          const SizedBox(height: 16),
+
+          // ── Sign Out button ───────────────────────────────────────
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(
+                Icons.logout_outlined,
+                color: Colors.redAccent,
+                size: 18,
+              ),
+              label: const Text(
+                'Sign Out',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              onPressed: () async {
+                final navigator = Navigator.of(context, rootNavigator: true);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                    title: const Text(
+                      'Sign Out',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    content: const Text(
+                      'Are you sure you want to sign out?',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => navigator.pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => navigator.pop(true),
+                        child: const Text(
+                          'Sign Out',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true && context.mounted) {
+                  await AuthService().signOut();
+                  if (!context.mounted) return;
+                  navigator.pushNamedAndRemoveUntil('/login', (_) => false);
+                }
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -1558,6 +1625,13 @@ class _HomeTabState extends State<_HomeTab> {
                 color: cardBg,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               padding: const EdgeInsets.all(4),
               child: Row(
@@ -1580,6 +1654,8 @@ class _HomeTabState extends State<_HomeTab> {
               ),
             ),
           ),
+
+          const SizedBox(height: 24),
 
           // ── Content: Sports section OR Venues section ────────────────────
           Expanded(
@@ -1794,6 +1870,13 @@ class _SportsGrid extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFF1A2419),
                         borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -2044,6 +2127,13 @@ class _GamesGridState extends State<_GamesGrid> {
               decoration: BoxDecoration(
                 color: cardBg,
                 borderRadius: BorderRadius.circular(AppRadius.lg),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
@@ -2161,9 +2251,9 @@ class _GameCardState extends State<_GameCard> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.14),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -2532,6 +2622,13 @@ class _UpcomingMatchesSection extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF101010),
               borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
