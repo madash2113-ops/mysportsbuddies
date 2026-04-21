@@ -41,7 +41,8 @@ class AppRoutes {
     // App Entry
     '/': (context) => const SplashScreen(),
     '/onboarding': (context) => const OnboardingScreen(),
-    '/welcome': (context) => const WelcomeScreen(),
+    '/welcome': (context) => const WebLandingPage(),
+    '/role-picker': (context) => const WelcomeScreen(),
 
     // Authentication
     '/login': (context) => const LoginScreen(),

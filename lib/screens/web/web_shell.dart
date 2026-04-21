@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 
 // ── Landing-page design tokens ─────────────────────────────────────────────
-const _bg   = Color(0xFF080808);
-const _s1   = Color(0xFF0F0F0F);
-const _s2   = Color(0xFF141414);
-const _bd   = Color(0xFF1E1E1E);
-const _bd2  = Color(0xFF2A2A2A);
-const _tx   = Color(0xFFF0F0F0);
-const _m1   = Color(0xFF888888);
-const _red  = Color(0xFFFB3640);
-const _r3   = Color(0x1FFB3640);  // red 12%
+const _bg = Color(0xFF080808);
+const _s1 = Color(0xFF0F0F0F);
+const _s2 = Color(0xFF141414);
+const _bd = Color(0xFF1E1E1E);
+const _bd2 = Color(0xFF2A2A2A);
+const _tx = Color(0xFFF0F0F0);
+const _m1 = Color(0xFF888888);
+const _red = Color(0xFFFB3640);
+const _r3 = Color(0x1FFB3640); // red 12%
 
 // ── Nav items ─────────────────────────────────────────────────────────────
 class _NavItem {
@@ -24,11 +25,11 @@ class _NavItem {
 }
 
 const _navItems = [
-  _NavItem(Icons.home_outlined,           Icons.home_rounded,         'Home'),
-  _NavItem(Icons.emoji_events_outlined,   Icons.emoji_events,         'Tournaments'),
-  _NavItem(Icons.dynamic_feed_outlined,   Icons.dynamic_feed,         'Feed'),
-  _NavItem(Icons.scoreboard_outlined,     Icons.scoreboard,           'Scorecard'),
-  _NavItem(Icons.person_outline,          Icons.person,               'Profile'),
+  _NavItem(Icons.home_outlined, Icons.home_rounded, 'Home'),
+  _NavItem(Icons.emoji_events_outlined, Icons.emoji_events, 'Tournaments'),
+  _NavItem(Icons.dynamic_feed_outlined, Icons.dynamic_feed, 'Feed'),
+  _NavItem(Icons.scoreboard_outlined, Icons.scoreboard, 'Scorecard'),
+  _NavItem(Icons.person_outline, Icons.person, 'Profile'),
 ];
 
 // ── Shell ─────────────────────────────────────────────────────────────────
@@ -57,10 +58,7 @@ class _WebShellState extends State<WebShell> {
           Container(width: 1, color: _bd),
           // content
           Expanded(
-            child: IndexedStack(
-              index: _index,
-              children: widget.pages,
-            ),
+            child: IndexedStack(index: _index, children: widget.pages),
           ),
         ],
       ),
@@ -95,7 +93,12 @@ class _Sidebar extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: _red,
                     borderRadius: BorderRadius.circular(10),
-                    boxShadow: [BoxShadow(color: _red.withValues(alpha: .35), blurRadius: 18)],
+                    boxShadow: [
+                      BoxShadow(
+                        color: _red.withValues(alpha: .35),
+                        blurRadius: 18,
+                      ),
+                    ],
                   ),
                   alignment: Alignment.center,
                   child: const Text('🏅', style: TextStyle(fontSize: 18)),
@@ -105,12 +108,17 @@ class _Sidebar extends StatelessWidget {
                   child: RichText(
                     text: TextSpan(
                       style: GoogleFonts.inter(
-                        fontSize: 13, fontWeight: FontWeight.w900,
-                        color: _tx, letterSpacing: -.3,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: _tx,
+                        letterSpacing: -.3,
                       ),
                       children: const [
                         TextSpan(text: 'My'),
-                        TextSpan(text: 'Sports', style: TextStyle(color: _red)),
+                        TextSpan(
+                          text: 'Sports',
+                          style: TextStyle(color: _red),
+                        ),
                         TextSpan(text: 'Buddies'),
                       ],
                     ),
@@ -159,7 +167,9 @@ class _Sidebar extends StatelessWidget {
                       Text(
                         profile?.name ?? 'Player',
                         style: GoogleFonts.inter(
-                          fontSize: 13, fontWeight: FontWeight.w700, color: _tx,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _tx,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -170,6 +180,8 @@ class _Sidebar extends StatelessWidget {
                     ],
                   ),
                 ),
+                // ── Logout ──────────────────────────────────────────────
+                _LogoutButton(),
               ],
             ),
           ),
@@ -186,8 +198,10 @@ class _SideNavTile extends StatefulWidget {
   final bool active;
   final VoidCallback onTap;
   const _SideNavTile({
-    required this.icon, required this.label,
-    required this.active, required this.onTap,
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
   });
 
   @override
@@ -202,12 +216,12 @@ class _SideNavTileState extends State<_SideNavTile> {
     final bg = widget.active
         ? _r3
         : _hover
-            ? const Color(0x0DFFFFFF)
-            : Colors.transparent;
+        ? const Color(0x0DFFFFFF)
+        : Colors.transparent;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -223,11 +237,7 @@ class _SideNavTileState extends State<_SideNavTile> {
           ),
           child: Row(
             children: [
-              Icon(
-                widget.icon,
-                size: 18,
-                color: widget.active ? _red : _m1,
-              ),
+              Icon(widget.icon, size: 18, color: widget.active ? _red : _m1),
               const SizedBox(width: 10),
               Text(
                 widget.label,
@@ -245,6 +255,50 @@ class _SideNavTileState extends State<_SideNavTile> {
   }
 }
 
+// ── Logout button ─────────────────────────────────────────────────────────
+class _LogoutButton extends StatefulWidget {
+  @override
+  State<_LogoutButton> createState() => _LogoutButtonState();
+}
+
+class _LogoutButtonState extends State<_LogoutButton> {
+  bool _hover = false;
+
+  Future<void> _logout() async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    await AuthService().signOut();
+    if (!mounted) return;
+    navigator.pushNamedAndRemoveUntil('/login', (_) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _logout,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: _hover ? _red.withValues(alpha: 0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.logout_rounded,
+            size: 16,
+            color: _hover ? _red : _m1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Avatar helper ─────────────────────────────────────────────────────────
 class _Avatar extends StatelessWidget {
   final String name;
@@ -254,7 +308,8 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 32, height: 32,
+      width: 32,
+      height: 32,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: _red,
@@ -267,7 +322,9 @@ class _Avatar extends StatelessWidget {
           ? Text(
               name.isNotEmpty ? name[0].toUpperCase() : '?',
               style: GoogleFonts.inter(
-                fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
               ),
             )
           : null,

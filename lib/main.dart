@@ -1,15 +1,16 @@
 import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import 'firebase_options.dart';
 import 'core/routes/app_routes.dart';
 import 'controllers/profile_controller.dart';
 import 'screens/tournaments/tournament_detail_screen.dart';
+import 'screens/common/firebase_setup_screen.dart';
 import 'design/theme.dart';
 import 'services/admin_service.dart';
 import 'services/analytics_service.dart';
@@ -35,19 +36,22 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ── Image Cache Configuration ─────────────────────────────────────────────
-  // Increase memory cache to 100 MB for frequently accessed images (avatars, banners)
   imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100 MB
-  imageCache.maximumSize = 300; // Cache up to 300 images
-  debugPrint('📸 Image cache configured: 100 MB, max 300 images');
+  imageCache.maximumSize = 300;
 
   // ── Firebase ──────────────────────────────────────────────────────────────
+  bool firebaseInitialized = false;
+  String? firebaseError;
+
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    firebaseInitialized = true;
 
     if (!kIsWeb) {
-      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+      FlutterError.onError =
+          FirebaseCrashlytics.instance.recordFlutterFatalError;
       PlatformDispatcher.instance.onError = (error, stack) {
         FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
         return true;
@@ -65,7 +69,6 @@ void main() async {
 
     await UserService().init();
 
-    // Precache current user's profile image for instant display
     _precacheUserImages();
 
     await Future.wait([
@@ -84,50 +87,49 @@ void main() async {
     ScoreboardService().listenToFirestore();
     NotificationService().listen();
     TournamentService().listenToTournaments();
-    await TournamentService().loadTournaments(); // ensure data on first frame
+    await TournamentService().loadTournaments();
     VenueService().listenToVenues();
     GameListingService().listenToOpenGames();
-    AdminService().listen(); // real-time admin roster
+    AdminService().listen();
   } catch (e) {
-    /* ignored */
+    firebaseError = e.toString();
   }
 
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider<AnalyticsService>(create: (_) => AnalyticsService()),
-        ChangeNotifierProvider(create: (_) => AuthService()),
-        ChangeNotifierProvider(create: (_) => ThemeService()),
-        ChangeNotifierProvider(create: (_) => ProfileController()),
-        ChangeNotifierProvider(create: (_) => ScoreboardService()),
-        ChangeNotifierProvider(create: (_) => GameService()),
-        ChangeNotifierProvider(create: (_) => UserService()),
-        ChangeNotifierProvider(create: (_) => FeedService()),
-        ChangeNotifierProvider(create: (_) => FollowService()),
-        ChangeNotifierProvider(create: (_) => MessageService()),
-        ChangeNotifierProvider(create: (_) => NotificationService()),
-        ChangeNotifierProvider(create: (_) => TournamentService()),
-        ChangeNotifierProvider(create: (_) => VenueService()),
-        ChangeNotifierProvider(create: (_) => GameListingService()),
-        ChangeNotifierProvider(create: (_) => StatsService()),
-        ChangeNotifierProvider(create: (_) => AdminService()),
-        ChangeNotifierProvider(create: (_) => LocationService()),
-      ],
-      child: const MySportsApp(),
-    ),
-  );
+  if (firebaseInitialized) {
+    runApp(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsService>(create: (_) => AnalyticsService()),
+          ChangeNotifierProvider(create: (_) => AuthService()),
+          ChangeNotifierProvider(create: (_) => ThemeService()),
+          ChangeNotifierProvider(create: (_) => ProfileController()),
+          ChangeNotifierProvider(create: (_) => ScoreboardService()),
+          ChangeNotifierProvider(create: (_) => GameService()),
+          ChangeNotifierProvider(create: (_) => UserService()),
+          ChangeNotifierProvider(create: (_) => FeedService()),
+          ChangeNotifierProvider(create: (_) => FollowService()),
+          ChangeNotifierProvider(create: (_) => MessageService()),
+          ChangeNotifierProvider(create: (_) => NotificationService()),
+          ChangeNotifierProvider(create: (_) => TournamentService()),
+          ChangeNotifierProvider(create: (_) => VenueService()),
+          ChangeNotifierProvider(create: (_) => GameListingService()),
+          ChangeNotifierProvider(create: (_) => StatsService()),
+          ChangeNotifierProvider(create: (_) => AdminService()),
+          ChangeNotifierProvider(create: (_) => LocationService()),
+        ],
+        child: const MySportsApp(),
+      ),
+    );
+  } else {
+    runApp(FirebaseSetupApp(error: firebaseError));
+  }
 }
 
 // ======================================================
 // HELPER FUNCTIONS
 // ======================================================
 
-/// Precache profile images for instant display on first load.
-/// cached_network_image will automatically cache these to disk.
 void _precacheUserImages() {
-  // The cached_network_image package handles caching automatically.
-  // Just accessing the user's profile image URL is enough for it to
-  // cache on first load for next app session.
   final userProfile = UserService().profile;
   debugPrint('📸 User profile image: ${userProfile?.imageUrl}');
 }
@@ -145,6 +147,20 @@ class MySportsApp extends StatefulWidget {
   State<MySportsApp> createState() => _MySportsAppState();
 }
 
+class FirebaseSetupApp extends StatelessWidget {
+  final String? error;
+  const FirebaseSetupApp({super.key, this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      home: FirebaseSetupScreen(error: error),
+    );
+  }
+}
+
 class _MySportsAppState extends State<MySportsApp> {
   late final AppLinks _appLinks;
 
@@ -156,16 +172,13 @@ class _MySportsAppState extends State<MySportsApp> {
   }
 
   void _initDeepLinks() async {
-    // Cold start: app opened via link
     final initial = await _appLinks.getInitialLink();
     if (initial != null) _handleLink(initial);
 
-    // Hot start: link received while app is running
     _appLinks.uriLinkStream.listen(_handleLink);
   }
 
   void _handleLink(Uri uri) {
-    // msb://tournament/{id}?code={joinCode}
     if (uri.scheme != 'msb' || uri.host != 'tournament') return;
     AnalyticsService().logEvent(
       AnalyticsEvents.appOpenedViaLink,
