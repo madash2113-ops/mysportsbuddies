@@ -49,42 +49,50 @@ class AuthService extends ChangeNotifier {
     _pendingPhone = phoneNumber;
     _setLoading(true);
 
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      timeout: const Duration(seconds: 60),
-      forceResendingToken: _resendToken,
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        timeout: const Duration(seconds: 60),
+        forceResendingToken: _resendToken,
 
-      // Android auto-verification (instant sign-in without user typing code)
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        try {
-          await _signInWithCredential(credential);
+        // Android auto-verification (instant sign-in without user typing code)
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          try {
+            await _signInWithCredential(credential);
+            _setLoading(false);
+            AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'phone_auto'});
+            onAutoVerified?.call();
+          } catch (e) {
+            _setLoading(false);
+            onError(e.toString());
+          }
+        },
+
+        verificationFailed: (FirebaseAuthException e) {
+          _loading = false;
+          _error = _friendlyError(e);
+          notifyListeners();
+          onError(_error!);
+        },
+
+        codeSent: (String verificationId, int? resendToken) {
+          _verificationId = verificationId;
+          _resendToken    = resendToken;
           _setLoading(false);
-          AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'phone_auto'});
-          onAutoVerified?.call();
-        } catch (e) {
-          _setLoading(false);
-          onError(e.toString());
-        }
-      },
+          onCodeSent();
+        },
 
-      verificationFailed: (FirebaseAuthException e) {
-        _loading = false;
-        _error = _friendlyError(e);
-        notifyListeners();
-        onError(_error!);
-      },
-
-      codeSent: (String verificationId, int? resendToken) {
-        _verificationId = verificationId;
-        _resendToken    = resendToken;
-        _setLoading(false);
-        onCodeSent();
-      },
-
-      codeAutoRetrievalTimeout: (String verificationId) {
-        _verificationId = verificationId;
-      },
-    );
+        codeAutoRetrievalTimeout: (String verificationId) {
+          _verificationId = verificationId;
+        },
+      );
+    } catch (e) {
+      _setLoading(false);
+      final msg = e is FirebaseAuthException
+          ? _friendlyError(e)
+          : 'Failed to send OTP. Please check your number and try again.';
+      onError(msg);
+    }
   }
 
   /// Verifies the 6-digit [smsCode] entered by the user.
