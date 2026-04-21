@@ -34,6 +34,7 @@ import '../settings/settings_screen.dart';
 import '../venues/venue_detail_screen.dart';
 
 import '../../core/models/tournament.dart';
+import '../../layout/responsive_layout.dart';
 import '../../services/game_listing_service.dart';
 import '../../services/stats_service.dart';
 import '../../services/tournament_service.dart';
@@ -233,7 +234,6 @@ class _HomeScreenState extends State<HomeScreen> {
       label: 'Profile',
     ),
   ];
-
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -251,44 +251,56 @@ class _HomeScreenState extends State<HomeScreen> {
     return AdaptiveLayout(
       web: WebShell(pages: pages),
       mobile: Scaffold(
-      backgroundColor: AppC.bg(context),
-      drawer: const AppDrawer(),
-      appBar: _buildAppBar(context),
-      body: IndexedStack(index: _bottomNavIndex, children: pages),
-      bottomNavigationBar: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _bottomNavIndex,
-          onTap: (i) => setState(() => _bottomNavIndex = i),
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppC.primary(context),
-          unselectedItemColor: AppC.navUnselected(context),
-          backgroundColor: AppC.navBar(context),
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
-          elevation: 12,
-          items: _navItems,
-        ),
+        backgroundColor: AppC.bg(context),
+        drawer: const AppDrawer(),
+        appBar: _buildAppBar(context),
+        bottomNavigationBar: _buildBottomNavigationBar(context),
+        body: IndexedStack(index: _bottomNavIndex, children: pages),
       ),
-    ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _bottomNavIndex,
+        onTap: (i) => setState(() => _bottomNavIndex = i),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppC.primary(context),
+        unselectedItemColor: AppC.navUnselected(context),
+        backgroundColor: AppC.navBar(context),
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
+        elevation: 12,
+        items: _navItems,
+      ),
     );
   }
 
   AppBar _buildAppBar(BuildContext context) {
     final iconColor = AppC.text(context);
     final primary = AppC.primary(context);
+    final isDesktop = ResponsiveLayout.isDesktop(context);
 
     return AppBar(
       elevation: 0,
-      leading: Builder(
-        builder: (ctx) => IconButton(
-          icon: Icon(Icons.menu, color: iconColor),
-          onPressed: () => Scaffold.of(ctx).openDrawer(),
-        ),
-      ),
+      automaticallyImplyLeading: false,
+      leading: isDesktop
+          ? null
+          : Builder(
+              builder: (ctx) => IconButton(
+                icon: Icon(Icons.menu, color: iconColor),
+                onPressed: () => Scaffold.of(ctx).openDrawer(),
+              ),
+            ),
+      backgroundColor: isDesktop ? AppC.card(context) : null,
+      shape: isDesktop
+          ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))
+          : null,
       title: RichText(
         text: TextSpan(
           children: [

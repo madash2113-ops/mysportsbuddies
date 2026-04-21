@@ -12,7 +12,15 @@
       "mcp__claude_ai_Notion__notion-search",
       "mcp__claude_ai_Notion__notion-fetch",
       "Bash(gh issue:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(awk 'NR>=387' /Users/saisuryarithvikpyla/Documents/mysportsbuddies/lib/screens/home/home_screen.dart)",
+      "Bash(awk 'NR>=570' /Users/saisuryarithvikpyla/Documents/mysportsbuddies/lib/screens/home/home_screen.dart)",
+      "WebFetch(domain:m3.material.io)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174)",
+      "Bash(pkill -f \"vite --port 5174\")",
+      "mcp__claude_ai_Figma__get_metadata",
+      "mcp__claude_ai_Figma__get_screenshot",
+      "mcp__claude_ai_Figma__use_figma"
     ]
   },
   "enableAllProjectMcpServers": true,

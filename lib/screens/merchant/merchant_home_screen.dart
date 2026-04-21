@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../design/colors.dart';
+import '../../layout/responsive_layout.dart';
+import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../../services/venue_service.dart';
 import '../home/help_screen.dart';
@@ -46,21 +48,24 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
       label: 'Profile',
     ),
   ];
+  static const _navIcons = [
+    Icons.dashboard,
+    Icons.store,
+    Icons.event_note,
+    Icons.person,
+  ];
+  static const _navLabels = ['Dashboard', 'My Venues', 'Bookings', 'Profile'];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppShell(
       backgroundColor: AppColors.background,
-      body: IndexedStack(
-        index: _tab,
-        children: [
-          _DashboardTab(onTabChange: (i) => setState(() => _tab = i)),
-          const MyVenuesScreen(),
-          const MerchantBookingsScreen(),
-          const _ProfileTab(),
-        ],
+      appBar: _buildAppBar(context),
+      side: _MerchantDesktopNav(
+        currentIndex: _tab,
+        onSelected: (index) => setState(() => _tab = index),
       ),
-      bottomNavigationBar: BottomNavigationBar(
+      mobileBottomNavigationBar: BottomNavigationBar(
         currentIndex: _tab,
         onTap: (i) => setState(() => _tab = i),
         backgroundColor: const Color(0xFF1C1C1E),
@@ -69,6 +74,194 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         items: _navItems,
+      ),
+      child: IndexedStack(
+        index: _tab,
+        children: [
+          _DashboardTab(onTabChange: (i) => setState(() => _tab = i)),
+          const MyVenuesScreen(),
+          const MerchantBookingsScreen(),
+          const _ProfileTab(),
+        ],
+      ),
+    );
+  }
+
+  AppBar _buildAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: ResponsiveLayout.isDesktop(context)
+          ? AppColors.card
+          : AppColors.background,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      shape: ResponsiveLayout.isDesktop(context)
+          ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))
+          : null,
+      title: const Text(
+        'Venue Owner Dashboard',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.settings_outlined, color: Colors.white),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MerchantDesktopNav extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onSelected;
+
+  const _MerchantDesktopNav({
+    required this.currentIndex,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = UserService().profile?.name ?? 'Merchant';
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white12),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1A237E), Color(0xFF3949AB)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                SizedBox(height: 14),
+                Text(
+                  'Venue Ops',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Run bookings and venues from the web.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Merchant account',
+            style: TextStyle(color: Colors.white54, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          ...List.generate(
+            _MerchantHomeScreenState._navIcons.length,
+            (index) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _MerchantNavTile(
+                icon: _MerchantHomeScreenState._navIcons[index],
+                label: _MerchantHomeScreenState._navLabels[index],
+                selected: currentIndex == index,
+                onTap: () => onSelected(index),
+              ),
+            ),
+          ),
+          const Spacer(),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddVenueScreen()),
+              ),
+              icon: const Icon(Icons.add_business_outlined),
+              label: const Text('Add Venue'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MerchantNavTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _MerchantNavTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.14)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected
+                  ? AppColors.primary.withValues(alpha: 0.4)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: selected ? AppColors.primary : Colors.white54),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : Colors.white70,
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -102,16 +295,19 @@ class _DashboardTab extends StatelessWidget {
                             Text(
                               'Hello, $name',
                               style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700),
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const Text(
                               'Venue Owner Dashboard',
                               style: TextStyle(
-                                  color: Colors.white54, fontSize: 13),
+                                color: Colors.white54,
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ),
@@ -124,10 +320,15 @@ class _DashboardTab extends StatelessWidget {
                           shape: BoxShape.circle,
                           color: const Color(0xFF1A237E),
                           border: Border.all(
-                              color: const Color(0xFF3949AB), width: 1.5),
+                            color: const Color(0xFF3949AB),
+                            width: 1.5,
+                          ),
                         ),
-                        child: const Icon(Icons.storefront_rounded,
-                            color: Colors.white, size: 22),
+                        child: const Icon(
+                          Icons.storefront_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
                     ],
                   ),
@@ -137,27 +338,55 @@ class _DashboardTab extends StatelessWidget {
                   ListenableBuilder(
                     listenable: VenueService(),
                     builder: (context, _) {
-                      final venues   = VenueService().myVenues;
-                      final active   = venues.where((v) => v.status.name == 'active').length;
-                      final pending  = venues.where((v) => v.status.name == 'pending').length;
+                      final venues = VenueService().myVenues;
+                      final active = venues
+                          .where((v) => v.status.name == 'active')
+                          .length;
+                      final pending = venues
+                          .where((v) => v.status.name == 'pending')
+                          .length;
                       return Row(
                         children: [
-                          Expanded(child: _StatCard(label: 'Total Venues', value: '${venues.length}', icon: Icons.store, color: AppColors.primary)),
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Total Venues',
+                              value: '${venues.length}',
+                              icon: Icons.store,
+                              color: AppColors.primary,
+                            ),
+                          ),
                           const SizedBox(width: 12),
-                          Expanded(child: _StatCard(label: 'Active',  value: '$active',  icon: Icons.check_circle_outline, color: Colors.green)),
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Active',
+                              value: '$active',
+                              icon: Icons.check_circle_outline,
+                              color: Colors.green,
+                            ),
+                          ),
                           const SizedBox(width: 12),
-                          Expanded(child: _StatCard(label: 'Pending', value: '$pending', icon: Icons.hourglass_top_rounded, color: Colors.orange)),
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Pending',
+                              value: '$pending',
+                              icon: Icons.hourglass_top_rounded,
+                              color: Colors.orange,
+                            ),
+                          ),
                         ],
                       );
                     },
                   ),
 
                   const SizedBox(height: 28),
-                  const Text('Quick Actions',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Quick Actions',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 14),
                 ],
               ),
@@ -198,8 +427,10 @@ class _DashboardTab extends StatelessWidget {
                   label: 'Settings',
                   subtitle: 'App preferences',
                   color: Colors.grey,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
                 ),
               ]),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -225,11 +456,14 @@ class _DashboardTab extends StatelessWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('My Venues',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700)),
+                      const Text(
+                        'My Venues',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       ...venues.take(3).map((v) => _VenueRowCard(venue: v)),
                     ],
@@ -270,13 +504,20 @@ class _StatCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(height: 6),
-          Text(value,
-              style: TextStyle(
-                  color: color, fontSize: 20, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(color: Colors.white54, fontSize: 11),
-              textAlign: TextAlign.center),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -323,16 +564,21 @@ class _ActionCard extends StatelessWidget {
               child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(height: 10),
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(subtitle,
-                style: const TextStyle(color: Colors.white54, fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              subtitle,
+              style: const TextStyle(color: Colors.white54, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -349,8 +595,8 @@ class _VenueRowCard extends StatelessWidget {
     final statusColor = venue.status.name == 'active'
         ? Colors.green
         : venue.status.name == 'pending'
-            ? Colors.orange
-            : Colors.red;
+        ? Colors.orange
+        : Colors.red;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -369,32 +615,38 @@ class _VenueRowCard extends StatelessWidget {
               color: AppColors.primary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.store_outlined,
-                color: AppColors.primary, size: 22),
+            child: const Icon(
+              Icons.store_outlined,
+              color: AppColors.primary,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(venue.name,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                Text(venue.address,
-                    style:
-                        const TextStyle(color: Colors.white54, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  venue.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  venue.address,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
@@ -402,9 +654,10 @@ class _VenueRowCard extends StatelessWidget {
             child: Text(
               venue.status.name,
               style: TextStyle(
-                  color: statusColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600),
+                color: statusColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -429,8 +682,8 @@ class _ProfileTab extends StatelessWidget {
             listenable: UserService(),
             builder: (context, _) {
               final p = UserService().profile;
-              final name     = p?.name  ?? 'Merchant';
-              final email    = p?.email ?? '';
+              final name = p?.name ?? 'Merchant';
+              final email = p?.email ?? '';
               final imageUrl = p?.imageUrl;
               return Column(
                 children: [
@@ -441,26 +694,38 @@ class _ProfileTab extends StatelessWidget {
                         ? NetworkImage(imageUrl)
                         : null,
                     child: imageUrl == null || imageUrl.isEmpty
-                        ? const Icon(Icons.storefront_rounded,
-                            size: 38, color: Colors.white)
+                        ? const Icon(
+                            Icons.storefront_rounded,
+                            size: 38,
+                            color: Colors.white,
+                          )
                         : null,
                   ),
                   const SizedBox(height: 12),
-                  Text(name,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700)),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   if (email.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(email,
-                        style: const TextStyle(
-                            color: Colors.white54, fontSize: 13)),
+                    Text(
+                      email,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A237E),
                       borderRadius: BorderRadius.circular(20),
@@ -469,14 +734,20 @@ class _ProfileTab extends StatelessWidget {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.storefront_rounded,
-                            color: Colors.white, size: 12),
+                        Icon(
+                          Icons.storefront_rounded,
+                          color: Colors.white,
+                          size: 12,
+                        ),
                         SizedBox(width: 4),
-                        Text('Venue Owner',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
+                        Text(
+                          'Venue Owner',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -494,14 +765,18 @@ class _ProfileTab extends StatelessWidget {
           _ProfileMenuItem(
             icon: Icons.settings_outlined,
             label: 'Settings',
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
           _ProfileMenuItem(
             icon: Icons.help_outline,
             label: 'Help & Support',
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const HelpScreen())),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HelpScreen()),
+            ),
           ),
           const SizedBox(height: 12),
           _ProfileMenuItem(
@@ -509,8 +784,14 @@ class _ProfileTab extends StatelessWidget {
             label: 'Sign Out',
             iconColor: Colors.red.shade400,
             labelColor: Colors.red.shade400,
-            onTap: () => Navigator.pushNamedAndRemoveUntil(
-                context, '/welcome', (_) => false),
+            onTap: () async {
+              await AuthService().signOut();
+              if (!context.mounted) return;
+              Navigator.of(
+                context,
+                rootNavigator: true,
+              ).pushNamedAndRemoveUntil('/login', (_) => false);
+            },
           ),
         ],
       ),
@@ -539,8 +820,7 @@ class _ProfileMenuItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
           color: const Color(0xFF1C1C1E),
           borderRadius: BorderRadius.circular(14),
@@ -548,17 +828,18 @@ class _ProfileMenuItem extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon,
-                color: iconColor ?? Colors.white70, size: 20),
+            Icon(icon, color: iconColor ?? Colors.white70, size: 20),
             const SizedBox(width: 14),
-            Text(label,
-                style: TextStyle(
-                    color: labelColor ?? Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: TextStyle(
+                color: labelColor ?? Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const Spacer(),
-            Icon(Icons.arrow_forward_ios,
-                color: Colors.white24, size: 14),
+            Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
           ],
         ),
       ),

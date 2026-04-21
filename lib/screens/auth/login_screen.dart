@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/layout/adaptive_layout.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
+import '../../layout/responsive_layout.dart';
 import '../../services/auth_service.dart';
 import 'auth_router.dart';
+import 'web_login_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,9 +17,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool    _googleLoading = false;
+  bool _googleLoading = false;
   String? _error;
-  String  _pendingRole   = 'player'; // read from SharedPreferences
+  String _pendingRole = 'player'; // read from SharedPreferences
 
   @override
   void initState() {
@@ -34,7 +37,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _googleSignIn() async {
-    setState(() { _googleLoading = true; _error = null; });
+    setState(() {
+      _googleLoading = true;
+      _error = null;
+    });
     final ok = await AuthService().signInWithGoogle();
     if (!mounted) return;
     if (ok) {
@@ -49,226 +55,266 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+    final panel = SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(height: 16),
+
+          // ── Role badge + back ────────────────────────────────────────
+          Row(
             children: [
-              const SizedBox(height: 16),
-
-              // ── Role badge + back ────────────────────────────────────────
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pushReplacementNamed(context, '/welcome'),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.arrow_back_ios_new, color: Colors.white54, size: 14),
-                        SizedBox(width: 4),
-                        Text('Change', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _pendingRole == 'merchant'
-                          ? const Color(0xFF1A237E)
-                          : AppColors.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _pendingRole == 'merchant'
-                            ? const Color(0xFF3949AB)
-                            : AppColors.primary,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _pendingRole == 'merchant'
-                              ? Icons.storefront_rounded
-                              : Icons.sports_soccer_rounded,
-                          color: Colors.white,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _pendingRole == 'merchant' ? 'Venue Owner' : 'Player',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── Logo ────────────────────────────────────────────────────
-              Container(
-                width: 80,
-                height: 80,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary,
-                ),
-                child: const Icon(Icons.emoji_events,
-                    size: 42, color: Colors.white),
-              ),
-
-              const SizedBox(height: AppSpacing.md),
-
-              // ── Brand name ───────────────────────────────────────────────
-              RichText(
-                text: const TextSpan(
+              GestureDetector(
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/role-picker'),
+                child: const Row(
                   children: [
-                    TextSpan(
-                      text: 'MySports',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700),
+                    Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white54,
+                      size: 14,
                     ),
-                    TextSpan(
-                      text: 'Buddies',
-                      style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800),
+                    SizedBox(width: 4),
+                    Text(
+                      'Change',
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 6),
-              const Text('Welcome back',
-                  style: TextStyle(color: Colors.white54, fontSize: 14)),
-
-              const SizedBox(height: 40),
-
-              // ── Continue with Phone OTP ──────────────────────────────────
-              _PrimaryButton(
-                label: 'Continue with Phone OTP',
-                icon:  Icons.phone_android_outlined,
-                onTap: () => Navigator.pushNamed(context, '/phone-login'),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── Continue with Email ──────────────────────────────────────
-              _OutlineButton(
-                label: 'Continue with Email',
-                icon:  Icons.email_outlined,
-                onTap: () => Navigator.pushNamed(context, '/email-login'),
-              ),
-
-              const SizedBox(height: 28),
-
-              // ── Divider ──────────────────────────────────────────────────
-              const Row(
-                children: [
-                  Expanded(
-                      child:
-                          Divider(color: Colors.white12, thickness: 0.8)),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14),
-                    child: Text('or continue with',
-                        style: TextStyle(
-                            color: Colors.white38, fontSize: 12)),
-                  ),
-                  Expanded(
-                      child:
-                          Divider(color: Colors.white12, thickness: 0.8)),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Social buttons ───────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: _SocialButton(
-                      label: 'Google',
-                      icon: Icons.g_mobiledata,
-                      iconColor: const Color(0xFFEA4335),
-                      loading: _googleLoading,
-                      onTap: _googleLoading ? null : _googleSignIn,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _SocialButton(
-                      label: 'Facebook',
-                      icon: Icons.facebook,
-                      iconColor: const Color(0xFF1877F2),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content:
-                                  Text('Facebook login coming soon!')),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
-              // ── Error ────────────────────────────────────────────────────
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Colors.red.shade400, fontSize: 13)),
-              ],
-
-              const SizedBox(height: 32),
-
-              // ── Register link ────────────────────────────────────────────
-              GestureDetector(
-                onTap: () =>
-                    Navigator.pushNamed(context, '/register-user'),
-                child: RichText(
-                  text: const TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "Don't have an account?  ",
-                        style: TextStyle(
-                            color: Colors.white54, fontSize: 14),
-                      ),
-                      TextSpan(
-                        text: 'Sign Up',
-                        style: TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ],
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _pendingRole == 'merchant'
+                      ? const Color(0xFF1A237E)
+                      : AppColors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _pendingRole == 'merchant'
+                        ? const Color(0xFF3949AB)
+                        : AppColors.primary,
+                    width: 1,
                   ),
                 ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _pendingRole == 'merchant'
+                          ? Icons.storefront_rounded
+                          : Icons.sports_soccer_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _pendingRole == 'merchant' ? 'Venue Owner' : 'Player',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-
-              const SizedBox(height: AppSpacing.md),
-
-              const Text(
-                'By continuing, you agree to Terms & Privacy Policy',
-                style: TextStyle(color: Colors.white24, fontSize: 11),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
             ],
           ),
+
+          const SizedBox(height: 32),
+
+          // ── Logo ────────────────────────────────────────────────────
+          Container(
+            width: 80,
+            height: 80,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primary,
+            ),
+            child: const Icon(
+              Icons.emoji_events,
+              size: 42,
+              color: Colors.white,
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+
+          // ── Brand name ───────────────────────────────────────────────
+          RichText(
+            text: const TextSpan(
+              children: [
+                TextSpan(
+                  text: 'MySports',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                TextSpan(
+                  text: 'Buddies',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Welcome back',
+            style: TextStyle(color: Colors.white54, fontSize: 14),
+          ),
+
+          const SizedBox(height: 40),
+
+          // ── Continue with Phone OTP ──────────────────────────────────
+          _PrimaryButton(
+            label: 'Continue with Phone OTP',
+            icon: Icons.phone_android_outlined,
+            onTap: () => Navigator.pushNamed(context, '/phone-login'),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Continue with Email ──────────────────────────────────────
+          _OutlineButton(
+            label: 'Continue with Email',
+            icon: Icons.email_outlined,
+            onTap: () => Navigator.pushNamed(context, '/email-login'),
+          ),
+
+          const SizedBox(height: 28),
+
+          // ── Divider ──────────────────────────────────────────────────
+          const Row(
+            children: [
+              Expanded(child: Divider(color: Colors.white12, thickness: 0.8)),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  'or continue with',
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              ),
+              Expanded(child: Divider(color: Colors.white12, thickness: 0.8)),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Social buttons ───────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: _SocialButton(
+                  label: 'Google',
+                  icon: Icons.g_mobiledata,
+                  iconColor: const Color(0xFFEA4335),
+                  loading: _googleLoading,
+                  onTap: _googleLoading ? null : _googleSignIn,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _SocialButton(
+                  label: 'Facebook',
+                  icon: Icons.facebook,
+                  iconColor: const Color(0xFF1877F2),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Facebook login coming soon!'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          // ── Error ────────────────────────────────────────────────────
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.red.shade400, fontSize: 13),
+            ),
+          ],
+
+          const SizedBox(height: 32),
+
+          // ── Register link ────────────────────────────────────────────
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/register-user'),
+            child: RichText(
+              text: const TextSpan(
+                children: [
+                  TextSpan(
+                    text: "Don't have an account?  ",
+                    style: TextStyle(color: Colors.white54, fontSize: 14),
+                  ),
+                  TextSpan(
+                    text: 'Sign Up',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+
+          const Text(
+            'By continuing, you agree to Terms & Privacy Policy',
+            style: TextStyle(color: Colors.white24, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
+    );
+
+    return AdaptiveLayout(
+      web: WebLoginPage(
+        pendingRole: _pendingRole,
+        googleLoading: _googleLoading,
+        error: _error,
+        onGoogleSignIn: _googleSignIn,
+      ),
+      mobile: AuthResponsiveScaffold(
+        hero: AuthHeroPanel(
+          eyebrow: _pendingRole == 'merchant'
+              ? 'Venue Owner Access'
+              : 'Player Access',
+          title: _pendingRole == 'merchant'
+              ? 'Run your venue from a larger screen.'
+              : 'Find games, tournaments,\nand sports buddies faster.',
+          subtitle: _pendingRole == 'merchant'
+              ? 'The web layout gives venue owners more room for inventory, bookings, and operations while keeping the same account system.'
+              : 'Use the same MySportsBuddy account on mobile and web to browse events, community updates, and scoreboards.',
+          bullets: _pendingRole == 'merchant'
+              ? const ['Venue dashboard', 'Booking flow', 'Multi-screen workflow']
+              : const ['Nearby games', 'Live scorecards', 'Community feed'],
+          icon: _pendingRole == 'merchant'
+              ? Icons.storefront_rounded
+              : Icons.sports_soccer_rounded,
         ),
+        panel: panel,
       ),
     );
   }
@@ -297,14 +343,18 @@ class _PrimaryButton extends StatelessWidget {
           backgroundColor: AppColors.primary,
           elevation: 0,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
-        icon:  Icon(icon, color: Colors.white, size: 20),
-        label: Text(label,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600)),
+        icon: Icon(icon, color: Colors.white, size: 20),
+        label: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         onPressed: onTap,
       ),
     );
@@ -333,15 +383,19 @@ class _OutlineButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: AppColors.primary, width: 1.5),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+            borderRadius: BorderRadius.circular(14),
+          ),
           backgroundColor: AppColors.primary.withValues(alpha: 0.06),
         ),
-        icon:  Icon(icon, color: AppColors.primary, size: 20),
-        label: Text(label,
-            style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600)),
+        icon: Icon(icon, color: AppColors.primary, size: 20),
+        label: Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         onPressed: onTap,
       ),
     );
@@ -382,7 +436,9 @@ class _SocialButton extends StatelessWidget {
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
               )
             : Row(
@@ -390,11 +446,14 @@ class _SocialButton extends StatelessWidget {
                 children: [
                   Icon(icon, color: iconColor, size: 26),
                   const SizedBox(width: 8),
-                  Text(label,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
       ),

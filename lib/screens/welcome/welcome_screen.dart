@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../layout/responsive_layout.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -18,7 +19,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   void initState() {
     super.initState();
     _anim = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 300));
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _fade = CurvedAnimation(parent: _anim, curve: Curves.easeInOut);
     _anim.forward();
   }
@@ -62,8 +65,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       icon: Icons.storefront_rounded,
       label: 'Venue Owner',
       title: "I'm a Venue Owner",
-      subtitle:
-          'List your ground, court or turf\nand manage bookings easily.',
+      subtitle: 'List your ground, court or turf\nand manage bookings easily.',
       activeDark: Color(0xFF1A237E),
       activeColor: Color(0xFF3949AB),
       activeBg: Color(0xFF050D2A),
@@ -74,218 +76,242 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   Widget build(BuildContext context) {
     final r = _roles[_selected]!;
+    final isMobile = ResponsiveLayout.isMobile(context);
+    final panel = SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 0),
+        child: Column(
+          children: [
+            SizedBox(height: isMobile ? 12 : 24),
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
+            // ── Logo ──────────────────────────────────────────────────────
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: r.activeColor.withValues(alpha: 0.15),
+                border: Border.all(
+                  color: r.activeColor.withValues(alpha: 0.4),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: r.glowColor.withValues(alpha: 0.35),
+                    blurRadius: 36,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Icon(r.icon, size: 46, color: r.activeColor),
+            ),
 
-              // ── Logo ──────────────────────────────────────────────────────
-              AnimatedContainer(
+            const SizedBox(height: 20),
+
+            // ── Brand name ────────────────────────────────────────────────
+            RichText(
+              text: const TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'MySports',
+                    style: TextStyle(
+                      fontSize: 26,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'Buddies',
+                    style: TextStyle(
+                      fontSize: 26,
+                      color: Color(0xFFCC1F1F),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 6),
+            const Text(
+              'Choose how you want to continue',
+              style: TextStyle(color: Colors.white38, fontSize: 13),
+            ),
+
+            SizedBox(height: isMobile ? 28 : 44),
+
+            // ── Toggle pill ───────────────────────────────────────────────
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white10),
+              ),
+              padding: const EdgeInsets.all(4),
+              child: Row(
+                children: [
+                  _ToggleOption(
+                    icon: Icons.sports_soccer_rounded,
+                    label: 'Player',
+                    selected: _selected == 'player',
+                    activeDark: const Color(0xFF8B0000),
+                    activeColor: const Color(0xFFCC1F1F),
+                    onTap: () => _pick('player'),
+                  ),
+                  _ToggleOption(
+                    icon: Icons.storefront_rounded,
+                    label: 'Venue Owner',
+                    selected: _selected == 'merchant',
+                    activeDark: const Color(0xFF1A237E),
+                    activeColor: const Color(0xFF3949AB),
+                    onTap: () => _pick('merchant'),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // ── Detail card (fades when switching) ────────────────────────
+            FadeTransition(
+              opacity: _fade,
+              child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
-                width: 96,
-                height: 96,
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: r.activeColor.withValues(alpha: 0.15),
-                  border:
-                      Border.all(color: r.activeColor.withValues(alpha: 0.4), width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: r.glowColor.withValues(alpha: 0.35),
-                      blurRadius: 36,
-                      spreadRadius: 2,
-                    ),
-                  ],
+                  color: r.activeBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: r.activeColor.withValues(alpha: 0.3),
+                  ),
                 ),
-                child: Icon(r.icon, size: 46, color: r.activeColor),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Brand name ────────────────────────────────────────────────
-              RichText(
-                text: const TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'MySports',
-                      style: TextStyle(
-                          fontSize: 26,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800),
-                    ),
-                    TextSpan(
-                      text: 'Buddies',
-                      style: TextStyle(
-                          fontSize: 26,
-                          color: Color(0xFFCC1F1F),
-                          fontWeight: FontWeight.w800),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 6),
-              const Text(
-                'Choose how you want to continue',
-                style: TextStyle(color: Colors.white38, fontSize: 13),
-              ),
-
-              const Spacer(flex: 2),
-
-              // ── Toggle pill ───────────────────────────────────────────────
-              Container(
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white10),
-                ),
-                padding: const EdgeInsets.all(4),
                 child: Row(
                   children: [
-                    _ToggleOption(
-                      icon: Icons.sports_soccer_rounded,
-                      label: 'Player',
-                      selected: _selected == 'player',
-                      activeDark: const Color(0xFF8B0000),
-                      activeColor: const Color(0xFFCC1F1F),
-                      onTap: () => _pick('player'),
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: r.activeColor.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(r.icon, color: r.activeColor, size: 28),
                     ),
-                    _ToggleOption(
-                      icon: Icons.storefront_rounded,
-                      label: 'Venue Owner',
-                      selected: _selected == 'merchant',
-                      activeDark: const Color(0xFF1A237E),
-                      activeColor: const Color(0xFF3949AB),
-                      onTap: () => _pick('merchant'),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            r.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            r.subtitle,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 28),
+            const SizedBox(height: 28),
 
-              // ── Detail card (fades when switching) ────────────────────────
-              FadeTransition(
-                opacity: _fade,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: r.activeBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: r.activeColor.withValues(alpha: 0.3)),
+            // ── Continue button ───────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _selected == 'player'
+                        ? [const Color(0xFF8B0000), const Color(0xFFCC1F1F)]
+                        : [const Color(0xFF1A237E), const Color(0xFF3949AB)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 54,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          color: r.activeColor.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(r.icon, color: r.activeColor, size: 28),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              r.title,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              r.subtitle,
-                              style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                  height: 1.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              // ── Continue button ───────────────────────────────────────────
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _selected == 'player'
-                          ? [const Color(0xFF8B0000), const Color(0xFFCC1F1F)]
-                          : [const Color(0xFF1A237E), const Color(0xFF3949AB)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: r.glowColor.withValues(alpha: 0.4),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: r.glowColor.withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: _continue,
-                      child: const Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Continue',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700),
+                    onTap: _continue,
+                    child: const Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Continue',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                             ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward_rounded,
-                                color: Colors.white, size: 18),
-                          ],
-                        ),
+                          ),
+                          SizedBox(width: 8),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ),
+            ),
 
-              const Spacer(flex: 3),
+            SizedBox(height: isMobile ? 32 : 48),
 
-              const Text(
-                'You can switch roles later from Settings',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white24, fontSize: 12),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            const Text(
+              'You can switch roles later from Settings',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white24, fontSize: 12),
+            ),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
+    );
+
+    return AuthResponsiveScaffold(
+      hero: AuthHeroPanel(
+        eyebrow: 'Sports Platform',
+        title: 'One sports community,\nnow ready for the web.',
+        subtitle:
+            'Keep the same MySportsBuddy flows across mobile and browser with a responsive experience for players and venue owners.',
+        bullets: const [
+          'Join nearby games',
+          'Manage venues',
+          'Follow live scorecards',
+        ],
+        icon: r.icon,
+      ),
+      panel: panel,
     );
   }
 }
@@ -350,8 +376,7 @@ class _ToggleOption extends StatelessWidget {
                 style: TextStyle(
                   color: selected ? Colors.white : Colors.white38,
                   fontSize: 16,
-                  fontWeight:
-                      selected ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ],
