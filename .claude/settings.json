@@ -159,7 +159,10 @@
       "Bash(rm -rf ~/Library/Developer/Xcode/DerivedData/*)",
       "Bash(rm -rf ~/Library/Developer/CoreSimulator/Caches/*)",
       "Bash(rm -rf ~/Library/Caches/com.apple.dt.Xcode/*)",
-      "Bash(flutter build *)"
+      "Bash(flutter build *)",
+      "Bash(xcrun simctl *)",
+      "Bash(rm -rf ~/Library/Caches/*)",
+      "Bash(pod cache *)"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",
