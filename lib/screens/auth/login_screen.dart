@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
@@ -16,22 +15,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool    _googleLoading = false;
   String? _error;
-  String  _pendingRole   = 'player'; // read from SharedPreferences
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPendingRole();
-  }
-
-  Future<void> _loadPendingRole() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _pendingRole = prefs.getString('pending_role') ?? 'player';
-      });
-    }
-  }
 
   Future<void> _googleSignIn() async {
     setState(() { _googleLoading = true; _error = null; });
@@ -76,31 +59,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _pendingRole == 'merchant'
-                          ? const Color(0xFF1A237E)
-                          : AppColors.primary.withValues(alpha: 0.15),
+                      color: AppColors.primary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _pendingRole == 'merchant'
-                            ? const Color(0xFF3949AB)
-                            : AppColors.primary,
-                        width: 1,
-                      ),
+                      border: Border.all(color: AppColors.primary, width: 1),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          _pendingRole == 'merchant'
-                              ? Icons.storefront_rounded
-                              : Icons.sports_soccer_rounded,
-                          color: Colors.white,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
+                        Icon(Icons.sports_soccer_rounded,
+                            color: Colors.white, size: 14),
+                        SizedBox(width: 6),
                         Text(
-                          _pendingRole == 'merchant' ? 'Venue Owner' : 'Player',
-                          style: const TextStyle(
+                          'Player',
+                          style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,
                               fontWeight: FontWeight.w600),

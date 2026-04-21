@@ -31,7 +31,6 @@ import '../tournaments/tournaments_list_screen.dart';
 import '../common/app_drawer.dart';
 import '../games/game_detail_screen.dart';
 import '../settings/settings_screen.dart';
-import '../venues/venue_detail_screen.dart';
 
 import '../../core/models/tournament.dart';
 import '../../services/game_listing_service.dart';
@@ -1441,8 +1440,6 @@ class _HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<_HomeTab> {
-  bool _showSports = true;
-
   String get _greeting {
     final h = DateTime.now().hour;
     if (h < 12) return 'Good Morning ☀️';
@@ -1468,9 +1465,7 @@ class _HomeTabState extends State<_HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = AppC.primary(context);
     final textCol = AppC.text(context);
-    final cardBg = AppC.card(context);
     final name = (UserService().profile?.name ?? '').split(' ').first;
 
     final location = UserService().profile?.location ?? '';
@@ -1538,45 +1533,9 @@ class _HomeTabState extends State<_HomeTab> {
             ),
           ),
 
-          // ── Sports | Venues toggle ───────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: _kPageH),
-            child: Container(
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white10),
-              ),
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                children: [
-                  _ToggleTab(
-                    label: 'Sports',
-                    icon: Icons.sports_outlined,
-                    active: _showSports,
-                    primary: primary,
-                    onTap: () => setState(() => _showSports = true),
-                  ),
-                  _ToggleTab(
-                    label: 'Venues',
-                    icon: Icons.stadium_outlined,
-                    active: !_showSports,
-                    primary: primary,
-                    onTap: () => setState(() => _showSports = false),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Content: Sports section OR Venues section ────────────────────
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: _showSports
-                  ? const _SportsGrid(key: ValueKey('sports'))
-                  : const _VenuesGrid(key: ValueKey('venues')),
-            ),
+          // ── Sports section ───────────────────────────────────────────────
+          const Expanded(
+            child: _SportsGrid(),
           ),
 
           // ── Resume / next-game banners pinned at bottom ──────────────────
@@ -1593,79 +1552,10 @@ class _HomeTabState extends State<_HomeTab> {
   }
 }
 
-// ── Toggle tab (one half of the Sports | Venues bar) ──────────────────────────
-
-class _ToggleTab extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool active;
-  final Color primary;
-  final VoidCallback onTap;
-
-  const _ToggleTab({
-    required this.label,
-    required this.icon,
-    required this.active,
-    required this.primary,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            gradient: active
-                ? const LinearGradient(
-                    colors: [AppColors.primaryDark, AppColors.primary],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.35),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 22,
-                color: active ? AppC.onPrimary(context) : AppC.hint(context),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: active ? AppC.onPrimary(context) : AppC.muted(context),
-                  fontSize: 16,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ── Sports section (horizontal pill scroll) ────────────────────────────────────
 
 class _SportsGrid extends StatelessWidget {
-  const _SportsGrid({super.key});
+  const _SportsGrid();
 
   static const _sports = [
     ('Cricket', '🏏'),
@@ -2748,156 +2638,6 @@ class _UpcomingMatchRow extends StatelessWidget {
   }
 }
 
-// ── Venues section (horizontal pill scroll) ────────────────────────────────────
-
-class _VenuesGrid extends StatelessWidget {
-  const _VenuesGrid({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = AppC.primary(context);
-    final isDark = AppC.isDark(context);
-
-    return ListenableBuilder(
-      listenable: Listenable.merge([VenueService(), LocationService()]),
-      builder: (context, _) {
-        final locSvc = LocationService();
-        final pos = locSvc.lastPosition;
-
-        // Sort by distance when position is available; venue with lat=0/lng=0
-        // is treated as unknown and sorts to the end.
-        final venues = [...VenueService().venues];
-        if (pos != null) {
-          venues.sort((a, b) {
-            final da = (a.lat == 0 && a.lng == 0)
-                ? double.infinity
-                : locSvc.distanceInKm(
-                    a.lat,
-                    a.lng,
-                    pos.latitude,
-                    pos.longitude,
-                  );
-            final db = (b.lat == 0 && b.lng == 0)
-                ? double.infinity
-                : locSvc.distanceInKm(
-                    b.lat,
-                    b.lng,
-                    pos.latitude,
-                    pos.longitude,
-                  );
-            return da.compareTo(db);
-          });
-        }
-
-        return RefreshIndicator(
-          color: AppC.primary(context),
-          backgroundColor: AppC.card(context),
-          onRefresh: () async {
-            VenueService().listenToVenues();
-            await Future.delayed(const Duration(milliseconds: 400));
-          },
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Pills
-                if (venues.isEmpty)
-                  SizedBox(
-                    height: 300,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.stadium_outlined,
-                            size: 48,
-                            color: AppC.hint(context),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No venues nearby yet',
-                            style: TextStyle(
-                              color: AppC.muted(context),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Check back soon!',
-                            style: TextStyle(
-                              color: AppC.hint(context),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    height: 58,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: _kPageH),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: venues.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 10),
-                      itemBuilder: (context, i) {
-                        final v = venues[i];
-                        return GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => VenueDetailScreen(venue: v),
-                            ),
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 18),
-                            decoration: BoxDecoration(
-                              color: primary.withValues(
-                                alpha: isDark ? 0.12 : 0.08,
-                              ),
-                              borderRadius: BorderRadius.circular(AppRadius.lg),
-                              border: Border.all(
-                                color: primary.withValues(alpha: 0.30),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.stadium_outlined,
-                                  color: primary,
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  v.name,
-                                  style: TextStyle(
-                                    color: AppC.text(context),
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOCATION PICKER SHEET

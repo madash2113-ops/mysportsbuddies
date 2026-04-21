@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../core/models/user_profile.dart';
-import '../../services/user_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,14 +22,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && !user.isAnonymous) {
-      // Route to the correct home based on saved role
-      final role = UserService().profile?.role ?? UserRole.player;
-      if (role == UserRole.merchant) {
-        Navigator.pushReplacementNamed(context, '/merchant-home');
-      } else {
-        // player and organizer both use the main home shell
-        Navigator.pushReplacementNamed(context, '/home');
-      }
+      Navigator.pushReplacementNamed(context, '/home');
     } else {
       Navigator.pushReplacementNamed(
         context,
