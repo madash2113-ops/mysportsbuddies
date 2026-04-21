@@ -20,6 +20,9 @@ import '../../screens/auth/complete_profile_screen.dart';
 // Home (player)
 import '../../screens/home/home_screen.dart';
 
+// Web landing
+import '../../screens/web/web_landing_page.dart';
+
 // Merchant
 import '../../screens/merchant/merchant_home_screen.dart';
 
@@ -47,6 +50,9 @@ class AppRoutes {
     '/register-user': (context) => const RegisterUserScreen(),
     '/otp': (context) => const OtpScreen(),
     '/complete-profile': (context) => const CompleteProfileScreen(),
+
+    // Web landing (unauthenticated entry point on web)
+    '/web-landing': (context) => const WebLandingPage(),
 
     // Player Home
     '/home': (context) => const HomeScreen(),

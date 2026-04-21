@@ -5,6 +5,7 @@ import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, HapticFeedback;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,6 +39,8 @@ import '../../services/stats_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/venue_service.dart';
 import 'notifications_screen.dart';
+import '../../core/layout/adaptive_layout.dart';
+import '../web/web_shell.dart';
 
 /// All sports with emojis. Keys must match stats_service storage keys.
 const Map<String, String> _kSportEmoji = {
@@ -178,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _requestInitialPermissions() async {
+    if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('permissions_requested') == true) return;
 
@@ -244,7 +248,9 @@ class _HomeScreenState extends State<HomeScreen> {
       const _ProfileTab(),
     ];
 
-    return Scaffold(
+    return AdaptiveLayout(
+      web: WebShell(pages: pages),
+      mobile: Scaffold(
       backgroundColor: AppC.bg(context),
       drawer: const AppDrawer(),
       appBar: _buildAppBar(context),
@@ -267,6 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
           items: _navItems,
         ),
       ),
+    ),
     );
   }
 

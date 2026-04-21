@@ -135,7 +135,17 @@
       "Bash(plutil -lint \"/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Info.plist\")",
       "Bash(flutter clean *)",
       "Bash(rm -rf ~/Library/Developer/Xcode/DerivedData)",
-      "Bash(sips -g pixelWidth -g pixelHeight -g format \"/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png\")"
+      "Bash(sips -g pixelWidth -g pixelHeight -g format \"/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png\")",
+      "Bash(sips -g all /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png)",
+      "Bash(plutil -lint /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/ios/Runner/Info.plist)",
+      "Bash(npm --version)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); c=d['client'][0]; pi=d['project_info']; print\\('projectId:', pi['project_id']\\); print\\('appId:', c['client_info']['mobilesdk_app_id']\\); print\\('apiKey:', c['api_key'][0]['current_key']\\); print\\('storageBucket:', pi.get\\('storage_bucket',''\\)\\)\")",
+      "Bash(npm create *)",
+      "Bash(npm run *)",
+      "WebFetch(domain:localhost)",
+      "Bash(dart pub *)",
+      "Bash(flutterfire configure *)",
+      "Bash(pkill -f flutterfire)"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",

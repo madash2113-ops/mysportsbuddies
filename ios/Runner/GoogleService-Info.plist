@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>793247401031-1q1469jbafasvst6v8kchpgod0bi66j8.apps.googleusercontent.com</string>
+	<string>793247401031-73cic8h1k0mg5tc61tqpo0s5uuhqcm0q.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.793247401031-1q1469jbafasvst6v8kchpgod0bi66j8</string>
+	<string>com.googleusercontent.apps.793247401031-73cic8h1k0mg5tc61tqpo0s5uuhqcm0q</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>793247401031-outb32irumi8v1r6ok63rleg3h8bb5pn.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -31,7 +31,7 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:793247401031:ios:ce984909816ef538645d62</string>
+	<string>1:793247401031:ios:6b3ef6069de3b8a0645d62</string>
 	<key>DATABASE_URL</key>
 	<string>https://mysportsbuddies-4d077-default-rtdb.firebaseio.com</string>
 </dict>

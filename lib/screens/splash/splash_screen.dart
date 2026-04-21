@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/models/user_profile.dart';
 import '../../services/user_service.dart';
@@ -32,7 +33,10 @@ class _SplashScreenState extends State<SplashScreen> {
         Navigator.pushReplacementNamed(context, '/home');
       }
     } else {
-      Navigator.pushReplacementNamed(context, '/welcome');
+      Navigator.pushReplacementNamed(
+        context,
+        kIsWeb ? '/web-landing' : '/welcome',
+      );
     }
   }
 

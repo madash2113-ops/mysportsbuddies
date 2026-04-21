@@ -57,6 +57,42 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:793247401031:android:186038342975c747645d62",
+        "android_client_info": {
+          "package_name": "com.mysportsbuddies.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "793247401031-ecdmjijrogu99pq4lk9noikt7ch0renv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCV6wjivEXJ23ZGfsOD-Q6BbAzPVbOpqVM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "793247401031-ecdmjijrogu99pq4lk9noikt7ch0renv.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "793247401031-1q1469jbafasvst6v8kchpgod0bi66j8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterApplication1"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

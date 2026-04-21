@@ -231,6 +231,7 @@
 				753138487202468809257780 /* [CP] Copy Pods Resources */,
 				4F94F2CBBF00542C01550343 /* Generate Missing dSYMs */,
 				0DB02A56F6CF0AF14BD75A6D /* Strip Simulator Slices */,
+				2AAA675FCE868D80B9C09DF2 /* FlutterFire: "flutterfire upload-crashlytics-symbols" */,
 			);
 			buildRules = (
 			);
@@ -322,6 +323,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Fix App Store Connect errors 91169 / \"Couldn't find platform family\" for\n# objective_c.framework and any other Dart-FFI framework whose Mach-O\n# binary carries an iOS Simulator LC_BUILD_VERSION (platform 7).\n#\n# IMPORTANT: only strip simulator slices for device/archive builds.\n# Simulator debug builds legitimately contain simulator-platform frameworks\n# and stripping them causes dyld to fail loading (Library not loaded crash).\nif [ \"${PLATFORM_NAME}\" = \"iphonesimulator\" ]; then\n  echo \"Strip Simulator Slices: skipping (simulator build)\"\n  exit 0\nfi\n\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Frameworks\"\n[ -d \"$FRAMEWORKS_DIR\" ] || exit 0\n\n# Deployment target + SDK version come from the Xcode environment.\nMINOS=\"${IPHONEOS_DEPLOYMENT_TARGET:-15.0}\"\nSDK=$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo \"17.0\")\n\nfind \"$FRAMEWORKS_DIR\" -maxdepth 1 -name \"*.framework\" -type d | while read fw; do\n  name=$(basename \"$fw\" .framework)\n  binary=\"$fw/$name\"\n  [ -f \"$binary\" ] || continue\n\n  # Skip if no simulator platform present.\n  xcrun vtool -show-build \"$binary\" 2>/dev/null | grep -q \"IOSSIMULATOR\" || continue\n\n  echo \"Patching simulator platform in: $name\"\n  tmp=\"${binary}.tmp_stripsim\"\n\n  # Step 1 — remove the iOS Simulator build version (platform 7).\n  xcrun vtool -remove-build-version 7 -output \"$tmp\" \"$binary\"\n\n  # Step 2 — check whether an iOS device platform entry still exists.\n  # If vtool -show-build shows no \"platform \" lines, the binary had only\n  # a simulator entry and is now platform-less → inject the iOS one.\n  if xcrun vtool -show-build \"$tmp\" 2>/dev/null | grep -q \"platform \"; then\n    # Case A: iOS device platform was already present — keep it.\n    mv \"$tmp\" \"$binary\"\n  else\n    # Case B: binary was simulator-only — stamp it as iOS device.\n    #\n    # IMPORTANT: Apple error 90208 fires when the minos in LC_BUILD_VERSION\n    # differs from MinimumOSVersion in the framework's Info.plist.\n    # Use the framework's own Info.plist value as the authoritative minos.\n    fw_plist=\"$fw/Info.plist\"\n    if [ -f \"$fw_plist\" ]; then\n      fw_minos=$(/usr/libexec/PlistBuddy -c \"Print :MinimumOSVersion\" \\\n                   \"$fw_plist\" 2>/dev/null || echo \"$MINOS\")\n    else\n      fw_minos=\"$MINOS\"\n    fi\n    echo \"  Injecting iOS device build version (minos $fw_minos sdk $SDK)\"\n    xcrun vtool -set-build-version ios \"$fw_minos\" \"$SDK\" -output \"$binary\" \"$tmp\"\n    rm -f \"$tmp\"\n  fi\n\n  # Re-sign the patched binary so Xcode's archive validator accepts it.\n  if [ \"${CODE_SIGNING_REQUIRED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n    codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" \\\n      --preserve-metadata=identifier,entitlements,flags \"$binary\"\n  fi\ndone\n";
+		};
+		2AAA675FCE868D80B9C09DF2 /* FlutterFire: "flutterfire upload-crashlytics-symbols" */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "FlutterFire: \"flutterfire upload-crashlytics-symbols\"";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\n#!/bin/bash\nPATH=\"${PATH}:$FLUTTER_ROOT/bin:${PUB_CACHE}/bin:$HOME/.pub-cache/bin\"\n\nif [ -z \"$PODS_ROOT\" ] || [ ! -d \"$PODS_ROOT/FirebaseCrashlytics\" ]; then\n  # Cannot use \"BUILD_DIR%/Build/*\" as per Firebase documentation, it points to \"flutter-project/build/ios/*\" path which doesn't have run script\n  DERIVED_DATA_PATH=$(echo \"$BUILD_ROOT\" | sed -E 's|(.*DerivedData/[^/]+).*|\\1|')\n  PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT=\"${DERIVED_DATA_PATH}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nelse\n  PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT=\"$PODS_ROOT/FirebaseCrashlytics/run\"\nfi\n\n# Command to upload symbols script used to upload symbols to Firebase server\nflutterfire upload-crashlytics-symbols --upload-symbols-script-path=\"$PATH_TO_CRASHLYTICS_UPLOAD_SCRIPT\" --platform=ios --apple-project-path=\"${SRCROOT}\" --env-platform-name=\"${PLATFORM_NAME}\" --env-configuration=\"${CONFIGURATION}\" --env-project-dir=\"${PROJECT_DIR}\" --env-built-products-dir=\"${BUILT_PRODUCTS_DIR}\" --env-dwarf-dsym-folder-path=\"${DWARF_DSYM_FOLDER_PATH}\" --env-dwarf-dsym-file-name=\"${DWARF_DSYM_FILE_NAME}\" --env-infoplist-path=\"${INFOPLIST_PATH}\" --default-config=default\n";
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
