@@ -4,14 +4,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const _bg    = Color(0xFF080808);
-const _surf  = Color(0xFF0F0F0F);
-const _card  = Color(0xFF141414);
-const _bd    = Color(0xFF1E1E1E);
-const _bd2   = Color(0xFF2A2A2A);
-const _tx    = Color(0xFFF0F0F0);
-const _m1    = Color(0xFF888888);
-const _red   = Color(0xFFFB3640);
+const _bg = Color(0xFF030303);
+const _surf = Color(0xFF070707);
+const _card = Color(0xFF0D0D0D);
+const _bd = Color(0xFF1A1A1A);
+const _bd2 = Color(0xFF222222);
+const _tx = Color(0xFFF2F2F2);
+const _m1 = Color(0xFF888888);
+const _red = Color(0xFFFF2B2B); // true red — not orange
+const _redDeep = Color(0xFFB3001B); // deep crimson
 const _green = Color(0xFF34C759);
 
 // ── Shared text style helpers ─────────────────────────────────────────────────
@@ -21,14 +22,13 @@ TextStyle _inter({
   Color color = _tx,
   double height = 1.5,
   double letterSpacing = 0,
-}) =>
-    GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      height: height,
-      letterSpacing: letterSpacing,
-    );
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  height: height,
+  letterSpacing: letterSpacing,
+);
 
 // ── Liquid glass container ────────────────────────────────────────────────────
 class _Glass extends StatelessWidget {
@@ -74,7 +74,10 @@ class _Badge extends StatelessWidget {
     return _Glass(
       radius: 99,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      child: Text(label, style: _inter(size: 11, weight: FontWeight.w600, color: color ?? _m1)),
+      child: Text(
+        label,
+        style: _inter(size: 11, weight: FontWeight.w600, color: color ?? _m1),
+      ),
     );
   }
 }
@@ -104,7 +107,12 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final String? sub;
   final Color? badgeColor;
-  const _SectionHeader({required this.badge, required this.title, this.sub, this.badgeColor});
+  const _SectionHeader({
+    required this.badge,
+    required this.title,
+    this.sub,
+    this.badgeColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +123,12 @@ class _SectionHeader extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: _inter(size: 42, weight: FontWeight.w900, height: 1.05, letterSpacing: -1.5),
+          style: _inter(
+            size: 42,
+            weight: FontWeight.w900,
+            height: 1.05,
+            letterSpacing: -1.5,
+          ),
         ),
         if (sub != null) ...[
           const SizedBox(height: 14),
@@ -145,6 +158,7 @@ class WebLandingPage extends StatefulWidget {
 class _WebLandingPageState extends State<WebLandingPage> {
   final _scroll = ScrollController();
   double _navOpacity = 0;
+  Offset _cursor = Offset.zero;
 
   @override
   void initState() {
@@ -169,29 +183,49 @@ class _WebLandingPageState extends State<WebLandingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            controller: _scroll,
-            child: Column(
-              children: [
-                const SizedBox(height: 64),
-                _HeroSection(onGetStarted: _showRolePicker),
-                _HowItWorksSection(),
-                _FeaturesSection(),
-                _WhyUsSection(),
-                _StatsSection(),
-                _TestimonialsSection(),
-                _CtaFooterSection(onGetStarted: _showRolePicker),
-              ],
+      body: MouseRegion(
+        onHover: (e) => setState(() => _cursor = e.localPosition),
+        child: Stack(
+          children: [
+            // Global ambient grid
+            Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+
+            // Cursor-follow glow
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 60),
+              curve: Curves.easeOut,
+              left: _cursor.dx - 450,
+              top: _cursor.dy - 450,
+              child: IgnorePointer(child: _CursorGlow(900)),
             ),
-          ),
-          // Fixed navbar
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: _NavBar(scrollOpacity: _navOpacity, onGetStarted: _showRolePicker),
-          ),
-        ],
+
+            SingleChildScrollView(
+              controller: _scroll,
+              child: Column(
+                children: [
+                  const SizedBox(height: 64),
+                  _HeroSection(onGetStarted: _showRolePicker),
+                  _HowItWorksSection(),
+                  _FeaturesSection(),
+                  _WhyUsSection(),
+                  _StatsSection(),
+                  _TestimonialsSection(),
+                  _CtaFooterSection(onGetStarted: _showRolePicker),
+                ],
+              ),
+            ),
+            // Fixed navbar
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _NavBar(
+                scrollOpacity: _navOpacity,
+                onGetStarted: _showRolePicker,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -212,7 +246,11 @@ class _NavBar extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 32),
       decoration: BoxDecoration(
-        color: Color.lerp(Colors.transparent, const Color(0xE6080808), scrollOpacity),
+        color: Color.lerp(
+          Colors.transparent,
+          const Color(0xE6080808),
+          scrollOpacity,
+        ),
         border: Border(
           bottom: BorderSide(
             color: Colors.white.withValues(alpha: 0.06 * scrollOpacity),
@@ -237,7 +275,13 @@ class _NavBar extends StatelessWidget {
   }
 }
 
-const _navLinks = ['About Us', 'Player', 'Admin', 'Venue Merchant', 'Game Host'];
+const _navLinks = [
+  'About Us',
+  'Player',
+  'Admin',
+  'Venue Merchant',
+  'Game Host',
+];
 
 class _Logo extends StatelessWidget {
   @override
@@ -245,11 +289,14 @@ class _Logo extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 34, height: 34,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: _red,
             borderRadius: BorderRadius.circular(9),
-            boxShadow: [BoxShadow(color: _red.withValues(alpha: .35), blurRadius: 14)],
+            boxShadow: [
+              BoxShadow(color: _red.withValues(alpha: .35), blurRadius: 14),
+            ],
           ),
           alignment: Alignment.center,
           child: const Text('🏅', style: TextStyle(fontSize: 16)),
@@ -257,11 +304,24 @@ class _Logo extends StatelessWidget {
         const SizedBox(width: 10),
         RichText(
           text: TextSpan(
-            style: _inter(size: 14, weight: FontWeight.w900, letterSpacing: -.3),
+            style: _inter(
+              size: 14,
+              weight: FontWeight.w900,
+              letterSpacing: -.3,
+            ),
             children: const [
-              TextSpan(text: 'My',      style: TextStyle(color: _tx)),
-              TextSpan(text: 'Sports',  style: TextStyle(color: _red)),
-              TextSpan(text: 'Buddies', style: TextStyle(color: _tx)),
+              TextSpan(
+                text: 'My',
+                style: TextStyle(color: _tx),
+              ),
+              TextSpan(
+                text: 'Sports',
+                style: TextStyle(color: _red),
+              ),
+              TextSpan(
+                text: 'Buddies',
+                style: TextStyle(color: _tx),
+              ),
             ],
           ),
         ),
@@ -273,31 +333,42 @@ class _Logo extends StatelessWidget {
 class _NavLink extends StatefulWidget {
   final String label;
   const _NavLink({required this.label});
-  @override State<_NavLink> createState() => _NavLinkState();
+  @override
+  State<_NavLink> createState() => _NavLinkState();
 }
+
 class _NavLinkState extends State<_NavLink> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 1),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: _hover ? Colors.white.withValues(alpha: .05) : Colors.transparent,
+          color: _hover
+              ? Colors.white.withValues(alpha: .05)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(widget.label, style: _inter(
-              size: 13, weight: FontWeight.w600,
-              color: _hover ? _tx : _m1,
-            )),
+            Text(
+              widget.label,
+              style: _inter(
+                size: 13,
+                weight: FontWeight.w600,
+                color: _hover ? _tx : _m1,
+              ),
+            ),
             const SizedBox(width: 3),
-            Text('▾', style: TextStyle(fontSize: 10, color: _hover ? _m1 : _bd2)),
+            Text(
+              '▾',
+              style: TextStyle(fontSize: 10, color: _hover ? _m1 : _bd2),
+            ),
           ],
         ),
       ),
@@ -306,17 +377,20 @@ class _NavLinkState extends State<_NavLink> {
 }
 
 class _OutlineBtn extends StatefulWidget {
-  final String label; final VoidCallback onTap;
+  final String label;
+  final VoidCallback onTap;
   const _OutlineBtn({required this.label, required this.onTap});
-  @override State<_OutlineBtn> createState() => _OutlineBtnState();
+  @override
+  State<_OutlineBtn> createState() => _OutlineBtnState();
 }
+
 class _OutlineBtnState extends State<_OutlineBtn> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -326,9 +400,14 @@ class _OutlineBtnState extends State<_OutlineBtn> {
             borderRadius: BorderRadius.circular(99),
             border: Border.all(color: _hover ? _red : _bd2),
           ),
-          child: Text(widget.label, style: _inter(
-            size: 13, weight: FontWeight.w600, color: _hover ? _red : _tx,
-          )),
+          child: Text(
+            widget.label,
+            style: _inter(
+              size: 13,
+              weight: FontWeight.w600,
+              color: _hover ? _red : _tx,
+            ),
+          ),
         ),
       ),
     );
@@ -336,30 +415,49 @@ class _OutlineBtnState extends State<_OutlineBtn> {
 }
 
 class _RedBtn extends StatefulWidget {
-  final String label; final VoidCallback onTap;
+  final String label;
+  final VoidCallback onTap;
   const _RedBtn({required this.label, required this.onTap});
-  @override State<_RedBtn> createState() => _RedBtnState();
+  @override
+  State<_RedBtn> createState() => _RedBtnState();
 }
+
 class _RedBtnState extends State<_RedBtn> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
           decoration: BoxDecoration(
-            color: _hover ? const Color(0xFFE02A33) : _red,
+            gradient: LinearGradient(
+              colors: [_red, _hover ? _redDeep : const Color(0xFFCC1020)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(99),
-            boxShadow: _hover ? [BoxShadow(color: _red.withValues(alpha: .4), blurRadius: 18)] : [],
+            boxShadow: _hover
+                ? [
+                    BoxShadow(
+                      color: _red.withValues(alpha: .45),
+                      blurRadius: 20,
+                    ),
+                  ]
+                : [],
           ),
-          child: Text(widget.label, style: _inter(
-            size: 13, weight: FontWeight.w700, color: Colors.white,
-          )),
+          child: Text(
+            widget.label,
+            style: _inter(
+              size: 13,
+              weight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );
@@ -386,24 +484,56 @@ class _HeroSection extends StatelessWidget {
           // Grid
           Positioned.fill(child: CustomPaint(painter: _GridPainter())),
           // Glows
-          Positioned(top: -80, left: -80,
-            child: _GlowCircle(500, _red.withValues(alpha: .15))),
-          Positioned(bottom: -80, right: -80,
-            child: _GlowCircle(420, _red.withValues(alpha: .10))),
+          Positioned(
+            top: -80,
+            left: -80,
+            child: _GlowCircle(500, _red.withValues(alpha: .15)),
+          ),
+          Positioned(
+            bottom: -80,
+            right: -80,
+            child: _GlowCircle(420, _red.withValues(alpha: .10)),
+          ),
 
           // Left cards
-          Positioned(top: h * .10, left: w * .015, child: _GameCard(card: _cards[0])),
-          Positioned(top: h * .40, left: w * .010, child: _GameCard(card: _cards[1])),
-          Positioned(top: h * .68, left: w * .015, child: _GameCard(card: _cards[2])),
+          Positioned(
+            top: h * .10,
+            left: w * .015,
+            child: _GameCard(card: _cards[0]),
+          ),
+          Positioned(
+            top: h * .40,
+            left: w * .010,
+            child: _GameCard(card: _cards[1]),
+          ),
+          Positioned(
+            top: h * .68,
+            left: w * .015,
+            child: _GameCard(card: _cards[2]),
+          ),
 
           // Right cards
-          Positioned(top: h * .08, right: w * .015, child: _GameCard(card: _cards[3])),
-          Positioned(top: h * .38, right: w * .010, child: _GameCard(card: _cards[4])),
-          Positioned(top: h * .66, right: w * .015, child: _GameCard(card: _cards[5])),
+          Positioned(
+            top: h * .08,
+            right: w * .015,
+            child: _GameCard(card: _cards[3]),
+          ),
+          Positioned(
+            top: h * .38,
+            right: w * .010,
+            child: _GameCard(card: _cards[4]),
+          ),
+          Positioned(
+            top: h * .66,
+            right: w * .015,
+            child: _GameCard(card: _cards[5]),
+          ),
 
           // Bottom gradient
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: Container(
               height: 220,
               decoration: BoxDecoration(
@@ -424,14 +554,23 @@ class _HeroSection extends StatelessWidget {
                 // Badge
                 _Glass(
                   radius: 99,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 7,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text('🇮🇳', style: TextStyle(fontSize: 14)),
                       const SizedBox(width: 8),
-                      Text("India's #1 Sports Social Platform",
-                        style: _inter(size: 12, weight: FontWeight.w700, color: _red)),
+                      Text(
+                        "India's #1 Sports Social Platform",
+                        style: _inter(
+                          size: 12,
+                          weight: FontWeight.w700,
+                          color: _red,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -441,12 +580,25 @@ class _HeroSection extends StatelessWidget {
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
-                    style: _inter(size: 78, weight: FontWeight.w900,
-                        height: 1.03, letterSpacing: -2.5),
+                    style: _inter(
+                      size: 78,
+                      weight: FontWeight.w900,
+                      height: 1.03,
+                      letterSpacing: -2.5,
+                    ),
                     children: const [
-                      TextSpan(text: 'Where ', style: TextStyle(color: _tx)),
-                      TextSpan(text: 'Sports\n', style: TextStyle(color: _red)),
-                      TextSpan(text: 'Comes Alive', style: TextStyle(color: _tx)),
+                      TextSpan(
+                        text: 'Where ',
+                        style: TextStyle(color: _tx),
+                      ),
+                      TextSpan(
+                        text: 'Sports\n',
+                        style: TextStyle(color: _red),
+                      ),
+                      TextSpan(
+                        text: 'Comes Alive',
+                        style: TextStyle(color: _tx),
+                      ),
                     ],
                   ),
                 ),
@@ -489,31 +641,51 @@ class _HeroSection extends StatelessWidget {
 class _HeroPrimaryBtn extends StatefulWidget {
   final VoidCallback onTap;
   const _HeroPrimaryBtn({required this.onTap});
-  @override State<_HeroPrimaryBtn> createState() => _HeroPrimaryBtnState();
+  @override
+  State<_HeroPrimaryBtn> createState() => _HeroPrimaryBtnState();
 }
+
 class _HeroPrimaryBtnState extends State<_HeroPrimaryBtn> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
           decoration: BoxDecoration(
-            color: _hover ? const Color(0xFFE02A33) : _red,
+            gradient: LinearGradient(
+              colors: _hover
+                  ? [_red, _redDeep]
+                  : [_red, const Color(0xFFCC1020)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(99),
-            boxShadow: [BoxShadow(color: _red.withValues(alpha: .35), blurRadius: _hover ? 28 : 18)],
+            boxShadow: [
+              BoxShadow(
+                color: _red.withValues(alpha: .40),
+                blurRadius: _hover ? 30 : 18,
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('🚀', style: TextStyle(fontSize: 15)),
               const SizedBox(width: 8),
-              Text('Get Started Free', style: _inter(size: 15, weight: FontWeight.w700, color: Colors.white)),
+              Text(
+                'Get Started Free',
+                style: _inter(
+                  size: 15,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
             ],
           ),
         ),
@@ -524,15 +696,17 @@ class _HeroPrimaryBtnState extends State<_HeroPrimaryBtn> {
 
 class _HeroOutlineBtn extends StatefulWidget {
   const _HeroOutlineBtn();
-  @override State<_HeroOutlineBtn> createState() => _HeroOutlineBtnState();
+  @override
+  State<_HeroOutlineBtn> createState() => _HeroOutlineBtnState();
 }
+
 class _HeroOutlineBtnState extends State<_HeroOutlineBtn> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 13),
@@ -544,7 +718,14 @@ class _HeroOutlineBtnState extends State<_HeroOutlineBtn> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('▶ ', style: _inter(size: 13, color: _hover ? _red : _tx)),
-            Text('How It Works', style: _inter(size: 15, weight: FontWeight.w600, color: _hover ? _red : _tx)),
+            Text(
+              'How It Works',
+              style: _inter(
+                size: 15,
+                weight: FontWeight.w600,
+                color: _hover ? _red : _tx,
+              ),
+            ),
           ],
         ),
       ),
@@ -555,18 +736,39 @@ class _HeroOutlineBtnState extends State<_HeroOutlineBtn> {
 class _HeroStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    const stats = [('50K+', 'Players'), ('5K+', 'Tournaments'), ('800', 'Venues'), ('22+', 'Sports')];
+    const stats = [
+      ('50K+', 'Players'),
+      ('5K+', 'Tournaments'),
+      ('800', 'Venues'),
+      ('22+', 'Sports'),
+    ];
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (int i = 0; i < stats.length; i++) ...[
-          if (i > 0) Container(width: 1, height: 36, color: _bd2,
-              margin: const EdgeInsets.symmetric(horizontal: 32)),
+          if (i > 0)
+            Container(
+              width: 1,
+              height: 36,
+              color: _bd2,
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+            ),
           Column(
             children: [
-              Text(stats[i].$1, style: _inter(size: 30, weight: FontWeight.w900, color: _red, letterSpacing: -1)),
+              Text(
+                stats[i].$1,
+                style: _inter(
+                  size: 30,
+                  weight: FontWeight.w900,
+                  color: _red,
+                  letterSpacing: -1,
+                ),
+              ),
               const SizedBox(height: 3),
-              Text(stats[i].$2, style: _inter(size: 11, color: _m1, weight: FontWeight.w500)),
+              Text(
+                stats[i].$2,
+                style: _inter(size: 11, color: _m1, weight: FontWeight.w500),
+              ),
             ],
           ),
         ],
@@ -582,14 +784,30 @@ class _HowItWorksSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const steps = [
-      ('🔍', '01', 'Find Your Game',
-        'Browse hundreds of active games near you. Filter by sport, skill level, location and time — then join in seconds.'),
-      ('📅', '02', 'Book & Confirm',
-        'Reserve your spot or a venue instantly. Secure payments, instant confirmations, and reminders keep everything on track.'),
-      ('🏆', '03', 'Play & Track',
-        'Show up, compete, and watch live scores update in real time. Track your stats, wins, and progress across every sport.'),
-      ('👥', '04', 'Grow Your Circle',
-        'Connect with players, follow athletes, join sport communities and build lasting relationships on and off the field.'),
+      (
+        '🔍',
+        '01',
+        'Find Your Game',
+        'Browse hundreds of active games near you. Filter by sport, skill level, location and time — then join in seconds.',
+      ),
+      (
+        '📅',
+        '02',
+        'Book & Confirm',
+        'Reserve your spot or a venue instantly. Secure payments, instant confirmations, and reminders keep everything on track.',
+      ),
+      (
+        '🏆',
+        '03',
+        'Play & Track',
+        'Show up, compete, and watch live scores update in real time. Track your stats, wins, and progress across every sport.',
+      ),
+      (
+        '👥',
+        '04',
+        'Grow Your Circle',
+        'Connect with players, follow athletes, join sport communities and build lasting relationships on and off the field.',
+      ),
     ];
 
     return Container(
@@ -600,17 +818,27 @@ class _HowItWorksSection extends StatelessWidget {
           _SectionHeader(
             badge: 'How It Works',
             title: 'From zero to game day\nin minutes.',
-            sub: 'We made it ridiculously simple. No calls, no confusion — just show up and play.',
+            sub:
+                'We made it ridiculously simple. No calls, no confusion — just show up and play.',
           ),
           const SizedBox(height: 56),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: steps.map((s) => Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _StepCard(emoji: s.$1, step: s.$2, title: s.$3, body: s.$4),
-              ),
-            )).toList(),
+            children: steps
+                .map(
+                  (s) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: _StepCard(
+                        emoji: s.$1,
+                        step: s.$2,
+                        title: s.$3,
+                        body: s.$4,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),
@@ -620,16 +848,23 @@ class _HowItWorksSection extends StatelessWidget {
 
 class _StepCard extends StatefulWidget {
   final String emoji, step, title, body;
-  const _StepCard({required this.emoji, required this.step, required this.title, required this.body});
-  @override State<_StepCard> createState() => _StepCardState();
+  const _StepCard({
+    required this.emoji,
+    required this.step,
+    required this.title,
+    required this.body,
+  });
+  @override
+  State<_StepCard> createState() => _StepCardState();
 }
+
 class _StepCardState extends State<_StepCard> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(24),
@@ -648,12 +883,22 @@ class _StepCardState extends State<_StepCard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(widget.emoji, style: const TextStyle(fontSize: 26)),
-                Text(widget.step, style: _inter(size: 38, weight: FontWeight.w900,
-                    color: _red.withValues(alpha: .12), letterSpacing: -1)),
+                Text(
+                  widget.step,
+                  style: _inter(
+                    size: 38,
+                    weight: FontWeight.w900,
+                    color: _red.withValues(alpha: .12),
+                    letterSpacing: -1,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
-            Text(widget.title, style: _inter(size: 16, weight: FontWeight.w800, height: 1.3)),
+            Text(
+              widget.title,
+              style: _inter(size: 16, weight: FontWeight.w800, height: 1.3),
+            ),
             const SizedBox(height: 10),
             Text(widget.body, style: _inter(size: 13, color: _m1, height: 1.7)),
           ],
@@ -681,7 +926,8 @@ class _FeaturesSection extends StatelessWidget {
           _FeatureRow(
             badge: 'Live Scoreboards',
             title: 'Every match. Every point. Live.',
-            body: 'Track scores in real time across cricket, football, badminton and 19 other sports. ICC-standard stats, ball-by-ball updates, and team dashboards — all built in.',
+            body:
+                'Track scores in real time across cricket, football, badminton and 19 other sports. ICC-standard stats, ball-by-ball updates, and team dashboards — all built in.',
             cta: 'See Live Scores',
             preview: _ScoreboardPreview(),
           ),
@@ -689,7 +935,8 @@ class _FeaturesSection extends StatelessWidget {
           _FeatureRow(
             badge: 'Smart Matchmaking',
             title: 'It finds the right game. Automatically.',
-            body: 'Our algorithm matches you with games at your skill level, preferred location, and available time. No scrolling through irrelevant listings. Just the right game.',
+            body:
+                'Our algorithm matches you with games at your skill level, preferred location, and available time. No scrolling through irrelevant listings. Just the right game.',
             cta: 'Find a Game',
             preview: _MatchmakingPreview(),
             reverse: true,
@@ -705,8 +952,12 @@ class _FeatureRow extends StatelessWidget {
   final Widget preview;
   final bool reverse;
   const _FeatureRow({
-    required this.badge, required this.title, required this.body,
-    required this.cta, required this.preview, this.reverse = false,
+    required this.badge,
+    required this.title,
+    required this.body,
+    required this.cta,
+    required this.preview,
+    this.reverse = false,
   });
 
   @override
@@ -718,10 +969,21 @@ class _FeatureRow extends StatelessWidget {
         _Glass(
           radius: 99,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Text(badge, style: _inter(size: 11, weight: FontWeight.w600, color: _red)),
+          child: Text(
+            badge,
+            style: _inter(size: 11, weight: FontWeight.w600, color: _red),
+          ),
         ),
         const SizedBox(height: 20),
-        Text(title, style: _inter(size: 32, weight: FontWeight.w900, height: 1.1, letterSpacing: -1)),
+        Text(
+          title,
+          style: _inter(
+            size: 32,
+            weight: FontWeight.w900,
+            height: 1.1,
+            letterSpacing: -1,
+          ),
+        ),
         const SizedBox(height: 16),
         Text(body, style: _inter(size: 14, color: _m1, height: 1.8)),
         const SizedBox(height: 28),
@@ -744,8 +1006,16 @@ class _FeatureRow extends StatelessWidget {
 
     return Row(
       children: reverse
-          ? [Expanded(child: imgCol), const SizedBox(width: 64), Expanded(child: textCol)]
-          : [Expanded(child: textCol), const SizedBox(width: 64), Expanded(child: imgCol)],
+          ? [
+              Expanded(child: imgCol),
+              const SizedBox(width: 64),
+              Expanded(child: textCol),
+            ]
+          : [
+              Expanded(child: textCol),
+              const SizedBox(width: 64),
+              Expanded(child: imgCol),
+            ],
     );
   }
 }
@@ -753,29 +1023,38 @@ class _FeatureRow extends StatelessWidget {
 class _GlassBtn extends StatefulWidget {
   final String label;
   const _GlassBtn({required this.label});
-  @override State<_GlassBtn> createState() => _GlassBtnState();
+  @override
+  State<_GlassBtn> createState() => _GlassBtnState();
 }
+
 class _GlassBtnState extends State<_GlassBtn> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: () {},
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
           decoration: BoxDecoration(
-            color: _hover ? Colors.white.withValues(alpha: .08) : Colors.white.withValues(alpha: .04),
+            color: _hover
+                ? Colors.white.withValues(alpha: .08)
+                : Colors.white.withValues(alpha: .04),
             borderRadius: BorderRadius.circular(99),
-            border: Border.all(color: _hover ? Colors.white.withValues(alpha: .25) : _bd2),
+            border: Border.all(
+              color: _hover ? Colors.white.withValues(alpha: .25) : _bd2,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(widget.label, style: _inter(size: 13, weight: FontWeight.w600)),
+              Text(
+                widget.label,
+                style: _inter(size: 13, weight: FontWeight.w600),
+              ),
               const SizedBox(width: 6),
               const Text('↗', style: TextStyle(fontSize: 13, color: _tx)),
             ],
@@ -795,48 +1074,72 @@ class _ScoreboardPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            const Text('🏏', style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 8),
-            Text('T20 League Final — LIVE', style: _inter(size: 12, weight: FontWeight.w700, color: _red)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: _red.withValues(alpha: .15),
-                borderRadius: BorderRadius.circular(6),
+          Row(
+            children: [
+              const Text('🏏', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Text(
+                'T20 League Final — LIVE',
+                style: _inter(size: 12, weight: FontWeight.w700, color: _red),
               ),
-              child: Text('LIVE', style: _inter(size: 10, weight: FontWeight.w800, color: _red)),
-            ),
-          ]),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _red.withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'LIVE',
+                  style: _inter(size: 10, weight: FontWeight.w800, color: _red),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           _ScoreRow('Mumbai XI', '186/4', '16.2 ov', isLead: true),
           const SizedBox(height: 8),
           _ScoreRow('Hyderabad SC', '142/6', '14.0 ov'),
           const Divider(color: _bd, height: 24),
-          Text('Last wicket: R. Sharma c. Patel b. Rao — 42', style: _inter(size: 11, color: _m1)),
+          Text(
+            'Last wicket: R. Sharma c. Patel b. Rao — 42',
+            style: _inter(size: 11, color: _m1),
+          ),
           const SizedBox(height: 12),
-          Row(children: [
-            for (final s in ['6', '1', 'W', '4', '2', '0']) ...[
-              Container(
-                width: 26, height: 26,
-                margin: const EdgeInsets.only(right: 4),
-                decoration: BoxDecoration(
-                  color: s == 'W'
-                      ? _red.withValues(alpha: .2)
-                      : s == '4' || s == '6'
-                          ? _green.withValues(alpha: .15)
-                          : _bd,
-                  borderRadius: BorderRadius.circular(6),
+          Row(
+            children: [
+              for (final s in ['6', '1', 'W', '4', '2', '0']) ...[
+                Container(
+                  width: 26,
+                  height: 26,
+                  margin: const EdgeInsets.only(right: 4),
+                  decoration: BoxDecoration(
+                    color: s == 'W'
+                        ? _red.withValues(alpha: .2)
+                        : s == '4' || s == '6'
+                        ? _green.withValues(alpha: .15)
+                        : _bd,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    s,
+                    style: _inter(
+                      size: 11,
+                      weight: FontWeight.w800,
+                      color: s == 'W'
+                          ? _red
+                          : s == '4' || s == '6'
+                          ? _green
+                          : _m1,
+                    ),
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: Text(s, style: _inter(size: 11, weight: FontWeight.w800,
-                  color: s == 'W' ? _red : s == '4' || s == '6' ? _green : _m1)),
-              ),
+              ],
+              const SizedBox(width: 4),
+              Text('This over', style: _inter(size: 10, color: _m1)),
             ],
-            const SizedBox(width: 4),
-            Text('This over', style: _inter(size: 10, color: _m1)),
-          ]),
+          ),
         ],
       ),
     );
@@ -849,15 +1152,30 @@ class _ScoreRow extends StatelessWidget {
   const _ScoreRow(this.team, this.score, this.overs, {this.isLead = false});
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      Text(team, style: _inter(size: 13, weight: FontWeight.w700,
-          color: isLead ? _tx : _m1)),
-      const Spacer(),
-      Text(score, style: _inter(size: 18, weight: FontWeight.w900,
-          color: isLead ? _red : _m1, letterSpacing: -0.5)),
-      const SizedBox(width: 8),
-      Text(overs, style: _inter(size: 11, color: _m1)),
-    ]);
+    return Row(
+      children: [
+        Text(
+          team,
+          style: _inter(
+            size: 13,
+            weight: FontWeight.w700,
+            color: isLead ? _tx : _m1,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          score,
+          style: _inter(
+            size: 18,
+            weight: FontWeight.w900,
+            color: isLead ? _red : _m1,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(overs, style: _inter(size: 11, color: _m1)),
+      ],
+    );
   }
 }
 
@@ -887,58 +1205,96 @@ class _MatchmakingPreview extends StatelessWidget {
               children: [
                 const Text('🔍', style: TextStyle(fontSize: 13)),
                 const SizedBox(width: 8),
-                Text('Football · Hyderabad · Sunday', style: _inter(size: 12, color: _m1)),
+                Text(
+                  'Football · Hyderabad · Sunday',
+                  style: _inter(size: 12, color: _m1),
+                ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: _red, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Search', style: _inter(size: 11, weight: FontWeight.w700, color: Colors.white)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _red,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Search',
+                    style: _inter(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          ...games.map((g) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _bd.withValues(alpha: .4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _bd),
-              ),
-              child: Row(
-                children: [
-                  Text(g.$1, style: const TextStyle(fontSize: 18)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          ...games.map(
+            (g) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _bd.withValues(alpha: .4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _bd),
+                ),
+                child: Row(
+                  children: [
+                    Text(g.$1, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            g.$2,
+                            style: _inter(size: 12, weight: FontWeight.w700),
+                          ),
+                          Text(g.$3, style: _inter(size: 10, color: _m1)),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(g.$2, style: _inter(size: 12, weight: FontWeight.w700)),
-                        Text(g.$3, style: _inter(size: 10, color: _m1)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _green.withValues(alpha: .15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            g.$4,
+                            style: _inter(
+                              size: 9,
+                              weight: FontWeight.w700,
+                              color: _green,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          g.$5,
+                          style: _inter(
+                            size: 10,
+                            color: _m1,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _green.withValues(alpha: .15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(g.$4, style: _inter(size: 9, weight: FontWeight.w700, color: _green)),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(g.$5, style: _inter(size: 10, color: _m1, weight: FontWeight.w600)),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          )),
+          ),
         ],
       ),
     );
@@ -952,14 +1308,26 @@ class _WhyUsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const cards = [
-      ('⚡', 'Instant Matchmaking',
-        'Find a game in under 60 seconds. Smart filters surface the best options near you based on skill, sport, and schedule.'),
-      ('📍', '800+ Venues Nationwide',
-        'Browse, compare, and book courts, fields, and arenas across India. Real-time availability. Zero phone calls.'),
-      ('📊', 'Pro-Level Stats',
-        'ICC batting averages. Football heat maps. Badminton rally analytics. Track every metric that makes you better.'),
-      ('🔒', 'Secure Payments',
-        'Pay for bookings, tournament entries, and memberships safely. UPI, cards, and wallets — instant receipts.'),
+      (
+        '⚡',
+        'Instant Matchmaking',
+        'Find a game in under 60 seconds. Smart filters surface the best options near you based on skill, sport, and schedule.',
+      ),
+      (
+        '📍',
+        '800+ Venues Nationwide',
+        'Browse, compare, and book courts, fields, and arenas across India. Real-time availability. Zero phone calls.',
+      ),
+      (
+        '📊',
+        'Pro-Level Stats',
+        'ICC batting averages. Football heat maps. Badminton rally analytics. Track every metric that makes you better.',
+      ),
+      (
+        '🔒',
+        'Secure Payments',
+        'Pay for bookings, tournament entries, and memberships safely. UPI, cards, and wallets — instant receipts.',
+      ),
     ];
 
     return Container(
@@ -974,12 +1342,16 @@ class _WhyUsSection extends StatelessWidget {
           const SizedBox(height: 56),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: cards.map((c) => Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _WhyCard(emoji: c.$1, title: c.$2, body: c.$3),
-              ),
-            )).toList(),
+            children: cards
+                .map(
+                  (c) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: _WhyCard(emoji: c.$1, title: c.$2, body: c.$3),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),
@@ -989,16 +1361,22 @@ class _WhyUsSection extends StatelessWidget {
 
 class _WhyCard extends StatefulWidget {
   final String emoji, title, body;
-  const _WhyCard({required this.emoji, required this.title, required this.body});
-  @override State<_WhyCard> createState() => _WhyCardState();
+  const _WhyCard({
+    required this.emoji,
+    required this.title,
+    required this.body,
+  });
+  @override
+  State<_WhyCard> createState() => _WhyCardState();
 }
+
 class _WhyCardState extends State<_WhyCard> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(22),
@@ -1011,7 +1389,8 @@ class _WhyCardState extends State<_WhyCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 42, height: 42,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: _red.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(12),
@@ -1021,7 +1400,10 @@ class _WhyCardState extends State<_WhyCard> {
               child: Text(widget.emoji, style: const TextStyle(fontSize: 18)),
             ),
             const SizedBox(height: 16),
-            Text(widget.title, style: _inter(size: 14, weight: FontWeight.w800, height: 1.3)),
+            Text(
+              widget.title,
+              style: _inter(size: 14, weight: FontWeight.w800, height: 1.3),
+            ),
             const SizedBox(height: 8),
             Text(widget.body, style: _inter(size: 12, color: _m1, height: 1.7)),
           ],
@@ -1057,16 +1439,34 @@ class _StatsSection extends StatelessWidget {
             child: Row(
               children: [
                 for (int i = 0; i < stats.length; i++) ...[
-                  if (i > 0) Container(width: 1, height: 60, color: Colors.white.withValues(alpha: .1),
-                      margin: const EdgeInsets.symmetric(horizontal: 40)),
+                  if (i > 0)
+                    Container(
+                      width: 1,
+                      height: 60,
+                      color: Colors.white.withValues(alpha: .1),
+                      margin: const EdgeInsets.symmetric(horizontal: 40),
+                    ),
                   Expanded(
                     child: Column(
                       children: [
-                        Text(stats[i].$1, style: _inter(
-                          size: 52, weight: FontWeight.w900, color: _red, letterSpacing: -2,
-                        )),
+                        Text(
+                          stats[i].$1,
+                          style: _inter(
+                            size: 52,
+                            weight: FontWeight.w900,
+                            color: _red,
+                            letterSpacing: -2,
+                          ),
+                        ),
                         const SizedBox(height: 6),
-                        Text(stats[i].$2, style: _inter(size: 12, color: _m1, weight: FontWeight.w500)),
+                        Text(
+                          stats[i].$2,
+                          style: _inter(
+                            size: 12,
+                            color: _m1,
+                            weight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1087,12 +1487,24 @@ class _TestimonialsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const testimonials = [
-      ('⚽', '"Found a football game 10 minutes from my place on a Sunday morning. Played with strangers, made five new friends. Genuinely addictive."',
-        'Arjun Mehta', 'Football Player · Hyderabad'),
-      ('🏟️', '"As a venue owner, bookings went up 3x after listing on MySportsBuddies. The dashboard is clean, payouts are instant, and support is brilliant."',
-        'Priya Sharma', 'Venue Owner · Gachibowli Arena'),
-      ('🏏', '"We ran a 64-team cricket tournament through the app. Scheduling, scorekeeping, live updates — handled automatically. We just focused on cricket."',
-        'Rohit Nair', 'Tournament Organizer · Chennai'),
+      (
+        '⚽',
+        '"Found a football game 10 minutes from my place on a Sunday morning. Played with strangers, made five new friends. Genuinely addictive."',
+        'Arjun Mehta',
+        'Football Player · Hyderabad',
+      ),
+      (
+        '🏟️',
+        '"As a venue owner, bookings went up 3x after listing on MySportsBuddies. The dashboard is clean, payouts are instant, and support is brilliant."',
+        'Priya Sharma',
+        'Venue Owner · Gachibowli Arena',
+      ),
+      (
+        '🏏',
+        '"We ran a 64-team cricket tournament through the app. Scheduling, scorekeeping, live updates — handled automatically. We just focused on cricket."',
+        'Rohit Nair',
+        'Tournament Organizer · Chennai',
+      ),
     ];
 
     return Container(
@@ -1104,14 +1516,41 @@ class _TestimonialsSection extends StatelessWidget {
             title: 'Real players.\nReal games. Real love.',
           ),
           const SizedBox(height: 56),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: testimonials.map((t) => Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _TestimonialCard(emoji: t.$1, quote: t.$2, name: t.$3, role: t.$4),
-              ),
-            )).toList(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 900;
+              final cards = testimonials
+                  .map(
+                    (t) => _TestimonialCard(
+                      emoji: t.$1,
+                      quote: t.$2,
+                      name: t.$3,
+                      role: t.$4,
+                    ),
+                  )
+                  .toList();
+
+              if (isNarrow) {
+                return Column(
+                  children: [
+                    for (int i = 0; i < cards.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 16),
+                      cards[i],
+                    ],
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (int i = 0; i < cards.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 16),
+                    Expanded(child: cards[i]),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1121,19 +1560,27 @@ class _TestimonialsSection extends StatelessWidget {
 
 class _TestimonialCard extends StatefulWidget {
   final String emoji, quote, name, role;
-  const _TestimonialCard({required this.emoji, required this.quote, required this.name, required this.role});
-  @override State<_TestimonialCard> createState() => _TestimonialCardState();
+  const _TestimonialCard({
+    required this.emoji,
+    required this.quote,
+    required this.name,
+    required this.role,
+  });
+  @override
+  State<_TestimonialCard> createState() => _TestimonialCardState();
 }
+
 class _TestimonialCardState extends State<_TestimonialCard> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
-      onExit:  (_) => setState(() => _hover = false),
+      onExit: (_) => setState(() => _hover = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(minHeight: 260),
         decoration: BoxDecoration(
           color: _hover ? _surf : _card.withValues(alpha: .5),
           borderRadius: BorderRadius.circular(20),
@@ -1144,8 +1591,13 @@ class _TestimonialCardState extends State<_TestimonialCard> {
           children: [
             Text(widget.emoji, style: const TextStyle(fontSize: 28)),
             const SizedBox(height: 16),
-            Text(widget.quote,
-              style: _inter(size: 13, color: _tx.withValues(alpha: .8), height: 1.75),
+            Text(
+              widget.quote,
+              style: _inter(
+                size: 13,
+                color: _tx.withValues(alpha: .8),
+                height: 1.75,
+              ),
             ),
             const SizedBox(height: 20),
             Container(height: 1, color: _bd),
@@ -1174,8 +1626,12 @@ class _CtaFooterSection extends StatelessWidget {
       child: Stack(
         children: [
           // Ambient glow
-          Positioned(top: -60, left: 0, right: 0,
-            child: Center(child: _GlowCircle(700, _red.withValues(alpha: .08)))),
+          Positioned(
+            top: -60,
+            left: 0,
+            right: 0,
+            child: Center(child: _GlowCircle(700, _red.withValues(alpha: .08))),
+          ),
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
@@ -1187,10 +1643,18 @@ class _CtaFooterSection extends StatelessWidget {
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
-                        style: _inter(size: 64, weight: FontWeight.w900, height: 1.0, letterSpacing: -2),
+                        style: _inter(
+                          size: 64,
+                          weight: FontWeight.w900,
+                          height: 1.0,
+                          letterSpacing: -2,
+                        ),
                         children: const [
                           TextSpan(text: 'Your next game '),
-                          TextSpan(text: 'starts here.', style: TextStyle(color: _red)),
+                          TextSpan(
+                            text: 'starts here.',
+                            style: TextStyle(color: _red),
+                          ),
                         ],
                       ),
                     ),
@@ -1221,15 +1685,31 @@ class _CtaFooterSection extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Text('© 2026 MySportsBuddies. All rights reserved.',
-                            style: _inter(size: 12, color: _m1.withValues(alpha: .5))),
+                          Text(
+                            '© 2026 MySportsBuddies. All rights reserved.',
+                            style: _inter(
+                              size: 12,
+                              color: _m1.withValues(alpha: .5),
+                            ),
+                          ),
                           const Spacer(),
-                          for (final l in ['Privacy', 'Terms', 'Contact', 'Blog'])
+                          for (final l in [
+                            'Privacy',
+                            'Terms',
+                            'Contact',
+                            'Blog',
+                          ])
                             Padding(
                               padding: const EdgeInsets.only(left: 24),
                               child: MouseRegion(
                                 cursor: SystemMouseCursors.click,
-                                child: Text(l, style: _inter(size: 12, color: _m1.withValues(alpha: .5))),
+                                child: Text(
+                                  l,
+                                  style: _inter(
+                                    size: 12,
+                                    color: _m1.withValues(alpha: .5),
+                                  ),
+                                ),
                               ),
                             ),
                         ],
@@ -1277,16 +1757,25 @@ class _RolePickerDialogState extends State<_RolePickerDialog> {
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: _bd2),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: .6), blurRadius: 60),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .6),
+              blurRadius: 60,
+            ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Choose how to continue', style: _inter(size: 20, weight: FontWeight.w900)),
+            Text(
+              'Choose how to continue',
+              style: _inter(size: 20, weight: FontWeight.w900),
+            ),
             const SizedBox(height: 6),
-            Text('Select your role to get the right experience.', style: _inter(size: 13, color: _m1)),
+            Text(
+              'Select your role to get the right experience.',
+              style: _inter(size: 13, color: _m1),
+            ),
             const SizedBox(height: 24),
 
             // Player
@@ -1321,7 +1810,9 @@ class _RolePickerDialogState extends State<_RolePickerDialog> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: (_role == 'player' ? _red : const Color(0xFF3949AB)).withValues(alpha: .35),
+                      color:
+                          (_role == 'player' ? _red : const Color(0xFF3949AB))
+                              .withValues(alpha: .35),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
@@ -1331,9 +1822,20 @@ class _RolePickerDialogState extends State<_RolePickerDialog> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Continue', style: _inter(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                    Text(
+                      'Continue',
+                      style: _inter(
+                        size: 15,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                   ],
                 ),
               ),
@@ -1351,8 +1853,12 @@ class _RoleOption extends StatelessWidget {
   final VoidCallback onTap;
   final Color activeColor;
   const _RoleOption({
-    required this.emoji, required this.title, required this.sub,
-    required this.selected, required this.onTap, required this.activeColor,
+    required this.emoji,
+    required this.title,
+    required this.sub,
+    required this.selected,
+    required this.onTap,
+    required this.activeColor,
   });
 
   @override
@@ -1373,7 +1879,8 @@ class _RoleOption extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 44, height: 44,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: activeColor.withValues(alpha: .1),
                 shape: BoxShape.circle,
@@ -1394,8 +1901,12 @@ class _RoleOption extends StatelessWidget {
             ),
             if (selected)
               Container(
-                width: 20, height: 20,
-                decoration: BoxDecoration(color: activeColor, shape: BoxShape.circle),
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: activeColor,
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.check, color: Colors.white, size: 12),
               ),
           ],
@@ -1416,10 +1927,56 @@ class _GlowCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: RadialGradient(colors: [color, Colors.transparent], stops: const [0, .65]),
+        gradient: RadialGradient(
+          colors: [color, Colors.transparent],
+          stops: const [0, .65],
+        ),
+      ),
+    );
+  }
+}
+
+class _CursorGlow extends StatelessWidget {
+  final double size;
+  const _CursorGlow(this.size);
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        children: [
+          // Outer soft halo
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [_red.withValues(alpha: .38), Colors.transparent],
+                stops: const [0, .7],
+              ),
+            ),
+          ),
+          // Inner hot core
+          Center(
+            child: Container(
+              width: size * .35,
+              height: size * .35,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [_red.withValues(alpha: .65), Colors.transparent],
+                  stops: const [0, 1],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1439,7 +1996,9 @@ class _GridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
-  @override bool shouldRepaint(_) => false;
+
+  @override
+  bool shouldRepaint(_) => false;
 }
 
 // ── Game cards ─────────────────────────────────────────────────────────────────
@@ -1447,25 +2006,74 @@ class _CardData {
   final String sport, emoji, name, location, time, status, extra;
   final bool isLive;
   const _CardData({
-    required this.sport, required this.emoji, required this.name,
-    required this.location, required this.time, required this.status,
-    required this.extra, this.isLive = false,
+    required this.sport,
+    required this.emoji,
+    required this.name,
+    required this.location,
+    required this.time,
+    required this.status,
+    required this.extra,
+    this.isLive = false,
   });
 }
 
 const _cards = [
-  _CardData(sport: 'FOOTBALL', emoji: '⚽', name: 'Sunday 5-a-Side',
-    location: 'Gachibowli', time: 'Sun 7AM', status: 'Open', extra: '4/10'),
-  _CardData(sport: 'TENNIS', emoji: '🎾', name: 'Doubles Round Robin',
-    location: 'Banjara Hills', time: 'Sun 8AM', status: 'LIVE', extra: '6-4, 3-2', isLive: true),
-  _CardData(sport: 'BADMINTON', emoji: '🏸', name: 'Club Tournament',
-    location: 'Hitex', time: 'Sat 9AM', status: 'Open', extra: '12/16'),
-  _CardData(sport: 'CRICKET', emoji: '🏏', name: 'T20 League Final',
-    location: 'LB Stadium', time: 'Sat 6PM', status: 'LIVE', extra: '186/4 — 16.2 ov', isLive: true),
-  _CardData(sport: 'VOLLEYBALL', emoji: '🏐', name: 'Beach Volleyball',
-    location: 'HICC', time: 'Fri 5PM', status: 'Open', extra: '8/12'),
-  _CardData(sport: 'BASKETBALL', emoji: '🏀', name: '3×3 Streetball',
-    location: 'Jubilee Hills', time: 'Mon 6PM', status: 'Open', extra: '5/6'),
+  _CardData(
+    sport: 'FOOTBALL',
+    emoji: '⚽',
+    name: 'Sunday 5-a-Side',
+    location: 'Gachibowli',
+    time: 'Sun 7AM',
+    status: 'Open',
+    extra: '4/10',
+  ),
+  _CardData(
+    sport: 'TENNIS',
+    emoji: '🎾',
+    name: 'Doubles Round Robin',
+    location: 'Banjara Hills',
+    time: 'Sun 8AM',
+    status: 'LIVE',
+    extra: '6-4, 3-2',
+    isLive: true,
+  ),
+  _CardData(
+    sport: 'BADMINTON',
+    emoji: '🏸',
+    name: 'Club Tournament',
+    location: 'Hitex',
+    time: 'Sat 9AM',
+    status: 'Open',
+    extra: '12/16',
+  ),
+  _CardData(
+    sport: 'CRICKET',
+    emoji: '🏏',
+    name: 'T20 League Final',
+    location: 'LB Stadium',
+    time: 'Sat 6PM',
+    status: 'LIVE',
+    extra: '186/4 — 16.2 ov',
+    isLive: true,
+  ),
+  _CardData(
+    sport: 'VOLLEYBALL',
+    emoji: '🏐',
+    name: 'Beach Volleyball',
+    location: 'HICC',
+    time: 'Fri 5PM',
+    status: 'Open',
+    extra: '8/12',
+  ),
+  _CardData(
+    sport: 'BASKETBALL',
+    emoji: '🏀',
+    name: '3×3 Streetball',
+    location: 'Jubilee Hills',
+    time: 'Mon 6PM',
+    status: 'Open',
+    extra: '5/6',
+  ),
 ];
 
 class _GameCard extends StatelessWidget {
@@ -1483,67 +2091,119 @@ class _GameCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: .45), blurRadius: 32),
-          BoxShadow(color: Colors.white.withValues(alpha: .03), blurRadius: 0, spreadRadius: 1),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: .03),
+            blurRadius: 0,
+            spreadRadius: 1,
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(children: [
-            Container(
-              width: 30, height: 30,
-              decoration: BoxDecoration(
-                color: const Color(0x1FFB3640),
-                borderRadius: BorderRadius.circular(8),
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0x1FFB3640),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Text(card.emoji, style: const TextStyle(fontSize: 14)),
               ),
-              alignment: Alignment.center,
-              child: Text(card.emoji, style: const TextStyle(fontSize: 14)),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(card.sport, style: _inter(size: 9, weight: FontWeight.w700,
-                    color: _red, letterSpacing: .5)),
-                  Text(card.name, style: _inter(size: 11, weight: FontWeight.w800),
-                    overflow: TextOverflow.ellipsis),
-                ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      card.sport,
+                      style: _inter(
+                        size: 9,
+                        weight: FontWeight.w700,
+                        color: _red,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                    Text(
+                      card.name,
+                      style: _inter(size: 11, weight: FontWeight.w800),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
           const SizedBox(height: 8),
-          Text('📍 ${card.location} · ${card.time}', style: _inter(size: 10, color: _m1)),
+          Text(
+            '📍 ${card.location} · ${card.time}',
+            style: _inter(size: 10, color: _m1),
+          ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               card.isLive
                   ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0x1FFB3640),
                         border: Border.all(color: _red.withValues(alpha: .3)),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Container(width: 5, height: 5,
-                          decoration: const BoxDecoration(color: _red, shape: BoxShape.circle)),
-                        const SizedBox(width: 3),
-                        Text('LIVE', style: _inter(size: 9, weight: FontWeight.w800, color: _red)),
-                      ]),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: const BoxDecoration(
+                              color: _red,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'LIVE',
+                            style: _inter(
+                              size: 9,
+                              weight: FontWeight.w800,
+                              color: _red,
+                            ),
+                          ),
+                        ],
+                      ),
                     )
                   : Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: _green.withValues(alpha: .15),
                         border: Border.all(color: _green.withValues(alpha: .3)),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Text('● Open', style: _inter(size: 9, weight: FontWeight.w800, color: _green)),
+                      child: Text(
+                        '● Open',
+                        style: _inter(
+                          size: 9,
+                          weight: FontWeight.w800,
+                          color: _green,
+                        ),
+                      ),
                     ),
-              Text(card.extra, style: _inter(size: 10, color: _m1, weight: FontWeight.w700)),
+              Text(
+                card.extra,
+                style: _inter(size: 10, color: _m1, weight: FontWeight.w700),
+              ),
             ],
           ),
           if (!card.isLive) ...[

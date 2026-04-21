@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MySportsBuddies Web",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": [
+        "--web-hostname",
+        "localhost",
+        "--web-port",
+        "63488"
+      ]
+    }
+  ]
+}
