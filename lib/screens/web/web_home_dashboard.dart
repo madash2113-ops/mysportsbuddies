@@ -584,6 +584,8 @@ class _NearbyGameCardState extends State<_NearbyGameCard> {
                   // GameListing doesn't have team names
                   Text(
                     '${g.sport} · Open Game',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                     style: _t(size: 18, weight: FontWeight.w800, height: 1.2),
                   ),
                   const SizedBox(height: 12),
@@ -784,45 +786,71 @@ class _RightPanel extends StatelessWidget {
         children: [
           // Panel header
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 18, 16, 14),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: _border, width: .8)),
             ),
-            child: Row(children: [
-              Expanded(
-                child: Text(
-                  activeTab == 0 ? 'Upcoming Matches' : 'My Schedule',
-                  style: _t(size: 16, weight: FontWeight.w800),
-                ),
-              ),
-              // Tab toggle buttons
-              _PanelTabBtn(
-                label: 'Upcoming',
-                active: activeTab == 0,
-                onTap: () => onTabChange(0),
-              ),
-              const SizedBox(width: 6),
-              _PanelTabBtn(
-                label: 'Schedule',
-                active: activeTab == 1,
-                onTap: () => onTabChange(1),
-              ),
-            ]),
+            child: Text(
+              activeTab == 0 ? 'Upcoming Matches' : 'My Schedule',
+              style: _t(size: 16, weight: FontWeight.w800),
+            ),
           ),
-          // Panel content
+          // Panel content — list on left, vertical tab buttons on right
           Expanded(
-            child: ListenableBuilder(
-              listenable: Listenable.merge([
-                GameListingService(),
-                TournamentService(),
-              ]),
-              builder: (context, _) {
-                if (activeTab == 0) {
-                  return _UpcomingMatchesContent(sport: sport);
-                } else {
-                  return _MyScheduleContent();
-                }
-              },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left: animated content area
+                  Expanded(
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([
+                        GameListingService(),
+                        TournamentService(),
+                      ]),
+                      builder: (context, _) {
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(opacity: animation, child: child),
+                          child: Container(
+                            key: ValueKey(activeTab),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0E0E0E),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: _border),
+                            ),
+                            child: activeTab == 0
+                                ? _UpcomingMatchesContent(sport: sport)
+                                : _MyScheduleContent(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Right: vertical tab buttons column
+                  SizedBox(
+                    width: 110,
+                    child: Column(
+                      children: [
+                        _PanelTabBtn(
+                          label: 'Upcoming',
+                          active: activeTab == 0,
+                          onTap: () => onTabChange(0),
+                        ),
+                        const SizedBox(height: 8),
+                        _PanelTabBtn(
+                          label: 'Schedule',
+                          active: activeTab == 1,
+                          onTap: () => onTabChange(1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           // Footer
@@ -835,8 +863,7 @@ class _RightPanel extends StatelessWidget {
               label: activeTab == 0
                   ? 'View All Matches'
                   : 'View Full Schedule',
-              onTap: () => WebShellController().navigateTo(
-                  activeTab == 0 ? 2 : 2), // → Scorecard
+              onTap: () => WebShellController().navigateTo(2), // → Scorecard
             ),
           ),
         ],
@@ -869,7 +896,8 @@ class _PanelTabBtnState extends State<_PanelTabBtn> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 130),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: widget.active
                 ? _red
@@ -885,6 +913,7 @@ class _PanelTabBtnState extends State<_PanelTabBtn> {
           ),
           child: Text(
             widget.label,
+            textAlign: TextAlign.center,
             style: _t(
               size: 11,
               weight: FontWeight.w600,
@@ -979,6 +1008,8 @@ class _UpcomingRowState extends State<_UpcomingRow> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('${g.sport} · Open Game',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                       style: _t(size: 13, weight: FontWeight.w700)),
                   const SizedBox(height: 3),
                   Text(
@@ -1125,7 +1156,13 @@ class _EmptyState extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: _m2, size: 36),
           const SizedBox(height: 12),
-          Text(message, style: _t(size: 14, weight: FontWeight.w600, color: _m1)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+            style: _t(size: 14, weight: FontWeight.w600, color: _m1),
+          ),
           if (sub.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(sub,
