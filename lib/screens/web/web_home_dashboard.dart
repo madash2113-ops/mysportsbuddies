@@ -816,6 +816,7 @@ class _RightPanel extends StatelessWidget {
                               FadeTransition(opacity: animation, child: child),
                           child: Container(
                             key: ValueKey(activeTab),
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0E0E0E),
                               borderRadius: BorderRadius.circular(16),
@@ -832,7 +833,7 @@ class _RightPanel extends StatelessWidget {
                   const SizedBox(width: 12),
                   // Right: vertical tab buttons column
                   SizedBox(
-                    width: 110,
+                    width: 220,
                     child: Column(
                       children: [
                         _PanelTabBtn(
@@ -895,7 +896,7 @@ class _PanelTabBtnState extends State<_PanelTabBtn> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 130),
+          duration: const Duration(milliseconds: 150),
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
