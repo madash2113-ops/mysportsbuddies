@@ -5,6 +5,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/models/game_listing.dart';
+import '../core/models/player_entry.dart';
+import 'notification_service.dart';
 import 'user_service.dart';
 
 class GameListingService extends ChangeNotifier {
@@ -85,6 +87,14 @@ class GameListingService extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
     await docRef.set(listing.toMap());
+    final existingIndex = _openGames.indexWhere((g) => g.id == listing.id);
+    if (existingIndex == -1) {
+      _openGames.add(listing);
+      _openGames.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    } else {
+      _openGames[existingIndex] = listing;
+    }
+    notifyListeners();
     return listing;
   }
 
@@ -95,18 +105,58 @@ class GameListingService extends ChangeNotifier {
 
     if (listing.playerIds.contains(myId)) return;
     if (listing.isFull) return;
+    await addPlayers(listing, [
+      PlayerEntry(
+        entryId: myId,
+        isRegistered: true,
+        displayName: myName,
+        userId: myId,
+        imageUrl: svc.profile?.imageUrl,
+        numericId: svc.profile?.numericId,
+        email: svc.profile?.email,
+        phone: svc.profile?.phone,
+      ),
+    ], actorName: myName);
+  }
 
-    final newIds = [...listing.playerIds, myId];
-    final newNames = [...listing.playerNames, myName];
-    final newStatus = newIds.length >= listing.maxPlayers
-        ? GameListingStatus.full.name
-        : GameListingStatus.open.name;
+  Future<void> addPlayers(
+    GameListing listing,
+    List<PlayerEntry> players, {
+    required String actorName,
+  }) async {
+    if (listing.isFull || players.isEmpty) return;
+
+    final newIds = [...listing.playerIds];
+    final newNames = [...listing.playerNames];
+    final available = listing.maxPlayers - newIds.length;
+    final added = <PlayerEntry>[];
+
+    for (final player in players) {
+      if (added.length >= available) break;
+      final id = player.userId ?? player.entryId;
+      final name = player.displayName.trim();
+      if (id.isEmpty || name.isEmpty) continue;
+      if (newIds.contains(id)) continue;
+      if (!player.isRegistered && newNames.contains(name)) continue;
+      newIds.add(id);
+      newNames.add(name);
+      added.add(player);
+    }
+
+    if (added.isEmpty) return;
+
+    final status = newIds.length >= listing.maxPlayers
+        ? GameListingStatus.full
+        : GameListingStatus.open;
 
     await _db.collection(_col).doc(listing.id).update({
       'playerIds': newIds,
       'playerNames': newNames,
-      'status': newStatus,
+      'status': status.name,
     });
+
+    _replaceLocal(_copyListing(listing, newIds, newNames, status));
+    await _notifyPlayersAdded(listing, added, actorName: actorName);
   }
 
   Future<void> leaveListing(GameListing listing) async {
@@ -128,12 +178,91 @@ class GameListingService extends ChangeNotifier {
       'playerNames': newNames,
       'status': GameListingStatus.open.name,
     });
+    _replaceLocal(
+      _copyListing(listing, newIds, newNames, GameListingStatus.open),
+    );
   }
 
   Future<void> cancelListing(String listingId) async {
     await _db.collection(_col).doc(listingId).update({
       'status': GameListingStatus.cancelled.name,
     });
+    _openGames.removeWhere((g) => g.id == listingId);
+    notifyListeners();
+  }
+
+  void _replaceLocal(GameListing listing) {
+    final index = _openGames.indexWhere((g) => g.id == listing.id);
+    if (index == -1) return;
+    _openGames[index] = listing;
+    notifyListeners();
+  }
+
+  GameListing _copyListing(
+    GameListing listing,
+    List<String> playerIds,
+    List<String> playerNames,
+    GameListingStatus status,
+  ) {
+    return GameListing(
+      id: listing.id,
+      organizerId: listing.organizerId,
+      organizerName: listing.organizerName,
+      organizerImageUrl: listing.organizerImageUrl,
+      venueId: listing.venueId,
+      venueName: listing.venueName,
+      address: listing.address,
+      sport: listing.sport,
+      scheduledAt: listing.scheduledAt,
+      maxPlayers: listing.maxPlayers,
+      playerIds: playerIds,
+      playerNames: playerNames,
+      splitCost: listing.splitCost,
+      totalCost: listing.totalCost,
+      status: status,
+      note: listing.note,
+      photoUrl: listing.photoUrl,
+      latitude: listing.latitude,
+      longitude: listing.longitude,
+      createdAt: listing.createdAt,
+    );
+  }
+
+  Future<void> _notifyPlayersAdded(
+    GameListing listing,
+    List<PlayerEntry> added, {
+    required String actorName,
+  }) async {
+    final actorId = UserService().userId ?? '';
+    final addedNames = added.map((p) => p.displayName).join(', ');
+    final gameName = listing.venueName.isNotEmpty
+        ? listing.venueName
+        : '${listing.sport} game';
+
+    final recipients = <String>{listing.organizerId, ...listing.playerIds}
+      ..removeWhere((id) => id.isEmpty || id == actorId);
+
+    for (final userId in recipients) {
+      await NotificationService.send(
+        toUserId: userId,
+        type: NotifType.rsvpUpdate,
+        title: 'Player joined game',
+        body: '$actorName added $addedNames to $gameName.',
+        targetId: listing.id,
+      );
+    }
+
+    for (final player in added) {
+      final userId = player.userId;
+      if (userId == null || userId.isEmpty || userId == actorId) continue;
+      await NotificationService.send(
+        toUserId: userId,
+        type: NotifType.gameInvite,
+        title: 'You were added to a game',
+        body: '$actorName added you to $gameName.',
+        targetId: listing.id,
+      );
+    }
   }
 
   // ── Filters ────────────────────────────────────────────────────────────────

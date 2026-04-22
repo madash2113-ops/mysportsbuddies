@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback;
+import 'package:flutter/services.dart'
+    show Clipboard, ClipboardData, HapticFeedback;
 import 'package:provider/provider.dart';
 
 import '../../controllers/profile_controller.dart';
 import '../../core/models/user_profile.dart';
 import '../../services/auth_service.dart';
+import '../../services/game_listing_service.dart';
 import '../../services/stats_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../profile/edit_profile_screen.dart';
 import '../settings/settings_screen.dart';
+import 'web_avatar.dart';
 
 const _kRed = Color(0xFFE53935);
 const _kSurface = Color(0xFF14141C);
@@ -31,8 +34,7 @@ const _kSportColors = <String, Color>{
   'Athletics': Color(0xFFFFCA28),
 };
 
-Color _sportColor(String sport) =>
-    _kSportColors[sport] ?? _kRed;
+Color _sportColor(String sport) => _kSportColors[sport] ?? _kRed;
 
 class WebProfilePage extends StatefulWidget {
   const WebProfilePage({super.key});
@@ -53,7 +55,11 @@ class _WebProfilePageState extends State<WebProfilePage> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([UserService(), StatsService(), TournamentService()]),
+      listenable: Listenable.merge([
+        UserService(),
+        StatsService(),
+        TournamentService(),
+      ]),
       builder: (_, _) => _build(context),
     );
   }
@@ -75,6 +81,14 @@ class _WebProfilePageState extends State<WebProfilePage> {
 
     final allTournaments = TournamentService().tournaments;
     final userId = UserService().userId;
+    final myGames = userId == null
+        ? []
+        : (GameListingService().openGames
+              .where(
+                (g) => g.organizerId == userId || g.playerIds.contains(userId),
+              )
+              .toList()
+            ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt)));
     final myTournaments = allTournaments.where((t) {
       final teams = TournamentService().teamsFor(t.id);
       return teams.any((team) => team.enrolledBy == userId);
@@ -103,7 +117,9 @@ class _WebProfilePageState extends State<WebProfilePage> {
                         idCopied: _idCopied,
                         onCopyId: () async {
                           if (numId == null) return;
-                          await Clipboard.setData(ClipboardData(text: '$numId'));
+                          await Clipboard.setData(
+                            ClipboardData(text: '$numId'),
+                          );
                           await HapticFeedback.lightImpact();
                           if (!mounted) return;
                           setState(() => _idCopied = true);
@@ -116,9 +132,17 @@ class _WebProfilePageState extends State<WebProfilePage> {
                       // ── Stats overview row ─────────────────────────────────
                       Row(
                         children: [
-                          _StatCard(label: 'Tournaments', value: '$tournamentsPlayed', icon: Icons.emoji_events_rounded),
+                          _StatCard(
+                            label: 'Tournaments',
+                            value: '$tournamentsPlayed',
+                            icon: Icons.emoji_events_rounded,
+                          ),
                           const SizedBox(width: 16),
-                          _StatCard(label: 'Matches', value: '$matchesPlayed', icon: Icons.sports_rounded),
+                          _StatCard(
+                            label: 'Matches',
+                            value: '$matchesPlayed',
+                            icon: Icons.sports_rounded,
+                          ),
                           const SizedBox(width: 16),
                           _StatCard(
                             label: 'Win Rate',
@@ -128,7 +152,11 @@ class _WebProfilePageState extends State<WebProfilePage> {
                             icon: Icons.trending_up_rounded,
                           ),
                           const SizedBox(width: 16),
-                          _StatCard(label: 'Wins', value: '$matchesWon', icon: Icons.workspace_premium_rounded),
+                          _StatCard(
+                            label: 'Wins',
+                            value: '$matchesWon',
+                            icon: Icons.workspace_premium_rounded,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 28),
@@ -156,21 +184,43 @@ class _WebProfilePageState extends State<WebProfilePage> {
                           children: favSports.map((s) {
                             final c = _sportColor(s);
                             return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
                               decoration: BoxDecoration(
                                 color: c.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: c.withValues(alpha: 0.4)),
+                                border: Border.all(
+                                  color: c.withValues(alpha: 0.4),
+                                ),
                               ),
                               child: Text(
                                 s,
-                                style: TextStyle(color: c, fontSize: 13, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  color: c,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             );
                           }).toList(),
                         ),
                         const SizedBox(height: 28),
                       ],
+                      // ── Upcoming Games ────────────────────────────────────
+                      _SectionLabel('Upcoming Schedule'),
+                      const SizedBox(height: 14),
+                      if (myGames.isEmpty)
+                        _EmptyCard(
+                          icon: Icons.sports_rounded,
+                          message: 'No upcoming games. Join or host a game!',
+                        )
+                      else
+                        ...myGames
+                            .take(4)
+                            .map((g) => _UpcomingGameRow(game: g)),
+                      const SizedBox(height: 28),
                       // ── My Tournaments ────────────────────────────────────
                       _SectionLabel('My Tournaments'),
                       const SizedBox(height: 14),
@@ -199,12 +249,17 @@ class _WebProfilePageState extends State<WebProfilePage> {
                                     color: color.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: Icon(Icons.emoji_events_rounded, color: color, size: 20),
+                                  child: Icon(
+                                    Icons.emoji_events_rounded,
+                                    color: color,
+                                    size: 20,
+                                  ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         t.name,
@@ -218,7 +273,10 @@ class _WebProfilePageState extends State<WebProfilePage> {
                                       const SizedBox(height: 2),
                                       Text(
                                         t.sport,
-                                        style: const TextStyle(color: _kMuted, fontSize: 12),
+                                        style: const TextStyle(
+                                          color: _kMuted,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -237,10 +295,7 @@ class _WebProfilePageState extends State<WebProfilePage> {
           ),
         ),
         // ── Right panel ────────────────────────────────────────────────────────
-        _RightPanel(
-          name: name,
-          email: email,
-        ),
+        _RightPanel(name: name, email: email),
       ],
     );
   }
@@ -276,21 +331,56 @@ class _ProfileHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Builder(builder: (ctx) {
-            final photo = ctx.watch<ProfileController>().avatarImage;
-            return CircleAvatar(
-              radius: 52,
-              backgroundColor: _kRed.withValues(alpha: 0.15),
-              backgroundImage: photo,
-              child: photo == null
-                  ? Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w700, color: _kRed),
-                    )
-                  : null,
-            );
-          }),
+          // Avatar with camera overlay
+          Builder(
+            builder: (ctx) {
+              final controller = ctx.watch<ProfileController>();
+              final imageUrl =
+                  controller.networkImageUrl ??
+                  ctx.watch<UserService>().profile?.imageUrl;
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      WebAvatar(
+                        imageUrl: imageUrl,
+                        displayName: name,
+                        size: 104,
+                        backgroundColor: _kRed.withValues(alpha: 0.15),
+                        textColor: _kRed,
+                        borderColor: Colors.white.withValues(alpha: .08),
+                      ),
+                      Positioned(
+                        bottom: 2,
+                        right: 2,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: _kRed,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _kSurface, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           const SizedBox(width: 24),
           // Info
           Expanded(
@@ -312,22 +402,33 @@ class _ProfileHeader extends StatelessWidget {
                       GestureDetector(
                         onTap: onCopyId,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: _kRed.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: _kRed.withValues(alpha: 0.4)),
+                            border: Border.all(
+                              color: _kRed.withValues(alpha: 0.4),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 'ID: $numId',
-                                style: const TextStyle(color: _kRed, fontSize: 12, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  color: _kRed,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                               const SizedBox(width: 4),
                               Icon(
-                                idCopied ? Icons.check_rounded : Icons.copy_rounded,
+                                idCopied
+                                    ? Icons.check_rounded
+                                    : Icons.copy_rounded,
                                 color: _kRed,
                                 size: 12,
                               ),
@@ -340,7 +441,10 @@ class _ProfileHeader extends StatelessWidget {
                 ),
                 if (bio.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text(bio, style: const TextStyle(color: _kMuted, fontSize: 13)),
+                  Text(
+                    bio,
+                    style: const TextStyle(color: _kMuted, fontSize: 13),
+                  ),
                 ],
                 const SizedBox(height: 12),
                 Wrap(
@@ -350,7 +454,10 @@ class _ProfileHeader extends StatelessWidget {
                     if (email.isNotEmpty)
                       _InfoChip(icon: Icons.email_outlined, label: email),
                     if (location.isNotEmpty)
-                      _InfoChip(icon: Icons.location_on_outlined, label: location),
+                      _InfoChip(
+                        icon: Icons.location_on_outlined,
+                        label: location,
+                      ),
                   ],
                 ),
               ],
@@ -401,7 +508,9 @@ class _RightPanel extends StatelessWidget {
                   label: 'Edit Profile',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
                   ),
                 ),
                 _AccountItem(
@@ -435,16 +544,28 @@ class _RightPanel extends StatelessWidget {
                       context: context,
                       builder: (_) => AlertDialog(
                         backgroundColor: _kSurface,
-                        title: const Text('Sign Out', style: TextStyle(color: _kText)),
-                        content: const Text('Are you sure you want to sign out?', style: TextStyle(color: _kMuted)),
+                        title: const Text(
+                          'Sign Out',
+                          style: TextStyle(color: _kText),
+                        ),
+                        content: const Text(
+                          'Are you sure you want to sign out?',
+                          style: TextStyle(color: _kMuted),
+                        ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel', style: TextStyle(color: _kMuted)),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(color: _kMuted),
+                            ),
                           ),
                           TextButton(
                             onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Sign Out', style: TextStyle(color: _kRed)),
+                            child: const Text(
+                              'Sign Out',
+                              style: TextStyle(color: _kRed),
+                            ),
                           ),
                         ],
                       ),
@@ -495,7 +616,9 @@ class _MembershipCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            isPremium ? Icons.workspace_premium_rounded : Icons.star_border_rounded,
+            isPremium
+                ? Icons.workspace_premium_rounded
+                : Icons.star_border_rounded,
             color: isPremium ? const Color(0xFFFF9800) : _kMuted,
             size: 28,
           ),
@@ -514,7 +637,9 @@ class _MembershipCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isPremium ? 'All premium features unlocked' : 'Upgrade for full access',
+                  isPremium
+                      ? 'All premium features unlocked'
+                      : 'Upgrade for full access',
                   style: const TextStyle(color: _kMuted, fontSize: 11),
                 ),
               ],
@@ -529,7 +654,11 @@ class _MembershipCard extends StatelessWidget {
               ),
               child: const Text(
                 'Upgrade',
-                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
         ],
@@ -541,7 +670,11 @@ class _MembershipCard extends StatelessWidget {
 // ── Small reusable widgets ────────────────────────────────────────────────────
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, required this.icon});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
   final String label, value;
   final IconData icon;
 
@@ -585,24 +718,43 @@ class _SportStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _sportColor(sport);
-    final stats = (raw?['regular'] as Map?)?.cast<String, dynamic>() ?? raw ?? {};
+    final stats =
+        (raw?['regular'] as Map?)?.cast<String, dynamic>() ?? raw ?? {};
 
     final entries = <MapEntry<String, String>>[];
     if (stats['batting'] != null) {
       final b = (stats['batting'] as Map).cast<String, dynamic>();
-      if (b['runs'] != null) entries.add(MapEntry('Runs', '${b['runs']}'));
-      if (b['innings'] != null) entries.add(MapEntry('Innings', '${b['innings']}'));
-      if (b['highestScore'] != null) entries.add(MapEntry('High Score', '${b['highestScore']}'));
+      if (b['runs'] != null) {
+        entries.add(MapEntry('Runs', '${b['runs']}'));
+      }
+      if (b['innings'] != null) {
+        entries.add(MapEntry('Innings', '${b['innings']}'));
+      }
+      if (b['highestScore'] != null) {
+        entries.add(MapEntry('High Score', '${b['highestScore']}'));
+      }
     }
     if (stats['bowling'] != null) {
       final bw = (stats['bowling'] as Map).cast<String, dynamic>();
-      if (bw['wickets'] != null) entries.add(MapEntry('Wickets', '${bw['wickets']}'));
+      if (bw['wickets'] != null) {
+        entries.add(MapEntry('Wickets', '${bw['wickets']}'));
+      }
     }
-    if (stats['matches'] != null) entries.add(MapEntry('Matches', '${stats['matches']}'));
-    if (stats['wins'] != null) entries.add(MapEntry('Wins', '${stats['wins']}'));
-    if (stats['goals'] != null) entries.add(MapEntry('Goals', '${stats['goals']}'));
-    if (stats['assists'] != null) entries.add(MapEntry('Assists', '${stats['assists']}'));
-    if (stats['points'] != null) entries.add(MapEntry('Points', '${stats['points']}'));
+    if (stats['matches'] != null) {
+      entries.add(MapEntry('Matches', '${stats['matches']}'));
+    }
+    if (stats['wins'] != null) {
+      entries.add(MapEntry('Wins', '${stats['wins']}'));
+    }
+    if (stats['goals'] != null) {
+      entries.add(MapEntry('Goals', '${stats['goals']}'));
+    }
+    if (stats['assists'] != null) {
+      entries.add(MapEntry('Assists', '${stats['assists']}'));
+    }
+    if (stats['points'] != null) {
+      entries.add(MapEntry('Points', '${stats['points']}'));
+    }
 
     return Container(
       width: 200,
@@ -626,19 +778,36 @@ class _SportStatCard extends StatelessWidget {
           if (entries.isEmpty)
             const Padding(
               padding: EdgeInsets.only(top: 8),
-              child: Text('No stats yet', style: TextStyle(color: _kMuted, fontSize: 12)),
+              child: Text(
+                'No stats yet',
+                style: TextStyle(color: _kMuted, fontSize: 12),
+              ),
             )
           else
-            ...entries.take(4).map((e) => Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(e.key, style: const TextStyle(color: _kMuted, fontSize: 11)),
-                      Text(e.value, style: const TextStyle(color: _kText, fontSize: 12, fontWeight: FontWeight.w700)),
-                    ],
+            ...entries
+                .take(4)
+                .map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          e.key,
+                          style: const TextStyle(color: _kMuted, fontSize: 11),
+                        ),
+                        Text(
+                          e.value,
+                          style: const TextStyle(
+                            color: _kText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
         ],
       ),
     );
@@ -698,7 +867,11 @@ class _AccountItem extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Icon(Icons.chevron_right_rounded, size: 16, color: iconColor ?? _kMuted),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: iconColor ?? _kMuted,
+            ),
           ],
         ),
       ),
@@ -726,7 +899,14 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
@@ -743,6 +923,122 @@ class _SectionLabel extends StatelessWidget {
         color: _kText,
         fontSize: 17,
         fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _UpcomingGameRow extends StatelessWidget {
+  final dynamic game;
+  const _UpcomingGameRow({required this.game});
+
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final dt = game.scheduledAt as DateTime;
+    final sport = game.sport as String;
+    final color = _sportColor(sport);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _months[dt.month - 1],
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  '${dt.day}',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  sport,
+                  style: const TextStyle(
+                    color: _kText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${dt.hour > 12
+                      ? dt.hour - 12
+                      : dt.hour == 0
+                      ? 12
+                      : dt.hour}'
+                  ':${dt.minute.toString().padLeft(2, '0')} '
+                  '${dt.hour >= 12 ? 'PM' : 'AM'}'
+                  '${(game.venueName as String).isNotEmpty ? '  ·  ${game.venueName}' : ''}',
+                  style: const TextStyle(color: _kMuted, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withValues(alpha: .35)),
+            ),
+            child: Text(
+              sport,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
