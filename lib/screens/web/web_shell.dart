@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../controllers/profile_controller.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/search_service.dart';
 import '../../services/user_service.dart';
 import '../home/notifications_screen.dart';
 
@@ -266,6 +269,19 @@ class _TopHeader extends StatefulWidget {
 
 class _TopHeaderState extends State<_TopHeader> {
   bool _searchHover = false;
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  final _searchLayerLink = LayerLink();
+  final _overlayController = OverlayPortalController();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -281,54 +297,91 @@ class _TopHeaderState extends State<_TopHeader> {
         children: [
           // Search bar
           Expanded(
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _searchHover = true),
-              onExit:  (_) => setState(() => _searchHover = false),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .04),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _searchHover
-                        ? const Color(0xFF3A3A3A)
-                        : _border,
+            child: OverlayPortal(
+              controller: _overlayController,
+              overlayChildBuilder: (context) => CompositedTransformFollower(
+                link: _searchLayerLink,
+                targetAnchor: Alignment.bottomLeft,
+                followerAnchor: Alignment.topLeft,
+                offset: const Offset(0, 6),
+                child: _SearchDropdown(
+                  onClose: () {
+                    _overlayController.hide();
+                    _searchController.clear();
+                    SearchService().clear();
+                  },
+                ),
+              ),
+              child: CompositedTransformTarget(
+                link: _searchLayerLink,
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _searchHover = true),
+                  onExit:  (_) => setState(() => _searchHover = false),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .04),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _searchHover
+                            ? const Color(0xFF3A3A3A)
+                            : _border,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Row(children: [
+                      Icon(Icons.search_rounded, color: _m1, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFF2F2F2)),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            hintText: 'Search players, tournaments, venues...',
+                            hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF888888)),
+                          ),
+                          onChanged: (value) {
+                            _debounce?.cancel();
+                            _debounce = Timer(const Duration(milliseconds: 400), () {
+                              if (value.trim().length >= 2) {
+                                _overlayController.show();
+                                SearchService().search(value);
+                              } else {
+                                _overlayController.hide();
+                                SearchService().clear();
+                              }
+                            });
+                          },
+                          onTap: () {
+                            if (_searchController.text.trim().length >= 2) {
+                              _overlayController.show();
+                            }
+                          },
+                        ),
+                      ),
+                      // Ctrl K pill badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: _m2),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          'Ctrl K',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: _m1,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ]),
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Row(children: [
-                  Icon(Icons.search_rounded, color: _m1, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      readOnly: true,
-                      style: GoogleFonts.inter(fontSize: 13, color: _tx),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        hintText: 'Search coming soon...',
-                        hintStyle: GoogleFonts.inter(fontSize: 13, color: _m1),
-                      ),
-                    ),
-                  ),
-                  // Ctrl K pill badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: _m2),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      'Ctrl K',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: _m1,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ]),
               ),
             ),
           ),
@@ -516,6 +569,209 @@ class _UserAvatarState extends State<_UserAvatar> {
                 : null,
           );
         }),
+      ),
+    );
+  }
+}
+
+// ── Search Dropdown ────────────────────────────────────────────────────────────
+
+class _SearchDropdown extends StatelessWidget {
+  final VoidCallback onClose;
+  const _SearchDropdown({required this.onClose});
+
+  static const _typeLabels = {
+    'user': 'Players',
+    'tournament': 'Tournaments',
+    'game': 'Games',
+    'venue': 'Venues',
+  };
+
+  static const _navIndex = {
+    'user': 5,
+    'tournament': 1,
+    'game': 0,
+    'venue': 4,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: SearchService(),
+      builder: (context, _) {
+        final svc = SearchService();
+        return Container(
+          width: 480,
+          constraints: const BoxConstraints(maxHeight: 400),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1C1C1C)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .4),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: svc.loading
+              ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFDE313B),
+                      strokeWidth: 2,
+                    ),
+                  ),
+                )
+              : svc.results.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'No results found',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF888888),
+                        ),
+                      ),
+                    )
+                  : _buildResults(context, svc.results),
+        );
+      },
+    );
+  }
+
+  Widget _buildResults(BuildContext context, List<SearchResult> results) {
+    // Group by type
+    final grouped = <String, List<SearchResult>>{};
+    for (final r in results) {
+      grouped.putIfAbsent(r.type, () => []).add(r);
+    }
+
+    final sections = <Widget>[];
+    grouped.forEach((type, items) {
+      sections.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text(
+            _typeLabels[type] ?? type,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF888888),
+              letterSpacing: .5,
+            ),
+          ),
+        ),
+      );
+      for (final result in items) {
+        sections.add(_ResultRow(
+          result: result,
+          onTap: () {
+            onClose();
+            WebShellController().navigateTo(_navIndex[result.type] ?? 0);
+          },
+        ));
+      }
+    });
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: sections,
+        ),
+      ),
+    );
+  }
+}
+
+class _ResultRow extends StatefulWidget {
+  final SearchResult result;
+  final VoidCallback onTap;
+  const _ResultRow({required this.result, required this.onTap});
+
+  @override
+  State<_ResultRow> createState() => _ResultRowState();
+}
+
+class _ResultRowState extends State<_ResultRow> {
+  bool _hover = false;
+
+  static const _typeIcons = {
+    'user': Icons.person_outline_rounded,
+    'tournament': Icons.emoji_events_outlined,
+    'game': Icons.sports_outlined,
+    'venue': Icons.location_on_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          color: _hover
+              ? Colors.white.withValues(alpha: .04)
+              : Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF1A1A1A),
+                image: widget.result.imageUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(widget.result.imageUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: widget.result.imageUrl == null
+                  ? Icon(
+                      _typeIcons[widget.result.type] ?? Icons.circle_outlined,
+                      size: 15,
+                      color: const Color(0xFF888888),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.result.title,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFFF2F2F2),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    widget.result.subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: const Color(0xFF888888),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
