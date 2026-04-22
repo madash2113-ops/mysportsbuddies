@@ -277,30 +277,22 @@ class _ProfileHeader extends StatelessWidget {
         children: [
           // Avatar
           Builder(builder: (ctx) {
-            final img = ctx.watch<ProfileController>().avatarImage;
-            return Stack(
-              children: [
-                CircleAvatar(
-                  radius: 52,
-                  backgroundColor: _kRed.withValues(alpha: 0.15),
-                  backgroundImage: img,
-                  child: img == null
-                      ? Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : '?',
-                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w700, color: _kRed),
-                        )
-                      : null,
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: const BoxDecoration(color: _kRed, shape: BoxShape.circle),
-                    child: const Icon(Icons.verified, color: Colors.white, size: 14),
-                  ),
-                ),
-              ],
+            final localImg = ctx.watch<ProfileController>().avatarImage;
+            final networkUrl = UserService().profile?.imageUrl;
+            final ImageProvider? photo = localImg ??
+                (networkUrl != null && networkUrl.isNotEmpty
+                    ? NetworkImage(networkUrl)
+                    : null);
+            return CircleAvatar(
+              radius: 52,
+              backgroundColor: _kRed.withValues(alpha: 0.15),
+              backgroundImage: photo,
+              child: photo == null
+                  ? Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w700, color: _kRed),
+                    )
+                  : null,
             );
           }),
           const SizedBox(width: 24),

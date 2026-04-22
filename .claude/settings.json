@@ -162,7 +162,9 @@
       "Bash(flutter build *)",
       "Bash(xcrun simctl *)",
       "Bash(rm -rf ~/Library/Caches/*)",
-      "Bash(pod cache *)"
+      "Bash(pod cache *)",
+      "Bash(gh run *)",
+      "Bash(firebase deploy *)"
     ],
     "additionalDirectories": [
       "/Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies_admin",
