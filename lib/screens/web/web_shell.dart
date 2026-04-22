@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../controllers/profile_controller.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
@@ -457,29 +458,31 @@ class _UserAvatarState extends State<_UserAvatar> {
             ]),
           ),
         ],
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 38, height: 38,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _red,
-            image: widget.imageUrl != null
-                ? DecorationImage(
-                    image: NetworkImage(widget.imageUrl!), fit: BoxFit.cover)
+        child: Builder(builder: (ctx) {
+          final photo = ctx.watch<ProfileController>().avatarImage;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 38, height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: photo == null ? _red : Colors.transparent,
+              image: photo != null
+                  ? DecorationImage(image: photo, fit: BoxFit.cover)
+                  : null,
+              boxShadow: _hover
+                  ? [BoxShadow(color: _red.withValues(alpha: .35), blurRadius: 12)]
+                  : null,
+            ),
+            alignment: Alignment.center,
+            child: photo == null
+                ? Text(
+                    initials,
+                    style: GoogleFonts.inter(
+                      fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                  )
                 : null,
-            boxShadow: _hover
-                ? [BoxShadow(color: _red.withValues(alpha: .35), blurRadius: 12)]
-                : null,
-          ),
-          alignment: Alignment.center,
-          child: widget.imageUrl == null
-              ? Text(
-                  initials,
-                  style: GoogleFonts.inter(
-                    fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
-                )
-              : null,
-        ),
+          );
+        }),
       ),
     );
   }

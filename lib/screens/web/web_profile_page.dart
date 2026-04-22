@@ -277,12 +277,7 @@ class _ProfileHeader extends StatelessWidget {
         children: [
           // Avatar
           Builder(builder: (ctx) {
-            final localImg = ctx.watch<ProfileController>().avatarImage;
-            final networkUrl = UserService().profile?.imageUrl;
-            final ImageProvider? photo = localImg ??
-                (networkUrl != null && networkUrl.isNotEmpty
-                    ? NetworkImage(networkUrl)
-                    : null);
+            final photo = ctx.watch<ProfileController>().avatarImage;
             return CircleAvatar(
               radius: 52,
               backgroundColor: _kRed.withValues(alpha: 0.15),
