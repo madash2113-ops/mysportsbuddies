@@ -1661,7 +1661,7 @@ class _HomeTabState extends State<_HomeTab> {
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // ── Content: Sports section OR Venues section ────────────────────
           Expanded(
