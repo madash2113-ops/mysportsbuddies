@@ -255,9 +255,16 @@ class _SideNavItemState extends State<_SideNavItem> {
 
 // ── Top header ─────────────────────────────────────────────────────────────────
 
-class _TopHeader extends StatelessWidget {
+class _TopHeader extends StatefulWidget {
   final VoidCallback onProfileTap;
   const _TopHeader({required this.onProfileTap});
+
+  @override
+  State<_TopHeader> createState() => _TopHeaderState();
+}
+
+class _TopHeaderState extends State<_TopHeader> {
+  bool _searchHover = false;
 
   @override
   Widget build(BuildContext context) {
@@ -273,29 +280,55 @@ class _TopHeader extends StatelessWidget {
         children: [
           // Search bar
           Expanded(
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .04),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(children: [
-                Icon(Icons.search_rounded, color: _m1, size: 18),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    style: GoogleFonts.inter(fontSize: 13, color: _tx),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: 'Search for tournaments, venues, players...',
-                      hintStyle: GoogleFonts.inter(fontSize: 13, color: _m1),
-                    ),
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _searchHover = true),
+              onExit:  (_) => setState(() => _searchHover = false),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _searchHover
+                        ? const Color(0xFF3A3A3A)
+                        : _border,
                   ),
                 ),
-              ]),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(children: [
+                  Icon(Icons.search_rounded, color: _m1, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      readOnly: true,
+                      style: GoogleFonts.inter(fontSize: 13, color: _tx),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: 'Search coming soon...',
+                        hintStyle: GoogleFonts.inter(fontSize: 13, color: _m1),
+                      ),
+                    ),
+                  ),
+                  // Ctrl K pill badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: _m2),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      'Ctrl K',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: _m1,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -308,7 +341,7 @@ class _TopHeader extends StatelessWidget {
           _UserAvatar(
             name:     profile?.name ?? '',
             imageUrl: profile?.imageUrl,
-            onTap:    onProfileTap,
+            onTap:    widget.onProfileTap,
           ),
         ],
       ),

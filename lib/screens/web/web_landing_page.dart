@@ -425,31 +425,35 @@ class _RedBtnState extends State<_RedBtn> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedContainer(
+        child: AnimatedScale(
+          scale: _hover ? 1.02 : 1.0,
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [_red, _hover ? _redDeep : const Color(0xFFCC1020)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_red, _hover ? _redDeep : const Color(0xFFCC1020)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(99),
+              boxShadow: _hover
+                  ? [
+                      BoxShadow(
+                        color: _red.withValues(alpha: .45),
+                        blurRadius: 20,
+                      ),
+                    ]
+                  : [],
             ),
-            borderRadius: BorderRadius.circular(99),
-            boxShadow: _hover
-                ? [
-                    BoxShadow(
-                      color: _red.withValues(alpha: .45),
-                      blurRadius: 20,
-                    ),
-                  ]
-                : [],
-          ),
-          child: Text(
-            widget.label,
-            style: _inter(
-              size: 13,
-              weight: FontWeight.w700,
-              color: Colors.white,
+            child: Text(
+              widget.label,
+              style: _inter(
+                size: 13,
+                weight: FontWeight.w700,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -648,39 +652,43 @@ class _HeroPrimaryBtnState extends State<_HeroPrimaryBtn> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedContainer(
+        child: AnimatedScale(
+          scale: _hover ? 1.02 : 1.0,
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: _hover
-                  ? [_red, _redDeep]
-                  : [_red, const Color(0xFFCC1020)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(99),
-            boxShadow: [
-              BoxShadow(
-                color: _red.withValues(alpha: .40),
-                blurRadius: _hover ? 30 : 18,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: _hover
+                    ? [_red, _redDeep]
+                    : [_red, const Color(0xFFCC1020)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🚀', style: TextStyle(fontSize: 15)),
-              const SizedBox(width: 8),
-              Text(
-                'Get Started Free',
-                style: _inter(
-                  size: 15,
-                  weight: FontWeight.w700,
-                  color: Colors.white,
+              borderRadius: BorderRadius.circular(99),
+              boxShadow: [
+                BoxShadow(
+                  color: _red.withValues(alpha: .40),
+                  blurRadius: _hover ? 30 : 18,
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🚀', style: TextStyle(fontSize: 15)),
+                const SizedBox(width: 8),
+                Text(
+                  'Get Started Free',
+                  style: _inter(
+                    size: 15,
+                    weight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

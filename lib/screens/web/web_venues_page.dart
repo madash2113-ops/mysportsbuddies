@@ -63,6 +63,7 @@ class _WebVenuesPageState extends State<WebVenuesPage> {
                 final rest = venues.length > 1 ? venues.sublist(1) : <VenueModel>[];
 
                 return CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(child: _buildHeader()),
                     SliverToBoxAdapter(child: _buildFilterRow(svc.venues)),
@@ -126,6 +127,7 @@ class _WebVenuesPageState extends State<WebVenuesPage> {
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         child: Row(children: [
           _FilterChip(
             label: 'All Sports',
@@ -265,7 +267,7 @@ class _FeaturedVenueBannerState extends State<_FeaturedVenueBanner> {
                           Icon(Icons.star_rounded,
                               color: _orange, size: 14),
                           const SizedBox(width: 4),
-                          Text('${v.rating.toStringAsFixed(1)}',
+                          Text(v.rating.toStringAsFixed(1),
                               style: _t(size: 12, weight: FontWeight.w700,
                                   color: _orange)),
                           const SizedBox(width: 4),
@@ -331,11 +333,14 @@ class _VenueGrid extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 60),
           child: Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.stadium_outlined, color: _m2, size: 40),
+              Icon(Icons.stadium_outlined, color: _m2, size: 48),
               const SizedBox(height: 12),
               Text('No venues found',
                   style: _t(size: 15, color: _m1,
                       weight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Text('Try a different sport filter or check back later',
+                  style: _t(size: 13, color: _m2)),
             ]),
           ),
         ),
@@ -583,6 +588,7 @@ class _VenueDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = venue;
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Selected Venue',

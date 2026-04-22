@@ -86,6 +86,7 @@ class _WebTournamentsPageState extends State<WebTournamentsPage> {
           // ── Main content ──────────────────────────────────────────────────
           Expanded(
             child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _buildHeader()),
                 SliverToBoxAdapter(child: _buildFilterRow()),
@@ -362,11 +363,14 @@ class _TournamentGrid extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.emoji_events_outlined, color: _m2, size: 40),
+                  Icon(Icons.emoji_events_outlined, color: _m2, size: 48),
                   const SizedBox(height: 12),
                   Text('No tournaments found',
                       style: _t(size: 15, color: _m1,
                           weight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Text('Try a different filter or check back later',
+                      style: _t(size: 13, color: _m2)),
                 ]),
               ),
             ),
@@ -720,6 +724,7 @@ class _RightStatsPanel extends StatelessWidget {
         border: Border(left: BorderSide(color: _border, width: .8)),
       ),
       child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

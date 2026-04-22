@@ -123,6 +123,7 @@ class _WebScorecardPageState extends State<WebScorecardPage> {
                 }
 
                 return CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(child: _buildHeader(context)),
                     SliverToBoxAdapter(
@@ -194,6 +195,7 @@ class _WebScorecardPageState extends State<WebScorecardPage> {
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         child: Row(children: [
           _FilterDropdown(
             label: _sport ?? 'All Sports',
@@ -474,7 +476,7 @@ class _ScorecardGrid extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 60),
           child: Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.scoreboard_outlined, color: _m2, size: 40),
+              Icon(Icons.scoreboard_outlined, color: _m2, size: 48),
               const SizedBox(height: 12),
               Text('No scoreboards found',
                   style: _t(size: 15, color: _m1, weight: FontWeight.w600)),
@@ -683,6 +685,7 @@ class _RightStatsPanel extends StatelessWidget {
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
           return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
