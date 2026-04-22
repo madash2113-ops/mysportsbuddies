@@ -231,10 +231,9 @@ class _SportsModeContent extends StatelessWidget {
             listenable: GameListingService(),
             builder: (context, _) {
               final all = GameListingService().openGames;
-              final games = sport == null
-                  ? all
-                  : all.where((g) => g.sport == sport).toList()
-                ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+              final games = [
+                ...(sport == null ? all : all.where((g) => g.sport == sport)),
+              ]..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
               return SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
                 child: Column(
