@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 // Splash
@@ -37,9 +38,8 @@ import '../../screens/tournaments/tournaments_list_screen.dart';
 
 class AppRoutes {
   static final Map<String, WidgetBuilder> routes = {
-
     // App Entry
-    '/': (context) => const SplashScreen(),
+    '/': (context) => kIsWeb ? const WebLandingPage() : const SplashScreen(),
     '/onboarding': (context) => const OnboardingScreen(),
     '/welcome': (context) => const WebLandingPage(),
     '/role-picker': (context) => const WelcomeScreen(),
