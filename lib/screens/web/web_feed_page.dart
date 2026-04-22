@@ -83,6 +83,7 @@ class _WebFeedPageState extends State<WebFeedPage> {
           // ── Main feed ─────────────────────────────────────────────────────
           Expanded(
             child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _buildHeader()),
                 SliverToBoxAdapter(child: _buildComposer(context)),
@@ -275,6 +276,18 @@ class _FeedList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<FeedService>(
       builder: (context, svc, _) {
+        if (svc.loading) {
+          return const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 60),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFFDE313B),
+                ),
+              ),
+            ),
+          );
+        }
         final posts = svc.posts;
         if (posts.isEmpty) {
           return SliverToBoxAdapter(
@@ -282,13 +295,13 @@ class _FeedList extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.dynamic_feed_outlined, color: _m2, size: 40),
+                  Icon(Icons.dynamic_feed_outlined, color: _m2, size: 48),
                   const SizedBox(height: 12),
                   Text('Nothing here yet',
                       style: _t(size: 15, color: _m1,
                           weight: FontWeight.w600)),
                   const SizedBox(height: 6),
-                  Text('Be the first to share something',
+                  Text('Be the first to share something with the community',
                       style: _t(size: 13, color: _m2)),
                 ]),
               ),
@@ -524,6 +537,7 @@ class _RightSidebar extends StatelessWidget {
         border: Border(left: BorderSide(color: _border, width: .8)),
       ),
       child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

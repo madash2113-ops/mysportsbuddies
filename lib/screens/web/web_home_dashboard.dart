@@ -235,6 +235,7 @@ class _SportsModeContent extends StatelessWidget {
                 ...(sport == null ? all : all.where((g) => g.sport == sport)),
               ]..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
               return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -919,6 +920,7 @@ class _UpcomingMatchesContent extends StatelessWidget {
       );
     }
     return ListView.separated(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(12),
       itemCount: sorted.length,
       separatorBuilder: (_, _) =>
@@ -1028,6 +1030,7 @@ class _MyScheduleContent extends StatelessWidget {
       );
     }
     return ListView.separated(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(12),
       itemCount: tours.length,
       separatorBuilder: (_, _) =>

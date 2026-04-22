@@ -20,7 +20,9 @@
       "Bash(pkill -f \"vite --port 5174\")",
       "mcp__claude_ai_Figma__get_metadata",
       "mcp__claude_ai_Figma__get_screenshot",
-      "mcp__claude_ai_Figma__use_figma"
+      "mcp__claude_ai_Figma__use_figma",
+      "Bash(flutter doctor *)",
+      "Bash(flutter analyze *)"
     ]
   },
   "enableAllProjectMcpServers": true,

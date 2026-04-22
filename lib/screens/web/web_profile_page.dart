@@ -86,6 +86,7 @@ class _WebProfilePageState extends State<WebProfilePage> {
         // ── Main content ───────────────────────────────────────────────────────
         Expanded(
           child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
