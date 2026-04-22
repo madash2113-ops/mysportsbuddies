@@ -28,6 +28,7 @@ import 'services/game_listing_service.dart';
 import 'services/stats_service.dart';
 import 'services/location_service.dart';
 import 'services/venue_service.dart';
+import 'services/search_service.dart';
 
 // ======================================================
 // MAIN ENTRY POINT
@@ -116,6 +117,7 @@ void main() async {
           ChangeNotifierProvider(create: (_) => StatsService()),
           ChangeNotifierProvider(create: (_) => AdminService()),
           ChangeNotifierProvider(create: (_) => LocationService()),
+          ChangeNotifierProvider(create: (_) => SearchService()),
         ],
         child: const MySportsApp(),
       ),

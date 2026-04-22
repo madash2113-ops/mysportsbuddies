@@ -276,6 +276,16 @@ class _TopHeaderState extends State<_TopHeader> {
   Timer? _debounce;
 
   @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(() {
+      if (!_searchFocusNode.hasFocus) {
+        _overlayController.hide();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -629,7 +639,7 @@ class _SearchDropdown extends StatelessWidget {
                   ? Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
-                        'No results found',
+                        'No results for "${SearchService().lastQuery}"',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           color: const Color(0xFF888888),
@@ -726,23 +736,30 @@ class _ResultRowState extends State<_ResultRow> {
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1A1A1A),
-                image: widget.result.imageUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(widget.result.imageUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
+                color: Color(0xFF1A1A1A),
               ),
-              child: widget.result.imageUrl == null
-                  ? Icon(
+              clipBehavior: Clip.antiAlias,
+              child: widget.result.imageUrl != null
+                  ? ClipOval(
+                      child: Image.network(
+                        widget.result.imageUrl!,
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Icon(
+                          _typeIcons[widget.result.type] ?? Icons.circle_outlined,
+                          size: 15,
+                          color: const Color(0xFF888888),
+                        ),
+                      ),
+                    )
+                  : Icon(
                       _typeIcons[widget.result.type] ?? Icons.circle_outlined,
                       size: 15,
                       color: const Color(0xFF888888),
-                    )
-                  : null,
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(

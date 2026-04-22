@@ -24,6 +24,9 @@ class SearchService extends ChangeNotifier {
   List<SearchResult> results = [];
   bool loading = false;
   String _lastQuery = '';
+  int _generation = 0;
+
+  String get lastQuery => _lastQuery;
 
   Future<void> search(String query) async {
     final q = query.trim();
@@ -37,6 +40,7 @@ class SearchService extends ChangeNotifier {
     }
     loading = true;
     notifyListeners();
+    final gen = ++_generation;
     final end = q.substring(0, q.length - 1) +
         String.fromCharCode(q.codeUnitAt(q.length - 1) + 1);
     final db = FirebaseFirestore.instance;
@@ -67,6 +71,7 @@ class SearchService extends ChangeNotifier {
             .limit(5)
             .get(),
       ]);
+      if (gen != _generation) return; // superseded — discard stale response
       const types = ['user', 'tournament', 'game', 'venue'];
       final newResults = <SearchResult>[];
       for (int i = 0; i < futures.length; i++) {
@@ -85,6 +90,7 @@ class SearchService extends ChangeNotifier {
       }
       results = newResults;
     } catch (_) {
+      if (gen != _generation) return;
       results = [];
     }
     loading = false;
