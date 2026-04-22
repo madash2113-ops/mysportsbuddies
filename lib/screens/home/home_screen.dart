@@ -1519,6 +1519,8 @@ class _HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<_HomeTab> {
+  bool _showSports = true;
+
   String get _greeting {
     final h = DateTime.now().hour;
     if (h < 12) return 'Good Morning ☀️';
@@ -1545,6 +1547,8 @@ class _HomeTabState extends State<_HomeTab> {
   @override
   Widget build(BuildContext context) {
     final textCol = AppC.text(context);
+    final cardBg = AppC.card(context);
+    final primary = AppC.primary(context);
     final name = (UserService().profile?.name ?? '').split(' ').first;
 
     final location = UserService().profile?.location ?? '';
@@ -1676,10 +1680,172 @@ class _HomeTabState extends State<_HomeTab> {
   }
 }
 
+// ── Toggle tab button ─────────────────────────────────────────────────────────
+
+class _ToggleTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final Color primary;
+  final VoidCallback onTap;
+  const _ToggleTab({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.primary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 38,
+          decoration: BoxDecoration(
+            color: active ? primary.withValues(alpha: 0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: active ? Border.all(color: primary.withValues(alpha: 0.35)) : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 15, color: active ? primary : AppC.muted(context)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: active ? AppC.text(context) : AppC.muted(context),
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Venues section ────────────────────────────────────────────────────────────
+
+class _VenuesGrid extends StatelessWidget {
+  const _VenuesGrid({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final textCol = AppC.text(context);
+    final primary = AppC.primary(context);
+
+    return ListenableBuilder(
+      listenable: VenueService(),
+      builder: (context, _) {
+        final venues = VenueService().venues;
+        return RefreshIndicator(
+          color: primary,
+          backgroundColor: AppC.card(context),
+          onRefresh: () async {
+            VenueService().listenToVenues();
+            await Future.delayed(const Duration(milliseconds: 400));
+          },
+          child: venues.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text(
+                      'No venues found nearby.',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 24),
+                  itemCount: venues.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final venue = venues[i];
+                    return GestureDetector(
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        '/venue-detail',
+                        arguments: venue,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppC.card(context),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                Icons.stadium_outlined,
+                                color: primary,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    venue.name,
+                                    style: TextStyle(
+                                      color: textCol,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (venue.address.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      venue.address,
+                                      style: const TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppC.muted(context),
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        );
+      },
+    );
+  }
+}
+
 // ── Sports section (horizontal pill scroll) ────────────────────────────────────
 
 class _SportsGrid extends StatelessWidget {
-  const _SportsGrid();
+  const _SportsGrid({super.key});
 
   static const _sports = [
     ('Cricket', '🏏'),

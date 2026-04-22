@@ -275,13 +275,7 @@ class _NavBar extends StatelessWidget {
   }
 }
 
-const _navLinks = [
-  'About Us',
-  'Player',
-  'Admin',
-  'Venue Merchant',
-  'Game Host',
-];
+const _navLinks = ['About Us'];
 
 class _Logo extends StatelessWidget {
   @override

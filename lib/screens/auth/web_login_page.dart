@@ -453,114 +453,6 @@ class _HeroPanel extends StatelessWidget {
                                         ),
                                       ],
                               ),
-                              const SizedBox(height: 28),
-                              Container(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 640,
-                                ),
-                                padding: const EdgeInsets.all(22),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.18),
-                                  borderRadius: BorderRadius.circular(28),
-                                  border: Border.all(color: _bd2),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.16,
-                                        ),
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                        border: Border.all(
-                                          color: _accent.withValues(
-                                            alpha: 0.24,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        _isMerchant
-                                            ? 'PREMIUM CONTROL'
-                                            : 'PREMIUM PLAY',
-                                        style: TextStyle(
-                                          color: _accent,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 1.4,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 18),
-                                    Text(
-                                      _isMerchant
-                                          ? 'Run your venue like a private members club.'
-                                          : 'Step into a sharper, more competitive sports network.',
-                                      style: const TextStyle(
-                                        color: _tx,
-                                        fontSize: 22,
-                                        height: 1.25,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.7,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      _isMerchant
-                                          ? 'Create a polished booking experience with reliable scheduling, stronger trust, and operations that feel premium from day one.'
-                                          : 'Discover better opponents, cleaner match flow, and a community built for people who actually show up to play.',
-                                      style: const TextStyle(
-                                        color: _muted,
-                                        fontSize: 13,
-                                        height: 1.65,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 18),
-                                    Wrap(
-                                      spacing: 12,
-                                      runSpacing: 12,
-                                      children: _isMerchant
-                                          ? const [
-                                              _HeroPremiumBadge(
-                                                title: 'Verified bookings',
-                                                subtitle: 'Fewer drop-offs',
-                                              ),
-                                              _HeroPremiumBadge(
-                                                title: 'Smart scheduling',
-                                                subtitle: 'Peak hours managed',
-                                              ),
-                                              _HeroPremiumBadge(
-                                                title: 'Member loyalty',
-                                                subtitle:
-                                                    'Keep players returning',
-                                              ),
-                                            ]
-                                          : const [
-                                              _HeroPremiumBadge(
-                                                title: 'Serious players',
-                                                subtitle:
-                                                    'Higher quality games',
-                                              ),
-                                              _HeroPremiumBadge(
-                                                title: 'Curated tournaments',
-                                                subtitle:
-                                                    'Competitive matchups',
-                                              ),
-                                              _HeroPremiumBadge(
-                                                title: 'Live score flow',
-                                                subtitle: 'Stay in the action',
-                                              ),
-                                            ],
-                                    ),
-                                  ],
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -651,45 +543,6 @@ class _HeroFeaturePill extends StatelessWidget {
   }
 }
 
-class _HeroPremiumBadge extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _HeroPremiumBadge({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 164,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _bd),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: _tx,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: const TextStyle(color: _muted, fontSize: 11.5, height: 1.45),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ── Right form panel ──────────────────────────────────────────────────────────
 class _FormPanel extends StatelessWidget {
   final String role;
@@ -714,7 +567,8 @@ class _FormPanel extends StatelessWidget {
         children: [
           // ── Back link ────────────────────────────────────────────────
           GestureDetector(
-            onTap: () => Navigator.pushReplacementNamed(context, '/role-picker'),
+            onTap: () =>
+                Navigator.pushReplacementNamed(context, '/role-picker'),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: const [
