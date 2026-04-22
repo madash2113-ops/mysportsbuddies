@@ -3,36 +3,35 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
+import '../home/notifications_screen.dart';
 
-// ── Landing-page design tokens ─────────────────────────────────────────────
-const _bg = Color(0xFF080808);
-const _s1 = Color(0xFF0F0F0F);
-const _s2 = Color(0xFF141414);
-const _bd = Color(0xFF1E1E1E);
-const _bd2 = Color(0xFF2A2A2A);
-const _tx = Color(0xFFF0F0F0);
-const _m1 = Color(0xFF888888);
-const _red = Color(0xFFFB3640);
-const _r3 = Color(0x1FFB3640); // red 12%
+// ── Design tokens ──────────────────────────────────────────────────────────────
+const _bg      = Color(0xFF080808);
+const _sidebar = Color(0xFF0C0C0C);
+const _header  = Color(0xFF0A0A0A);
+const _tx      = Color(0xFFF2F2F2);
+const _m1      = Color(0xFF888888);
+const _m2      = Color(0xFF3A3A3A);
+const _red     = Color(0xFFDE313B);
+const _border  = Color(0xFF1C1C1C);
 
-// ── Nav items ─────────────────────────────────────────────────────────────
-class _NavItem {
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  const _NavItem(this.icon, this.activeIcon, this.label);
+const _sidebarW = 210.0;
+const _headerH  = 64.0;
+
+// ── Cross-page navigation controller ──────────────────────────────────────────
+
+class WebShellController extends ValueNotifier<int> {
+  WebShellController._() : super(0);
+  static final WebShellController _i = WebShellController._();
+  factory WebShellController() => _i;
+
+  void navigateTo(int index) => value = index;
 }
 
-const _navItems = [
-  _NavItem(Icons.home_outlined, Icons.home_rounded, 'Home'),
-  _NavItem(Icons.emoji_events_outlined, Icons.emoji_events, 'Tournaments'),
-  _NavItem(Icons.dynamic_feed_outlined, Icons.dynamic_feed, 'Feed'),
-  _NavItem(Icons.scoreboard_outlined, Icons.scoreboard, 'Scorecard'),
-  _NavItem(Icons.person_outline, Icons.person, 'Profile'),
-];
+// ── Shell ──────────────────────────────────────────────────────────────────────
 
-// ── Shell ─────────────────────────────────────────────────────────────────
 class WebShell extends StatefulWidget {
   final List<Widget> pages;
   const WebShell({super.key, required this.pages});
@@ -42,7 +41,29 @@ class WebShell extends StatefulWidget {
 }
 
 class _WebShellState extends State<WebShell> {
-  int _index = 0;
+  @override
+  void initState() {
+    super.initState();
+    WebShellController().addListener(_onNav);
+  }
+
+  @override
+  void dispose() {
+    WebShellController().removeListener(_onNav);
+    super.dispose();
+  }
+
+  void _onNav() => setState(() {});
+  int get _index => WebShellController().value;
+
+  static const _navItems = <(IconData, IconData, String)>[
+    (Icons.home_rounded,          Icons.home_outlined,          'Home'),
+    (Icons.emoji_events_rounded,  Icons.emoji_events_outlined,  'Tournaments'),
+    (Icons.scoreboard_rounded,    Icons.scoreboard_outlined,    'Scorecard'),
+    (Icons.dynamic_feed_rounded,  Icons.dynamic_feed_outlined,  'Feed'),
+    (Icons.location_on_rounded,   Icons.location_on_outlined,   'Venues'),
+    (Icons.person_rounded,        Icons.person_outlined,        'Profile'),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -52,13 +73,22 @@ class _WebShellState extends State<WebShell> {
         children: [
           _Sidebar(
             selectedIndex: _index,
-            onSelect: (i) => setState(() => _index = i),
+            navItems: _navItems,
+            onSelect: WebShellController().navigateTo,
           ),
-          // vertical divider
-          Container(width: 1, color: _bd),
-          // content
+          Container(width: .8, color: _border),
           Expanded(
-            child: IndexedStack(index: _index, children: widget.pages),
+            child: Column(
+              children: [
+                _TopHeader(onProfileTap: () => WebShellController().navigateTo(5)),
+                Expanded(
+                  child: IndexedStack(
+                    index: _index.clamp(0, widget.pages.length - 1),
+                    children: widget.pages,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -66,122 +96,89 @@ class _WebShellState extends State<WebShell> {
   }
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────
+// ── Sidebar ────────────────────────────────────────────────────────────────────
+
 class _Sidebar extends StatelessWidget {
   final int selectedIndex;
+  final List<(IconData, IconData, String)> navItems;
   final ValueChanged<int> onSelect;
-  const _Sidebar({required this.selectedIndex, required this.onSelect});
+
+  const _Sidebar({
+    required this.selectedIndex,
+    required this.navItems,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final userSvc = context.watch<UserService>();
-    final profile = userSvc.profile;
-
     return Container(
-      width: 220,
-      color: _s1,
+      width: _sidebarW,
+      color: _sidebar,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Logo ──────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: _red,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _red.withValues(alpha: .35),
-                        blurRadius: 18,
-                      ),
-                    ],
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text('🏅', style: TextStyle(fontSize: 18)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: _tx,
-                        letterSpacing: -.3,
-                      ),
-                      children: const [
-                        TextSpan(text: 'My'),
-                        TextSpan(
-                          text: 'Sports',
-                          style: TextStyle(color: _red),
-                        ),
-                        TextSpan(text: 'Buddies'),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Nav items ─────────────────────────────────────────────────
+          _SidebarLogo(),
+          Container(height: .8, color: _border),
+          const SizedBox(height: 8),
           Expanded(
-            child: ListView.builder(
+            child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              itemCount: _navItems.length,
-              itemBuilder: (_, i) {
-                final item = _navItems[i];
-                final active = i == selectedIndex;
-                return _SideNavTile(
-                  icon: active ? item.activeIcon : item.icon,
-                  label: item.label,
-                  active: active,
-                  onTap: () => onSelect(i),
-                );
-              },
+              child: Column(
+                children: [
+                  for (int i = 0; i < navItems.length; i++)
+                    _SideNavItem(
+                      filledIcon:   navItems[i].$1,
+                      outlinedIcon: navItems[i].$2,
+                      label:        navItems[i].$3,
+                      active:       i == selectedIndex,
+                      onTap:        () => onSelect(i),
+                    ),
+                ],
+              ),
             ),
           ),
-
-          // ── User card ─────────────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _s2,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _bd2),
+          Container(height: .8, color: _border),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'MySportsBuddies v1.0',
+              style: GoogleFonts.inter(fontSize: 10, color: _m2),
             ),
-            child: Row(
-              children: [
-                _Avatar(name: profile?.name ?? '?', url: profile?.imageUrl),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        profile?.name ?? 'Player',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _tx,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        profile?.role.name ?? 'player',
-                        style: GoogleFonts.inter(fontSize: 11, color: _m1),
-                      ),
-                    ],
-                  ),
-                ),
-                // ── Logout ──────────────────────────────────────────────
-                _LogoutButton(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarLogo extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      child: Row(
+        children: [
+          Container(
+            width: 34, height: 34,
+            decoration: BoxDecoration(
+              color: _red,
+              borderRadius: BorderRadius.circular(9),
+              boxShadow: [BoxShadow(color: _red.withValues(alpha: .30), blurRadius: 12)],
+            ),
+            alignment: Alignment.center,
+            child: const Text('🏅', style: TextStyle(fontSize: 17)),
+          ),
+          const SizedBox(width: 10),
+          RichText(
+            text: TextSpan(
+              style: GoogleFonts.inter(
+                fontSize: 13, fontWeight: FontWeight.w900,
+                color: _tx, letterSpacing: -.3,
+              ),
+              children: const [
+                TextSpan(text: 'My'),
+                TextSpan(text: 'Sports', style: TextStyle(color: _red)),
+                TextSpan(text: 'Buddies'),
               ],
             ),
           ),
@@ -191,60 +188,61 @@ class _Sidebar extends StatelessWidget {
   }
 }
 
-// ── Single nav tile ───────────────────────────────────────────────────────
-class _SideNavTile extends StatefulWidget {
-  final IconData icon;
+class _SideNavItem extends StatefulWidget {
+  final IconData filledIcon;
+  final IconData outlinedIcon;
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _SideNavTile({
-    required this.icon,
+
+  const _SideNavItem({
+    required this.filledIcon,
+    required this.outlinedIcon,
     required this.label,
     required this.active,
     required this.onTap,
   });
 
   @override
-  State<_SideNavTile> createState() => _SideNavTileState();
+  State<_SideNavItem> createState() => _SideNavItemState();
 }
 
-class _SideNavTileState extends State<_SideNavTile> {
+class _SideNavItemState extends State<_SideNavItem> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.active
-        ? _r3
-        : _hover
-        ? const Color(0x0DFFFFFF)
-        : Colors.transparent;
-
+    final active = widget.active;
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      onExit:  (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 2),
+          margin: const EdgeInsets.symmetric(vertical: 2),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-            border: widget.active
-                ? Border.all(color: _red.withValues(alpha: .25))
-                : null,
+            color: active
+                ? _red
+                : (_hover ? Colors.white.withValues(alpha: .05) : Colors.transparent),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
             children: [
-              Icon(widget.icon, size: 18, color: widget.active ? _red : _m1),
+              Icon(
+                active ? widget.filledIcon : widget.outlinedIcon,
+                size: 18,
+                color: active ? Colors.white : (_hover ? _tx : _m1),
+              ),
               const SizedBox(width: 10),
               Text(
                 widget.label,
                 style: GoogleFonts.inter(
                   fontSize: 13,
-                  fontWeight: widget.active ? FontWeight.w700 : FontWeight.w600,
-                  color: widget.active ? _tx : _m1,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: active ? Colors.white : (_hover ? _tx : _m1),
                 ),
               ),
             ],
@@ -255,79 +253,234 @@ class _SideNavTileState extends State<_SideNavTile> {
   }
 }
 
-// ── Logout button ─────────────────────────────────────────────────────────
-class _LogoutButton extends StatefulWidget {
-  @override
-  State<_LogoutButton> createState() => _LogoutButtonState();
-}
+// ── Top header ─────────────────────────────────────────────────────────────────
 
-class _LogoutButtonState extends State<_LogoutButton> {
-  bool _hover = false;
-
-  Future<void> _logout() async {
-    final navigator = Navigator.of(context, rootNavigator: true);
-    await AuthService().signOut();
-    if (!mounted) return;
-    navigator.pushNamedAndRemoveUntil('/login', (_) => false);
-  }
+class _TopHeader extends StatelessWidget {
+  final VoidCallback onProfileTap;
+  const _TopHeader({required this.onProfileTap});
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: _logout,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: _hover ? _red.withValues(alpha: 0.15) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+    final profile = context.watch<UserService>().profile;
+    return Container(
+      height: _headerH,
+      decoration: BoxDecoration(
+        color: _header,
+        border: Border(bottom: BorderSide(color: _border, width: .8)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          // Search bar
+          Expanded(
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .04),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _border),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(children: [
+                Icon(Icons.search_rounded, color: _m1, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    style: GoogleFonts.inter(fontSize: 13, color: _tx),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Search for tournaments, venues, players...',
+                      hintStyle: GoogleFonts.inter(fontSize: 13, color: _m1),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
           ),
-          alignment: Alignment.center,
-          child: Icon(
-            Icons.logout_rounded,
-            size: 16,
-            color: _hover ? _red : _m1,
+          const SizedBox(width: 16),
+          if (profile?.location.isNotEmpty == true) ...[
+            _LocationPill(location: profile!.location),
+            const SizedBox(width: 12),
+          ],
+          const _NotifBell(),
+          const SizedBox(width: 12),
+          _UserAvatar(
+            name:     profile?.name ?? '',
+            imageUrl: profile?.imageUrl,
+            onTap:    onProfileTap,
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-// ── Avatar helper ─────────────────────────────────────────────────────────
-class _Avatar extends StatelessWidget {
-  final String name;
-  final String? url;
-  const _Avatar({required this.name, this.url});
+class _LocationPill extends StatelessWidget {
+  final String location;
+  const _LocationPill({required this.location});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 32,
-      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _red,
-        image: url != null
-            ? DecorationImage(image: NetworkImage(url!), fit: BoxFit.cover)
-            : null,
+        color: Colors.white.withValues(alpha: .04),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: _border),
       ),
-      alignment: Alignment.center,
-      child: url == null
-          ? Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.location_on_rounded, color: _red, size: 13),
+        const SizedBox(width: 5),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 160),
+          child: Text(
+            location,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(color: _m1, fontSize: 12),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Icon(Icons.keyboard_arrow_down_rounded, color: _m1, size: 14),
+      ]),
+    );
+  }
+}
+
+class _NotifBell extends StatelessWidget {
+  const _NotifBell();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: NotificationService(),
+      builder: (context, _) {
+        final unread = NotificationService().unreadCount;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _border),
+                ),
+                child: Icon(
+                  unread > 0
+                      ? Icons.notifications_rounded
+                      : Icons.notifications_none_rounded,
+                  size: 19,
+                  color: unread > 0 ? _red : _m1,
+                ),
               ),
-            )
-          : null,
+              if (unread > 0)
+                Positioned(
+                  right: 6, top: 6,
+                  child: Container(
+                    width: 8, height: 8,
+                    decoration: const BoxDecoration(
+                      color: _red, shape: BoxShape.circle),
+                  ),
+                ),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UserAvatar extends StatefulWidget {
+  final String name;
+  final String? imageUrl;
+  final VoidCallback onTap;
+
+  const _UserAvatar({required this.name, this.imageUrl, required this.onTap});
+
+  @override
+  State<_UserAvatar> createState() => _UserAvatarState();
+}
+
+class _UserAvatarState extends State<_UserAvatar> {
+  bool _hover = false;
+
+  Future<void> _logout() async {
+    final nav = Navigator.of(context, rootNavigator: true);
+    await AuthService().signOut();
+    if (!mounted) return;
+    nav.pushNamedAndRemoveUntil('/login', (_) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = widget.name.trim().isNotEmpty
+        ? widget.name.trim()[0].toUpperCase()
+        : '?';
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit:  (_) => setState(() => _hover = false),
+      child: PopupMenuButton<String>(
+        onSelected: (v) {
+          if (v == 'profile') widget.onTap();
+          if (v == 'logout')  _logout();
+        },
+        offset: const Offset(0, 46),
+        color: const Color(0xFF111111),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: .08)),
+        ),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: 'profile',
+            child: Row(children: [
+              Icon(Icons.person_outline_rounded, color: _m1, size: 16),
+              const SizedBox(width: 10),
+              Text('My Profile',
+                  style: GoogleFonts.inter(color: _tx, fontSize: 13)),
+            ]),
+          ),
+          PopupMenuDivider(height: .8),
+          PopupMenuItem(
+            value: 'logout',
+            child: Row(children: [
+              Icon(Icons.logout_rounded, color: _red, size: 16),
+              const SizedBox(width: 10),
+              Text('Sign Out',
+                  style: GoogleFonts.inter(
+                    color: _red, fontSize: 13, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ],
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _red,
+            image: widget.imageUrl != null
+                ? DecorationImage(
+                    image: NetworkImage(widget.imageUrl!), fit: BoxFit.cover)
+                : null,
+            boxShadow: _hover
+                ? [BoxShadow(color: _red.withValues(alpha: .35), blurRadius: 12)]
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: widget.imageUrl == null
+              ? Text(
+                  initials,
+                  style: GoogleFonts.inter(
+                    fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                )
+              : null,
+        ),
+      ),
     );
   }
 }

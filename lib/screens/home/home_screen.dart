@@ -42,6 +42,12 @@ import '../../services/venue_service.dart';
 import 'notifications_screen.dart';
 import '../../core/layout/adaptive_layout.dart';
 import '../web/web_shell.dart';
+import '../web/web_home_dashboard.dart';
+import '../web/web_tournaments_page.dart';
+import '../web/web_scorecard_page.dart';
+import '../web/web_feed_page.dart';
+import '../web/web_venues_page.dart';
+import '../web/web_profile_page.dart';
 
 /// All sports with emojis. Keys must match stats_service storage keys.
 const Map<String, String> _kSportEmoji = {
@@ -236,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
   @override
   Widget build(BuildContext context) {
-    final pages = [
+    final mobilePages = [
       _HomeTab(
         activeScoring: _activeScoring,
         onResume: _resumeScoring,
@@ -248,14 +254,23 @@ class _HomeScreenState extends State<HomeScreen> {
       const _ProfileTab(),
     ];
 
+    final webPages = [
+      const WebHomeDashboard(),
+      const WebTournamentsPage(),
+      const WebScorecardPage(),
+      const WebFeedPage(),
+      const WebVenuesPage(),
+      const WebProfilePage(),
+    ];
+
     return AdaptiveLayout(
-      web: WebShell(pages: pages),
+      web: WebShell(pages: webPages),
       mobile: Scaffold(
         backgroundColor: AppC.bg(context),
         drawer: const AppDrawer(),
         appBar: _buildAppBar(context),
         bottomNavigationBar: _buildBottomNavigationBar(context),
-        body: IndexedStack(index: _bottomNavIndex, children: pages),
+        body: IndexedStack(index: _bottomNavIndex, children: mobilePages),
       ),
     );
   }
