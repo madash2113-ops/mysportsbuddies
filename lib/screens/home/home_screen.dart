@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, HapticFeedback;
@@ -106,6 +107,11 @@ class HomeScreen extends StatefulWidget {
 
 /// Consistent horizontal page padding used by all home-tab sections.
 const double _kPageH = 20.0;
+
+double _mainContentInset(BuildContext context) {
+  final width = MediaQuery.of(context).size.width;
+  return width >= 1100 ? 227.0 : _kPageH;
+}
 
 class _HomeScreenState extends State<HomeScreen> {
   // 0 = Home (default), 1 = Tournaments, 2 = Feed, 3 = Profile
@@ -1565,6 +1571,7 @@ class _HomeTabState extends State<_HomeTab> {
     final cardBg = AppC.card(context);
     final primary = AppC.primary(context);
     final name = (UserService().profile?.name ?? '').split(' ').first;
+    final contentInset = _mainContentInset(context);
 
     final location = UserService().profile?.location ?? '';
 
@@ -1575,7 +1582,7 @@ class _HomeTabState extends State<_HomeTab> {
         children: [
           // ── Greeting + name + location ──────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(_kPageH, 10, _kPageH, 12),
+            padding: EdgeInsets.fromLTRB(contentInset, 4, contentInset, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1633,7 +1640,7 @@ class _HomeTabState extends State<_HomeTab> {
 
           // ── Sports | Venues toggle ───────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: _kPageH),
+            padding: EdgeInsets.symmetric(horizontal: contentInset),
             child: Container(
               decoration: BoxDecoration(
                 color: cardBg,
@@ -1669,7 +1676,7 @@ class _HomeTabState extends State<_HomeTab> {
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
 
           // ── Content: Sports section OR Venues section ────────────────────
           Expanded(
@@ -1720,14 +1727,22 @@ class _ToggleTab extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           height: 38,
           decoration: BoxDecoration(
-            color: active ? primary.withValues(alpha: 0.15) : Colors.transparent,
+            color: active
+                ? primary.withValues(alpha: 0.15)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
-            border: active ? Border.all(color: primary.withValues(alpha: 0.35)) : null,
+            border: active
+                ? Border.all(color: primary.withValues(alpha: 0.35))
+                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 15, color: active ? primary : AppC.muted(context)),
+              Icon(
+                icon,
+                size: 15,
+                color: active ? primary : AppC.muted(context),
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
@@ -1754,6 +1769,7 @@ class _VenuesGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final textCol = AppC.text(context);
     final primary = AppC.primary(context);
+    final contentInset = _mainContentInset(context);
 
     return ListenableBuilder(
       listenable: VenueService(),
@@ -1777,7 +1793,12 @@ class _VenuesGrid extends StatelessWidget {
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 24),
+                  padding: EdgeInsets.fromLTRB(
+                    contentInset,
+                    0,
+                    contentInset,
+                    24,
+                  ),
                   itemCount: venues.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, i) {
@@ -1894,6 +1915,7 @@ class _SportsGrid extends StatelessWidget {
     final primary = AppC.primary(context);
     final textCol = AppC.text(context);
     final ordered = _orderedSports();
+    final contentInset = _mainContentInset(context);
 
     return RefreshIndicator(
       color: AppC.primary(context),
@@ -1905,13 +1927,15 @@ class _SportsGrid extends StatelessWidget {
         await Future.delayed(const Duration(milliseconds: 400));
       },
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── "Games" label + View All ────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 8),
+              padding: EdgeInsets.fromLTRB(contentInset, 0, contentInset, 4),
               child: Row(
                 children: [
                   Expanded(
@@ -1946,73 +1970,88 @@ class _SportsGrid extends StatelessWidget {
             // Pills
             SizedBox(
               height: 44,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: _kPageH),
-                scrollDirection: Axis.horizontal,
-                itemCount: ordered.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  final (label, emoji) = ordered[i];
-                  final isMore = label == 'More';
-                  return GestureDetector(
-                    onTap: () {
-                      if (isMore) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AllSportsScreen(),
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                    PointerDeviceKind.stylus,
+                    PointerDeviceKind.unknown,
+                  },
+                ),
+                child: Scrollbar(
+                  thumbVisibility: false,
+                  scrollbarOrientation: ScrollbarOrientation.bottom,
+                  child: ListView.separated(
+                    padding: EdgeInsets.symmetric(horizontal: contentInset),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: ordered.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final (label, emoji) = ordered[i];
+                      final isMore = label == 'More';
+                      return GestureDetector(
+                        onTap: () {
+                          if (isMore) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AllSportsScreen(),
+                              ),
+                            );
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => NearbyGamesScreen(sport: label),
+                              ),
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A2419),
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
-                        );
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => NearbyGamesScreen(sport: label),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(emoji, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 7),
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  color: textCol,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
-                        );
-                      }
+                        ),
+                      );
                     },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2419),
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(emoji, style: const TextStyle(fontSize: 20)),
-                          const SizedBox(width: 7),
-                          Text(
-                            label,
-                            style: TextStyle(
-                              color: textCol,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.sm),
             // ── Upcoming Matches ────────────────────────────────────────────
             const _UpcomingMatchesSection(),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
 
             // Games Near you header
             Padding(
-              padding: const EdgeInsets.fromLTRB(_kPageH, 0, _kPageH, 10),
+              padding: EdgeInsets.fromLTRB(contentInset, 0, contentInset, 10),
               child: Row(
                 children: [
                   Expanded(
@@ -2219,6 +2258,7 @@ class _GamesGridState extends State<_GamesGrid> {
     final primary = AppC.primary(context);
     final cardBg = AppC.card(context);
     final textCol = AppC.text(context);
+    final contentInset = _mainContentInset(context);
 
     return ListenableBuilder(
       listenable: Listenable.merge([GameListingService(), VenueService()]),
@@ -2227,7 +2267,7 @@ class _GamesGridState extends State<_GamesGrid> {
 
         if (games.isEmpty) {
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: _kPageH),
+            padding: EdgeInsets.symmetric(horizontal: contentInset),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(_kPageH),
@@ -2270,7 +2310,7 @@ class _GamesGridState extends State<_GamesGrid> {
         }
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _kPageH),
+          padding: EdgeInsets.symmetric(horizontal: contentInset),
           child: Column(
             children: [
               for (final game in games.take(4))
@@ -2693,6 +2733,7 @@ class _UpcomingMatchesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
+    final contentInset = _mainContentInset(context);
 
     return ListenableBuilder(
       listenable: TournamentService(),
@@ -2724,7 +2765,7 @@ class _UpcomingMatchesSection extends StatelessWidget {
         }
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _kPageH),
+          padding: EdgeInsets.symmetric(horizontal: contentInset),
           child: Container(
             decoration: BoxDecoration(
               color: const Color(0xFF101010),
@@ -3616,10 +3657,11 @@ class _BannerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppC.isDark(context);
+    final contentInset = _mainContentInset(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(_kPageH, 6, _kPageH, 0),
+        margin: EdgeInsets.fromLTRB(contentInset, 6, contentInset, 0),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: color.withValues(alpha: isDark ? 0.12 : 0.08),
