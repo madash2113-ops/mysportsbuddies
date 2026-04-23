@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
-import '../../core/models/game.dart';
+import '../../core/models/game_listing.dart';
 import '../../services/feed_service.dart';
-import '../../services/game_service.dart';
+import '../../services/game_listing_service.dart';
 import '../../services/notification_service.dart';
 import '../community/comments_screen.dart';
 import '../community/community_feed_screen.dart';
 import '../community/messages_screen.dart';
-import '../nearby/game_detail_screen.dart';
+import '../games/game_detail_screen.dart';
 import '../nearby/nearby_games_screen.dart';
 import '../../services/scoreboard_service.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
@@ -27,7 +27,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    // Attach listener here too in case it wasn't started yet
     NotificationService().listen();
   }
 
@@ -148,7 +147,6 @@ class _NotifTile extends StatelessWidget {
     }
   }
 
-  // Extract sport name from notification title e.g. "Cricket Game Update" → "Cricket"
   String? _sportFromTitle(String title) {
     const sports = [
       'Cricket', 'Football', 'Basketball', 'Badminton', 'Tennis',
@@ -207,21 +205,18 @@ class _NotifTile extends StatelessWidget {
         final gameId = notif.targetId;
         final nav = Navigator.of(context);
         if (gameId != null && gameId.isNotEmpty) {
-          // 1. Try local cache first
-          Game? game = GameService().all
+          GameListing? listing = GameListingService().openGames
               .where((g) => g.id == gameId)
               .firstOrNull;
 
-          // 2. Not in cache — fetch directly from Firestore
-          game ??= await GameService().fetchById(gameId);
+          listing ??= await GameListingService().fetchById(gameId);
 
-          if (game != null) {
+          if (listing != null) {
             nav.push(MaterialPageRoute(
-                builder: (_) => GameDetailScreen(game: game!)));
+                builder: (_) => GameDetailScreen(listing: listing!)));
             return;
           }
         }
-        // 3. Fall back: go to that sport's game list if we can parse the sport
         final sport = _sportFromTitle(notif.title);
         if (sport != null) {
           nav.push(MaterialPageRoute(

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../core/models/game.dart';
+import '../../core/models/game_listing.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
-import '../../services/game_service.dart';
+import '../../services/game_listing_service.dart';
 import '../../services/user_service.dart';
-import '../nearby/game_detail_screen.dart';
+import '../games/game_detail_screen.dart';
 
 class ScheduledMatchesScreen extends StatefulWidget {
   final String? sport; // null = show all sports
@@ -60,7 +59,6 @@ class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
             ),
             child: Column(
               children: [
-                // Handle bar
                 Container(
                   margin: const EdgeInsets.only(top: 12),
                   width: 40, height: 4,
@@ -69,7 +67,6 @@ class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                // Header
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                   child: Row(
@@ -92,7 +89,6 @@ class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
                     ],
                   ),
                 ),
-                // Search box
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: TextField(
@@ -122,12 +118,10 @@ class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                // List
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     children: [
-                      // "All Sports" option
                       _SportPickerTile(
                         label: 'All Sports',
                         emoji: '🏅',
@@ -170,46 +164,42 @@ class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<GameService>(
-      builder: (ctx, gameSvc, _) {
-        final myId = UserService().userId;
+    return ListenableBuilder(
+      listenable: GameListingService(),
+      builder: (ctx, _) {
+        final myId = UserService().userId ?? '';
 
-        // Full pool filtered by active sport (or all)
         final pool = _activeSport != null
-            ? gameSvc.bySport(_activeSport!)
-            : gameSvc.all;
+            ? GameListingService().bySport(_activeSport!)
+            : GameListingService().openGames;
 
-        // Sports present in the user's games (for picker list)
         final userSports = {
-          ...gameSvc.all.map((g) => g.sport),
+          ...GameListingService().openGames.map((g) => g.sport),
           ..._knownSports,
         }.toList()..sort();
 
-        // All games I RSVP'd to (going or maybe) — include hosted games too
+        // Games I'm participating in (organizer is always in playerIds)
         final rsvpd = pool
-            .where((g) =>
-                g.status == ParticipationStatus.inGame ||
-                g.status == ParticipationStatus.tentative ||
-                g.registeredBy == myId)
+            .where((g) => g.playerIds.contains(myId))
             .toList();
 
         final now   = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
 
         final past = rsvpd.where((g) {
-          final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+          final d = DateTime(g.scheduledAt.year, g.scheduledAt.month, g.scheduledAt.day);
           return d.isBefore(today);
-        }).toList()..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+        }).toList()..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
 
         final present = rsvpd.where((g) {
-          final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+          final d = DateTime(g.scheduledAt.year, g.scheduledAt.month, g.scheduledAt.day);
           return d == today;
-        }).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+        }).toList()..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
         final upcoming = rsvpd.where((g) {
-          final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+          final d = DateTime(g.scheduledAt.year, g.scheduledAt.month, g.scheduledAt.day);
           return d.isAfter(today);
-        }).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+        }).toList()..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
         final titleSport = _activeSport;
 
@@ -242,7 +232,6 @@ class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
           ),
           body: Column(
             children: [
-              // ── Sport filter row (hamburger only) ──────────────────────
               if (widget.sport == null)
                 GestureDetector(
                   onTap: () => _showSportPicker(context, userSports),
@@ -297,7 +286,6 @@ class _ScheduledMatchesScreenState extends State<ScheduledMatchesScreen>
                     ),
                   ),
                 ),
-              // ── Tabs ────────────────────────────────────────────────────
               Expanded(
                 child: TabBarView(
                   controller: _tab,
@@ -375,7 +363,7 @@ class _SportPickerTile extends StatelessWidget {
 }
 
 class _GameList extends StatelessWidget {
-  final List<Game> games;
+  final List<GameListing> games;
   final String? sport;
   final String emptyMsg;
   const _GameList(
@@ -408,24 +396,17 @@ class _GameList extends StatelessWidget {
       );
     }
 
+    final myId = UserService().userId ?? '';
     return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.md),
       itemCount: games.length,
       itemBuilder: (_, i) {
         final g = games[i];
-        final isOwner = g.registeredBy == UserService().userId;
+        final isOwner = g.organizerId == myId;
         return _ScheduleCard(
           game: g,
-          badge: isOwner
-              ? 'HOST'
-              : g.status == ParticipationStatus.inGame
-                  ? 'GOING'
-                  : 'MAYBE',
-          badgeColor: isOwner
-              ? Colors.red
-              : g.status == ParticipationStatus.inGame
-                  ? Colors.green
-                  : Colors.amber,
+          badge: isOwner ? 'HOST' : 'GOING',
+          badgeColor: isOwner ? Colors.red : Colors.green,
         );
       },
     );
@@ -435,7 +416,7 @@ class _GameList extends StatelessWidget {
 // ── Schedule Card ─────────────────────────────────────────────────────────────
 
 class _ScheduleCard extends StatelessWidget {
-  final Game game;
+  final GameListing game;
   final String badge;
   final Color badgeColor;
   const _ScheduleCard({
@@ -463,13 +444,14 @@ class _ScheduleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = _formatDate(game.dateTime);
+    final dateLabel = _formatDate(game.scheduledAt);
     final isToday = dateLabel == 'Today';
+    final location = game.venueName.isNotEmpty ? game.venueName : game.address;
 
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => GameDetailScreen(game: game)),
+        MaterialPageRoute(builder: (_) => GameDetailScreen(listing: game)),
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -486,13 +468,12 @@ class _ScheduleCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Top half: photo or sport banner ──────────────────────────
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(15)),
-              child: game.photoUrls.isNotEmpty
+              child: game.photoUrl != null
                   ? Image.network(
-                      game.photoUrls.first,
+                      game.photoUrl!,
                       height: 160,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -511,83 +492,72 @@ class _ScheduleCard extends StatelessWidget {
                     )
                   : _SportBanner(sport: game.sport),
             ),
-
-            // ── Bottom half: details ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row: location + badge
                   Row(
-                children: [
-                  const Icon(Icons.location_on_outlined,
-                      color: AppColors.primary, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      game.location,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    children: [
+                      const Icon(Icons.location_on_outlined,
+                          color: AppColors.primary, size: 16),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          location,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: badgeColor.withValues(alpha: 0.6)),
+                        ),
+                        child: Text(
+                          badge,
+                          style: TextStyle(
+                              color: badgeColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: badgeColor.withValues(alpha: 0.6)),
-                    ),
-                    child: Text(
-                      badge,
-                      style: TextStyle(
-                          color: badgeColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold),
-                    ),
+
+                  const SizedBox(height: AppSpacing.sm),
+
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined,
+                          color: Colors.white38, size: 13),
+                      const SizedBox(width: 5),
+                      Text('$dateLabel  ·  ${_formatTime(game.scheduledAt)}',
+                          style: const TextStyle(
+                              color: Colors.white60, fontSize: 13)),
+                    ],
                   ),
-                ],
-              ),
 
-              const SizedBox(height: AppSpacing.sm),
-
-              // Date + time
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today_outlined,
-                      color: Colors.white38, size: 13),
-                  const SizedBox(width: 5),
-                  Text('$dateLabel  ·  ${_formatTime(game.dateTime)}',
-                      style: const TextStyle(
-                          color: Colors.white60, fontSize: 13)),
-                ],
-              ),
-
-              // Tags
-              if (game.skillLevel != null ||
-                  game.format != null ||
-                  game.maxPlayers != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (game.skillLevel != null)
-                      _chip(game.skillLevel!, Colors.white24),
-                    if (game.format != null)
-                      _chip(game.format!,
-                          AppColors.primary.withValues(alpha: 0.25)),
-                    if (game.maxPlayers != null)
-                      _chip('${game.maxPlayers} players', Colors.white12),
-                  ],
-                ),
-              ],
-
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _chip('${game.playerIds.length}/${game.maxPlayers} players', Colors.white12),
+                      if (game.splitCost && game.totalCost > 0)
+                        _chip(
+                          '₹${game.costPerPlayer.toStringAsFixed(0)}/person',
+                          AppColors.primary.withValues(alpha: 0.25),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -675,4 +645,3 @@ class _SportBanner extends StatelessWidget {
     );
   }
 }
-

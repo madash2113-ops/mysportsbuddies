@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../design/colors.dart';
-import '../register/register_game_screen.dart';
+import '../games/create_game_screen.dart';
 
 // ── Full sports list with emoji ───────────────────────────────────────────────
 const _kAllSports = [
@@ -55,7 +55,9 @@ class _HostAGameScreenState extends State<HostAGameScreen> {
   void _onSportTap(String sport) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => RegisterGameScreen(sport: sport)),
+      MaterialPageRoute(
+        builder: (_) => CreateGameScreen(prefilledSport: sport),
+      ),
     );
   }
 

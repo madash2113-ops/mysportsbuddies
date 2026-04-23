@@ -2,18 +2,16 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:provider/provider.dart';
 
-import '../../core/models/game.dart';
+import '../../core/models/game_listing.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
-import '../../services/game_service.dart';
+import '../../services/game_listing_service.dart';
 import '../../services/location_service.dart';
 import '../../widgets/map_picker_sheet.dart';
+import '../games/create_game_screen.dart';
+import '../games/game_detail_screen.dart';
 import '../home/scheduled_matches_screen.dart';
-import '../register/register_game_screen.dart';
-import 'game_detail_screen.dart';
-import 'host_a_game_screen.dart';
 
 class NearbyGamesScreen extends StatefulWidget {
   final String? sport;
@@ -66,15 +64,15 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
 
   // ── Classify games into tabs ──────────────────────────────────────────────
 
-  List<List<Game>> _split(List<Game> raw) {
+  List<List<GameListing>> _split(List<GameListing> raw) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final upcoming = <Game>[];
-    final todayGs = <Game>[];
-    final past = <Game>[];
+    final upcoming = <GameListing>[];
+    final todayGs = <GameListing>[];
+    final past = <GameListing>[];
 
     for (final g in raw) {
-      final d = DateTime(g.dateTime.year, g.dateTime.month, g.dateTime.day);
+      final d = DateTime(g.scheduledAt.year, g.scheduledAt.month, g.scheduledAt.day);
       if (d.isBefore(today)) {
         past.add(g);
       } else if (d.isAtSameMomentAs(today)) {
@@ -85,15 +83,15 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
     }
 
     // Upcoming: soonest first; Today: by time; Past: most recent first
-    upcoming.sort((a, b) => a.dateTime.compareTo(b.dateTime));
-    todayGs.sort((a, b) => a.dateTime.compareTo(b.dateTime));
-    past.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+    upcoming.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    todayGs.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    past.sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
 
     return [upcoming, todayGs, past];
   }
 
   // Sort by distance if we have a position, else by createdAt desc
-  List<Game> _sorted(List<Game> raw) {
+  List<GameListing> _sorted(List<GameListing> raw) {
     if (_userPos == null) {
       return [...raw]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
@@ -119,7 +117,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
     });
   }
 
-  double? _distanceTo(Game g) {
+  double? _distanceTo(GameListing g) {
     if (_userPos == null || g.latitude == null || g.longitude == null) {
       return null;
     }
@@ -215,9 +213,9 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => widget.sport != null
-                ? RegisterGameScreen(sport: widget.sport!)
-                : const HostAGameScreen(),
+            builder: (_) => CreateGameScreen(
+              prefilledSport: widget.sport,
+            ),
           ),
         ),
         backgroundColor: AppColors.primary,
@@ -284,15 +282,18 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
           ],
         ),
       ),
-      body: Consumer<GameService>(
-        builder: (ctx, gameSvc, _) {
+      body: ListenableBuilder(
+        listenable: GameListingService(),
+        builder: (ctx, _) {
           final allSorted = _sorted(
-            widget.sport != null ? gameSvc.bySport(widget.sport!) : gameSvc.all,
+            widget.sport != null
+                ? GameListingService().bySport(widget.sport!)
+                : GameListingService().openGames,
           );
           final filtered = allSorted.where((g) {
-            final matchText =
-                _locationQuery.isEmpty ||
-                g.location.toLowerCase().contains(_locationQuery.toLowerCase());
+            final loc = '${g.venueName} ${g.address}'.toLowerCase();
+            final matchText = _locationQuery.isEmpty ||
+                loc.contains(_locationQuery.toLowerCase());
             // convert miles → km for distance comparison
             final matchRadius =
                 _radiusMiles == null ||
@@ -510,10 +511,8 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                         color: AppColors.primary,
                         backgroundColor: AppColors.card,
                         onRefresh: () async {
-                          await Future.wait([
-                            _initLocation(),
-                            GameService().loadFromFirestore(),
-                          ]);
+                          GameListingService().listenToOpenGames();
+                          await _initLocation();
                         },
                         child: ListView.builder(
                           padding: const EdgeInsets.all(AppSpacing.md),
@@ -528,7 +527,7 @@ class _NearbyGamesScreenState extends State<NearbyGamesScreen>
                               onTap: () => Navigator.push(
                                 ctx,
                                 MaterialPageRoute(
-                                  builder: (_) => GameDetailScreen(game: game),
+                                  builder: (_) => GameDetailScreen(listing: game),
                                 ),
                               ),
                             );
@@ -623,7 +622,7 @@ class _EmptyTab extends StatelessWidget {
 // ── Game Card ─────────────────────────────────────────────────────────────────
 
 class _GameCard extends StatelessWidget {
-  final Game game;
+  final GameListing game;
   final double? distance;
   final VoidCallback onTap;
   final String Function(DateTime) formatDate;
@@ -682,10 +681,12 @@ class _GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = formatDate(game.dateTime);
-    final timeLabel = formatTime(game.dateTime);
+    final dateLabel = formatDate(game.scheduledAt);
+    final timeLabel = formatTime(game.scheduledAt);
     final isToday = dateLabel == 'Today';
     final isTomorrow = dateLabel == 'Tomorrow';
+    final location =
+        game.venueName.isNotEmpty ? game.venueName : game.address;
 
     return GestureDetector(
       onTap: onTap,
@@ -718,9 +719,9 @@ class _GameCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  game.photoUrls.isNotEmpty
+                  game.photoUrl != null
                       ? Image.network(
-                          game.photoUrls.first,
+                          game.photoUrl!,
                           fit: BoxFit.cover,
                           loadingBuilder: (_, child, prog) => prog == null
                               ? child
@@ -833,7 +834,7 @@ class _GameCard extends StatelessWidget {
                       context,
                       lat: game.latitude,
                       lng: game.longitude,
-                      label: game.location,
+                      label: location,
                     ),
                     child: Row(
                       children: [
@@ -845,7 +846,7 @@ class _GameCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            game.location,
+                            location.isNotEmpty ? location : 'Location TBD',
                             style: const TextStyle(
                               color: AppColors.textPrimary,
                               fontSize: 14,
@@ -874,55 +875,50 @@ class _GameCard extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
-                      if (game.maxPlayers != null) ...[
-                        const SizedBox(width: 14),
-                        const Icon(
-                          Icons.group_outlined,
-                          color: AppColors.textHint,
-                          size: 14,
+                      const SizedBox(width: 14),
+                      const Icon(
+                        Icons.group_outlined,
+                        color: AppColors.textHint,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${game.playerIds.length}/${game.maxPlayers} players',
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 13,
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          '${game.maxPlayers} players',
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
+                      ),
                     ],
                   ),
-
-                  if (game.skillLevel != null ||
-                      game.format != null ||
-                      game.ballType != null) ...[
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        if (game.skillLevel != null)
-                          _InfoChip(
-                            label: game.skillLevel!,
-                            color: Colors.white24,
-                          ),
-                        if (game.format != null)
-                          _InfoChip(
-                            label: game.format!,
-                            color: AppColors.primary.withValues(alpha: 0.25),
-                          ),
-                        if (game.ballType != null)
-                          _InfoChip(
-                            label: game.ballType!,
-                            color: AppColors.border,
-                          ),
-                      ],
-                    ),
-                  ],
-                  if (game.notes != null && game.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (!game.isFull)
+                        _InfoChip(
+                          label:
+                              '${game.spotsLeft} spot${game.spotsLeft == 1 ? '' : 's'} left',
+                          color: Colors.green.withValues(alpha: 0.2),
+                        )
+                      else
+                        _InfoChip(
+                          label: 'Full',
+                          color: Colors.red.withValues(alpha: 0.2),
+                        ),
+                      if (game.splitCost && game.costPerPlayer > 0)
+                        _InfoChip(
+                          label:
+                              '₹${game.costPerPlayer.toStringAsFixed(0)}/player',
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                        ),
+                    ],
+                  ),
+                  if (game.note != null && game.note!.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     Text(
-                      game.notes!,
+                      game.note!,
                       style: const TextStyle(
                         color: AppColors.textHint,
                         fontSize: 12,

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+
+import '../../core/models/game_listing.dart';
 import '../../design/colors.dart';
 import '../../design/spacing.dart';
-import '../../services/game_service.dart';
-import '../../core/models/game.dart';
+import '../../services/game_listing_service.dart';
+import '../../services/user_service.dart';
+import '../games/game_detail_screen.dart';
 
 class MySchedulesScreen extends StatefulWidget {
   const MySchedulesScreen({super.key});
@@ -51,17 +53,19 @@ class _MySchedulesScreenState extends State<MySchedulesScreen>
           ],
         ),
       ),
-      body: Consumer<GameService>(
-        builder: (context, svc, _) {
+      body: ListenableBuilder(
+        listenable: GameListingService(),
+        builder: (context, _) {
           final now = DateTime.now();
-          final upcoming = svc.all
-              .where((g) => g.dateTime.isAfter(now))
+          final myGames = GameListingService().myGames;
+          final upcoming = myGames
+              .where((g) => g.scheduledAt.isAfter(now))
               .toList()
-            ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
-          final past = svc.all
-              .where((g) => g.dateTime.isBefore(now))
+            ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+          final past = myGames
+              .where((g) => g.scheduledAt.isBefore(now))
               .toList()
-            ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+            ..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt));
 
           return TabBarView(
             controller: _tab,
@@ -77,7 +81,7 @@ class _MySchedulesScreenState extends State<MySchedulesScreen>
 }
 
 class _GameList extends StatelessWidget {
-  final List<Game> games;
+  final List<GameListing> games;
   final bool isEmpty;
   final String label;
 
@@ -115,7 +119,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(
             label == 'upcoming'
-                ? 'Register a game to see it here'
+                ? 'Join a game to see it here'
                 : 'Your played games will appear here',
             style: const TextStyle(color: Colors.white54, fontSize: 14),
           ),
@@ -126,7 +130,7 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ScheduleCard extends StatelessWidget {
-  final Game game;
+  final GameListing game;
   const _ScheduleCard({required this.game});
 
   String _emoji(String sport) {
@@ -163,100 +167,115 @@ class _ScheduleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isUpcoming = game.dateTime.isAfter(DateTime.now());
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isUpcoming
-              ? AppColors.primary.withValues(alpha: 0.3)
-              : Colors.white.withValues(alpha: 0.06),
-          width: isUpcoming ? 1.2 : 0.8,
-        ),
+    final isUpcoming = game.scheduledAt.isAfter(DateTime.now());
+    final myId = UserService().userId ?? '';
+    final isHost = game.organizerId == myId;
+    final location = game.venueName.isNotEmpty ? game.venueName : game.address;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => GameDetailScreen(listing: game)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-            ),
-            child: Center(
-              child: Text(_emoji(game.sport), style: const TextStyle(fontSize: 26)),
-            ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isUpcoming
+                ? AppColors.primary.withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.06),
+            width: isUpcoming ? 1.2 : 0.8,
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  game.sport,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined,
-                        color: Colors.white38, size: 13),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        game.location,
-                        style: const TextStyle(color: Colors.white60, fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: Center(
+                child: Text(_emoji(game.sport), style: const TextStyle(fontSize: 26)),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    game.sport,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined,
+                          color: Colors.white38, size: 13),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          location,
+                          style: const TextStyle(color: Colors.white60, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time_outlined,
-                        color: Colors.white38, size: 13),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatDateTime(game.dateTime),
-                      style: const TextStyle(color: Colors.white60, fontSize: 12),
-                    ),
-                  ],
-                ),
-                if (game.skillLevel != null || game.format != null) ...[
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time_outlined,
+                          color: Colors.white38, size: 13),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatDateTime(game.scheduledAt),
+                        style: const TextStyle(color: Colors.white60, fontSize: 12),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 6,
                     children: [
-                      if (game.skillLevel != null)
-                        _chip(game.skillLevel!, AppColors.primary.withValues(alpha: 0.2)),
-                      if (game.format != null)
-                        _chip(game.format!, Colors.white12),
+                      _chip(
+                        '${game.playerIds.length}/${game.maxPlayers}',
+                        Colors.white12,
+                      ),
+                      if (game.splitCost && game.totalCost > 0)
+                        _chip(
+                          '₹${game.costPerPlayer.toStringAsFixed(0)}/person',
+                          AppColors.primary.withValues(alpha: 0.2),
+                        ),
                     ],
                   ),
                 ],
-              ],
-            ),
-          ),
-          if (isUpcoming)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Registered',
-                style: TextStyle(
-                    color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700),
               ),
             ),
-        ],
+            if (isUpcoming)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isHost ? Colors.red : AppColors.primary).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isHost ? 'HOST' : 'JOINED',
+                  style: TextStyle(
+                      color: isHost ? Colors.red : AppColors.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -265,6 +265,18 @@ class GameListingService extends ChangeNotifier {
     }
   }
 
+  Future<GameListing?> fetchById(String id) async {
+    final cached = _openGames.where((g) => g.id == id).firstOrNull;
+    if (cached != null) return cached;
+    try {
+      final doc = await _db.collection(_col).doc(id).get();
+      if (doc.exists) return GameListing.fromFirestore(doc);
+    } catch (e) {
+      debugPrint('GameListingService.fetchById error: $e');
+    }
+    return null;
+  }
+
   // ── Filters ────────────────────────────────────────────────────────────────
 
   List<GameListing> bySport(String sport) =>
