@@ -248,6 +248,18 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb && !AuthService().isSignedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/web-landing',
+          (_) => false,
+        );
+      });
+      return const SizedBox.shrink();
+    }
+
     final mobilePages = [
       _HomeTab(
         activeScoring: _activeScoring,

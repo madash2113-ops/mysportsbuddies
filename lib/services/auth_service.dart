@@ -19,18 +19,19 @@ class AuthService extends ChangeNotifier {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  bool    _loading = false;
+  bool _loading = false;
   String? _error;
   String? _verificationId;
-  int?    _resendToken;
+  ConfirmationResult? _webConfirmationResult;
+  int? _resendToken;
   String? _pendingPhone; // stored so OTP screen can show "sent to <number>"
-  bool    _googleSignInInitialized = false;
+  bool _googleSignInInitialized = false;
 
-  bool    get loading      => _loading;
-  String? get error        => _error;
+  bool get loading => _loading;
+  String? get error => _error;
   String? get pendingPhone => _pendingPhone;
-  User?   get currentUser  => _auth.currentUser;
-  bool    get isSignedIn   =>
+  User? get currentUser => _auth.currentUser;
+  bool get isSignedIn =>
       _auth.currentUser != null && !(_auth.currentUser!.isAnonymous);
 
   // ── Phone OTP ──────────────────────────────────────────────────────────────
@@ -47,9 +48,21 @@ class AuthService extends ChangeNotifier {
     void Function()? onAutoVerified,
   }) async {
     _pendingPhone = phoneNumber;
+    _webConfirmationResult = null;
     _setLoading(true);
 
     try {
+      if (kIsWeb) {
+        final confirmationResult = await _auth.signInWithPhoneNumber(
+          phoneNumber,
+        );
+        _webConfirmationResult = confirmationResult;
+        _verificationId = confirmationResult.verificationId;
+        _setLoading(false);
+        onCodeSent();
+        return;
+      }
+
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 60),
@@ -60,7 +73,10 @@ class AuthService extends ChangeNotifier {
           try {
             await _signInWithCredential(credential);
             _setLoading(false);
-            AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'phone_auto'});
+            AnalyticsService().logEvent(
+              AnalyticsEvents.login,
+              parameters: {'method': 'phone_auto'},
+            );
             onAutoVerified?.call();
           } catch (e) {
             _setLoading(false);
@@ -77,7 +93,7 @@ class AuthService extends ChangeNotifier {
 
         codeSent: (String verificationId, int? resendToken) {
           _verificationId = verificationId;
-          _resendToken    = resendToken;
+          _resendToken = resendToken;
           _setLoading(false);
           onCodeSent();
         },
@@ -105,12 +121,25 @@ class AuthService extends ChangeNotifier {
     }
     _setLoading(true);
     try {
+      if (kIsWeb && _webConfirmationResult != null) {
+        final result = await _webConfirmationResult!.confirm(smsCode);
+        await _postAuth(result.user!, phone: _pendingPhone);
+        AnalyticsService().logEvent(
+          AnalyticsEvents.login,
+          parameters: {'method': 'phone_web'},
+        );
+        return true;
+      }
+
       final credential = PhoneAuthProvider.credential(
         verificationId: _verificationId!,
         smsCode: smsCode,
       );
       await _signInWithCredential(credential);
-      AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'phone'});
+      AnalyticsService().logEvent(
+        AnalyticsEvents.login,
+        parameters: {'method': 'phone'},
+      );
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -128,15 +157,18 @@ class AuthService extends ChangeNotifier {
     _setLoading(true);
     try {
       final result = await _auth.signInWithEmailAndPassword(
-        email:    email.trim(),
+        email: email.trim(),
         password: password.trim(),
       );
       await _postAuth(
         result.user!,
         email: email.trim(),
-        name:  result.user!.displayName,
+        name: result.user!.displayName,
       );
-      AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'email'});
+      AnalyticsService().logEvent(
+        AnalyticsEvents.login,
+        parameters: {'method': 'email'},
+      );
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -155,21 +187,27 @@ class AuthService extends ChangeNotifier {
     required String password,
     String phone = '',
   }) async {
-    AnalyticsService().logEvent(AnalyticsEvents.signUpStart, parameters: {'method': 'email'});
+    AnalyticsService().logEvent(
+      AnalyticsEvents.signUpStart,
+      parameters: {'method': 'email'},
+    );
     _setLoading(true);
     try {
       final result = await _auth.createUserWithEmailAndPassword(
-        email:    email.trim(),
+        email: email.trim(),
         password: password.trim(),
       );
       await result.user?.updateDisplayName(name.trim());
       await _postAuth(
         result.user!,
-        name:  name.trim(),
+        name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
       );
-      AnalyticsService().logEvent(AnalyticsEvents.signUpComplete, parameters: {'method': 'email'});
+      AnalyticsService().logEvent(
+        AnalyticsEvents.signUpComplete,
+        parameters: {'method': 'email'},
+      );
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -194,8 +232,8 @@ class AuthService extends ChangeNotifier {
         await GoogleSignIn.instance.initialize();
         _googleSignInInitialized = true;
       }
-      final GoogleSignInAccount googleUser =
-          await GoogleSignIn.instance.authenticate();
+      final GoogleSignInAccount googleUser = await GoogleSignIn.instance
+          .authenticate();
       final googleAuth = googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
@@ -203,10 +241,13 @@ class AuthService extends ChangeNotifier {
       final result = await _auth.signInWithCredential(credential);
       await _postAuth(
         result.user!,
-        name:  googleUser.displayName,
+        name: googleUser.displayName,
         email: googleUser.email,
       );
-      AnalyticsService().logEvent(AnalyticsEvents.login, parameters: {'method': 'google'});
+      AnalyticsService().logEvent(
+        AnalyticsEvents.login,
+        parameters: {'method': 'google'},
+      );
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _friendlyError(e);
@@ -226,7 +267,9 @@ class AuthService extends ChangeNotifier {
   Future<void> signOut() async {
     try {
       await GoogleSignIn.instance.signOut();
-    } catch (_) { /* ignored */ }
+    } catch (_) {
+      /* ignored */
+    }
     await _auth.signOut();
     AnalyticsService().logEvent(AnalyticsEvents.logout);
     AnalyticsService().setUserId(null); // Clear analytics ID
@@ -252,12 +295,14 @@ class AuthService extends ChangeNotifier {
     try {
       await UserService().reloadForUser(
         user.uid,
-        name:  name  ?? user.displayName,
+        name: name ?? user.displayName,
         email: email ?? user.email,
         phone: phone ?? user.phoneNumber,
       );
       await AnalyticsService().setUserId(user.uid);
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   void _setLoading(bool v) {
@@ -288,6 +333,10 @@ class AuthService extends ChangeNotifier {
         return 'Please enter a valid email address.';
       case 'network-request-failed':
         return 'Network error. Please check your connection.';
+      case 'captcha-check-failed':
+      case 'invalid-app-credential':
+      case 'missing-app-credential':
+        return 'Phone OTP on web needs Firebase app verification. Add this website domain in Firebase Authentication authorized domains, then try again.';
       default:
         return e.message ?? 'Authentication failed. Please try again.';
     }

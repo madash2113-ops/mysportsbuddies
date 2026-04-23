@@ -514,7 +514,7 @@ class _UserAvatarState extends State<_UserAvatar> {
     final nav = Navigator.of(context, rootNavigator: true);
     await AuthService().signOut();
     if (!mounted) return;
-    nav.pushNamedAndRemoveUntil('/login', (_) => false);
+    nav.pushNamedAndRemoveUntil('/web-landing', (_) => false);
   }
 
   @override

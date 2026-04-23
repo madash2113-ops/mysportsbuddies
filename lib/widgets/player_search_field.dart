@@ -14,16 +14,16 @@ class PlayerSearchField extends StatefulWidget {
   final TextEditingController controller;
   final void Function(PlayerEntry entry) onSelected;
   final String hint;
-  final bool   showManualOption;
-  final int    maxResults;
+  final bool showManualOption;
+  final int maxResults;
 
   const PlayerSearchField({
     super.key,
     required this.controller,
     required this.onSelected,
-    this.hint             = 'Search by name, ID or email',
+    this.hint = 'Search by name, ID or email',
     this.showManualOption = true,
-    this.maxResults       = 8,
+    this.maxResults = 8,
   });
 
   @override
@@ -35,15 +35,15 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
   // Unlike raw Overlay.of(), it stays linked to the widget tree (Provider/Theme
   // available) and works correctly inside modal bottom sheets.
   final _overlayCtrl = OverlayPortalController();
-  final _layerLink   = LayerLink();
-  final _focusNode   = FocusNode();
+  final _layerLink = LayerLink();
+  final _focusNode = FocusNode();
 
-  List<PlayerSearchResult> _results          = [];
-  bool                     _loading          = false;
-  bool                     _confirmed        = false;
-  bool                     _ignoreNextChange = false;  // set before programmatic text write
-  Timer?                   _debounce;
-  int                      _gen              = 0;
+  List<PlayerSearchResult> _results = [];
+  bool _loading = false;
+  bool _confirmed = false;
+  bool _ignoreNextChange = false; // set before programmatic text write
+  Timer? _debounce;
+  int _gen = 0;
 
   @override
   void initState() {
@@ -67,7 +67,10 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
 
   void _onControllerChange() {
     if (widget.controller.text.isEmpty && _confirmed) {
-      setState(() { _confirmed = false; _results = []; });
+      setState(() {
+        _confirmed = false;
+        _results = [];
+      });
       _hideDropdown();
     }
   }
@@ -87,21 +90,23 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
       return;
     }
     _debounce?.cancel();
-    setState(() { _confirmed = false; });
+    setState(() {
+      _confirmed = false;
+    });
 
     final q = value.trim();
     if (q.isEmpty) {
       _gen++;
-      setState(() { _results = []; _loading = false; });
+      setState(() {
+        _results = [];
+        _loading = false;
+      });
       _hideDropdown();
       return;
     }
 
     setState(() => _loading = true);
-    _debounce = Timer(
-      const Duration(milliseconds: 200),
-      () => _startSearch(q),
-    );
+    _debounce = Timer(const Duration(milliseconds: 200), () => _startSearch(q));
   }
 
   // ── Search ─────────────────────────────────────────────────────────────────
@@ -155,7 +160,10 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
     widget.controller.text = entry.numericId != null
         ? '${entry.displayName} (${entry.numericId})'
         : entry.displayName;
-    setState(() { _results = []; _confirmed = true; });
+    setState(() {
+      _results = [];
+      _confirmed = true;
+    });
     _hideDropdown();
     widget.onSelected(entry);
   }
@@ -164,20 +172,22 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
 
   Widget _buildDropdown() {
     final query = widget.controller.text.trim();
-    final width = _layerLink.leaderSize?.width ?? 300.0;
+    final fieldWidth = _layerLink.leaderSize?.width ?? 300.0;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final width = fieldWidth.clamp(260.0, screenWidth - 48.0).toDouble();
 
     return CompositedTransformFollower(
-      link:           _layerLink,
+      link: _layerLink,
       showWhenUnlinked: false,
-      targetAnchor:   Alignment.bottomLeft,
+      targetAnchor: Alignment.bottomLeft,
       followerAnchor: Alignment.topLeft,
-      offset:         const Offset(0, 4),
+      offset: const Offset(0, 4),
       child: Material(
         color: Colors.transparent,
         child: SizedBox(
           width: width,
           child: Container(
-            constraints: const BoxConstraints(maxHeight: 280),
+            constraints: const BoxConstraints(maxHeight: 240),
             decoration: BoxDecoration(
               color: const Color(0xFF1C1C1E),
               borderRadius: BorderRadius.circular(12),
@@ -196,38 +206,44 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
                   // ── Loading indicator ─────────────────────────────────
                   ? const Padding(
                       padding: EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       child: Row(
                         children: [
                           SizedBox(
-                            width: 14, height: 14,
+                            width: 14,
+                            height: 14,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: AppColors.primary,
                             ),
                           ),
                           SizedBox(width: 10),
-                          Text('Searching...',
-                              style: TextStyle(
-                                  color: Colors.white54, fontSize: 13)),
+                          Text(
+                            'Searching...',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 13,
+                            ),
+                          ),
                         ],
                       ),
                     )
                   // ── Results list ──────────────────────────────────────
                   : ListView.separated(
                       padding: EdgeInsets.zero,
-                      shrinkWrap: true,
                       itemCount: _results.length,
                       separatorBuilder: (_, _) =>
                           const Divider(height: 1, color: Colors.white10),
                       itemBuilder: (_, i) {
                         final r = _results[i];
                         return _ResultTile(
-                          result:  r,
-                          query:   query,
+                          result: r,
+                          query: query,
                           isFirst: i == 0,
-                          isLast:  i == _results.length - 1,
-                          onTap:   () => _select(r),
+                          isLast: i == _results.length - 1,
+                          onTap: () => _select(r),
                         );
                       },
                     ),
@@ -245,8 +261,8 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
     return CompositedTransformTarget(
       link: _layerLink,
       child: OverlayPortal(
-        controller:           _overlayCtrl,
-        overlayChildBuilder:  (_) => _buildDropdown(),
+        controller: _overlayCtrl,
+        overlayChildBuilder: (_) => _buildDropdown(),
         child: TapRegion(
           onTapOutside: (_) {
             _focusNode.unfocus();
@@ -254,32 +270,41 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
             Future.delayed(const Duration(milliseconds: 200), _hideDropdown);
           },
           child: TextField(
-            controller:        widget.controller,
-            focusNode:         _focusNode,
-            onChanged:         _onChanged,
-            autocorrect:       false,
+            controller: widget.controller,
+            focusNode: _focusNode,
+            onChanged: _onChanged,
+            autocorrect: false,
             enableSuggestions: false,
-            keyboardType:      TextInputType.text,
+            keyboardType: TextInputType.text,
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
-              hintText:  widget.hint,
+              hintText: widget.hint,
               hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-              prefixIcon: const Icon(Icons.person_search_outlined,
-                  color: Colors.white38, size: 18),
+              prefixIcon: const Icon(
+                Icons.person_search_outlined,
+                color: Colors.white38,
+                size: 18,
+              ),
               suffixIcon: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(12),
                       child: SizedBox(
-                        width: 16, height: 16,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.primary),
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
                       ),
                     )
                   : _confirmed
-                      ? const Icon(Icons.check_circle,
-                          color: Colors.green, size: 18)
-                      : null,
-              filled:    true,
+                  ? const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 18,
+                    )
+                  : null,
+              filled: true,
               fillColor: const Color(0xFF1E1E1E),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -291,11 +316,15 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    const BorderSide(color: AppColors.primary, width: 1.5),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
+                ),
               ),
               contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 12),
+                horizontal: 12,
+                vertical: 12,
+              ),
             ),
           ),
         ),
@@ -308,10 +337,10 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
 
 class _ResultTile extends StatelessWidget {
   final PlayerSearchResult result;
-  final String             query;
-  final bool               isFirst;
-  final bool               isLast;
-  final VoidCallback       onTap;
+  final String query;
+  final bool isFirst;
+  final bool isLast;
+  final VoidCallback onTap;
 
   const _ResultTile({
     required this.result,
@@ -323,14 +352,14 @@ class _ResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entry    = result.entry;
+    final entry = result.entry;
     final isManual = !entry.isRegistered;
 
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.vertical(
-        top:    Radius.circular(isFirst ? 12 : 0),
-        bottom: Radius.circular(isLast  ? 12 : 0),
+        top: Radius.circular(isFirst ? 12 : 0),
+        bottom: Radius.circular(isLast ? 12 : 0),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -339,18 +368,21 @@ class _ResultTile extends StatelessWidget {
             // ── Avatar / add-new icon ──────────────────────────────────
             isManual
                 ? Container(
-                    width: 36, height: 36,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.person_add_outlined,
-                        color: AppColors.primary, size: 18),
+                    child: const Icon(
+                      Icons.person_add_outlined,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
                   )
                 : CircleAvatar(
                     radius: 18,
-                    backgroundColor:
-                        AppColors.primary.withValues(alpha: 0.18),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.18),
                     backgroundImage: entry.imageUrl != null
                         ? NetworkImage(entry.imageUrl!)
                         : null,
@@ -386,19 +418,24 @@ class _ResultTile extends StatelessWidget {
                             children: [
                               const TextSpan(
                                 text: 'Add  ',
-                                style: TextStyle(color: Colors.white54,
-                                    fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                               TextSpan(
                                 text: '"${entry.displayName}"',
                                 style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w700),
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               const TextSpan(
                                 text: '  as new player',
-                                style: TextStyle(color: Colors.white54,
-                                    fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ],
                           ),
@@ -407,7 +444,7 @@ class _ResultTile extends StatelessWidget {
                           children: [
                             Flexible(
                               child: _HighlightText(
-                                text:  entry.displayName,
+                                text: entry.displayName,
                                 query: query,
                               ),
                             ),
@@ -415,10 +452,13 @@ class _ResultTile extends StatelessWidget {
                               const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary
-                                      .withValues(alpha: 0.15),
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -433,16 +473,13 @@ class _ResultTile extends StatelessWidget {
                             ],
                           ],
                         ),
-
                 ],
               ),
             ),
 
             // ── Chevron / add icon ─────────────────────────────────────
             Icon(
-              isManual
-                  ? Icons.add_circle_outline
-                  : Icons.chevron_right_rounded,
+              isManual ? Icons.add_circle_outline : Icons.chevron_right_rounded,
               color: isManual
                   ? AppColors.primary.withValues(alpha: 0.6)
                   : Colors.white24,
@@ -466,40 +503,55 @@ class _HighlightText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const base = TextStyle(
-        color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600);
+      color: Colors.white,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+    );
 
     if (query.isEmpty) {
-      return Text(text,
-          style: base, maxLines: 1, overflow: TextOverflow.ellipsis);
+      return Text(
+        text,
+        style: base,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
     }
 
-    final lowerText  = text.toLowerCase();
+    final lowerText = text.toLowerCase();
     final lowerQuery = query.toLowerCase();
-    final idx        = lowerText.indexOf(lowerQuery);
+    final idx = lowerText.indexOf(lowerQuery);
 
     if (idx < 0) {
-      return Text(text,
-          style: base, maxLines: 1, overflow: TextOverflow.ellipsis);
+      return Text(
+        text,
+        style: base,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
     }
 
     return Text.rich(
-      TextSpan(children: [
-        if (idx > 0)
+      TextSpan(
+        children: [
+          if (idx > 0)
+            TextSpan(
+              text: text.substring(0, idx),
+              style: const TextStyle(color: Colors.white70),
+            ),
           TextSpan(
-            text: text.substring(0, idx),
-            style: const TextStyle(color: Colors.white70),
+            text: text.substring(idx, idx + query.length),
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        TextSpan(
-          text: text.substring(idx, idx + query.length),
-          style: const TextStyle(
-              color: AppColors.primary, fontWeight: FontWeight.w800),
-        ),
-        if (idx + query.length < text.length)
-          TextSpan(
-            text: text.substring(idx + query.length),
-            style: const TextStyle(color: Colors.white70),
-          ),
-      ]),
+          if (idx + query.length < text.length)
+            TextSpan(
+              text: text.substring(idx + query.length),
+              style: const TextStyle(color: Colors.white70),
+            ),
+        ],
+      ),
       style: base,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,

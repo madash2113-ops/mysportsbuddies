@@ -11,7 +11,8 @@ import 'user_service.dart';
 
 class PremiumRequiredException implements Exception {
   @override
-  String toString() => 'Premium required to host a tournament with more than 4 teams.';
+  String toString() =>
+      'Premium required to host a tournament with more than 4 teams.';
 }
 
 class TournamentService extends ChangeNotifier {
@@ -22,35 +23,46 @@ class TournamentService extends ChangeNotifier {
   final _db = FirebaseFirestore.instance;
   static const _col = 'tournaments';
 
-  List<Tournament>                    _tournaments = [];
-  final Map<String, List<TournamentTeam>>        _teams   = {};
-  final Map<String, List<TournamentMatch>>       _matches = {};
-  final Map<String, List<TournamentVenue>>       _venues  = {};
-  final Map<String, List<TournamentAdmin>>       _admins  = {};
-  final Map<String, List<TournamentGroup>>       _groups  = {};
+  List<Tournament> _tournaments = [];
+  final Map<String, List<TournamentTeam>> _teams = {};
+  final Map<String, List<TournamentMatch>> _matches = {};
+  final Map<String, List<TournamentVenue>> _venues = {};
+  final Map<String, List<TournamentAdmin>> _admins = {};
+  final Map<String, List<TournamentGroup>> _groups = {};
   // squadCache: tournamentId → teamId → players
   final Map<String, Map<String, List<TournamentSquadPlayer>>> _squads = {};
-  List<String>                        _myEnrolledIds = [];
-  final Map<String, TournamentTeam>   _myTeamMap     = {};
+  List<String> _myEnrolledIds = [];
+  final Map<String, TournamentTeam> _myTeamMap = {};
   // captain photo cache: captainUserId → imageUrl
-  final Map<String, String>           _captainPhotoCache = {};
+  final Map<String, String> _captainPhotoCache = {};
 
-  List<Tournament>          get tournaments    => List.unmodifiable(_tournaments);
-  List<TournamentTeam>      teamsFor(String id)   => List.unmodifiable(_teams[id]   ?? []);
-  List<TournamentMatch>     matchesFor(String id) => List.unmodifiable(_matches[id] ?? []);
+  List<Tournament> get tournaments => List.unmodifiable(_tournaments);
+  List<TournamentTeam> teamsFor(String id) =>
+      List.unmodifiable(_teams[id] ?? []);
+  List<TournamentMatch> matchesFor(String id) =>
+      List.unmodifiable(_matches[id] ?? []);
+
   /// Returns the best available photo for a team's representative.
   /// Pass [captainUserId] and [teamId]; fallback chain is already resolved in loadDetail.
-  String? teamRepPhotoFor({required String captainUserId, required String teamId}) {
-    if (captainUserId.isNotEmpty && _captainPhotoCache.containsKey(captainUserId)) {
+  String? teamRepPhotoFor({
+    required String captainUserId,
+    required String teamId,
+  }) {
+    if (captainUserId.isNotEmpty &&
+        _captainPhotoCache.containsKey(captainUserId)) {
       return _captainPhotoCache[captainUserId];
     }
     return _captainPhotoCache['team:$teamId'];
   }
-  List<TournamentVenue>     venuesFor(String id)  => List.unmodifiable(_venues[id]  ?? []);
-  List<TournamentAdmin>     adminsFor(String id)  => List.unmodifiable(_admins[id]  ?? []);
-  List<TournamentGroup>     groupsFor(String id)  => List.unmodifiable(_groups[id]  ?? []);
-  List<String>              get myEnrolledIds  => List.unmodifiable(_myEnrolledIds);
-  TournamentTeam?           myTeamIn(String id) => _myTeamMap[id];
+
+  List<TournamentVenue> venuesFor(String id) =>
+      List.unmodifiable(_venues[id] ?? []);
+  List<TournamentAdmin> adminsFor(String id) =>
+      List.unmodifiable(_admins[id] ?? []);
+  List<TournamentGroup> groupsFor(String id) =>
+      List.unmodifiable(_groups[id] ?? []);
+  List<String> get myEnrolledIds => List.unmodifiable(_myEnrolledIds);
+  TournamentTeam? myTeamIn(String id) => _myTeamMap[id];
   List<TournamentSquadPlayer> squadFor(String tournamentId, String teamId) =>
       List.unmodifiable(_squads[tournamentId]?[teamId] ?? []);
 
@@ -58,9 +70,7 @@ class TournamentService extends ChangeNotifier {
 
   void listenToTournaments() {
     // No server-side orderBy — sort in memory to avoid index requirement.
-    _db.collection(_col)
-        .snapshots()
-        .listen((snap) {
+    _db.collection(_col).snapshots().listen((snap) {
       _tournaments = snap.docs.map(Tournament.fromFirestore).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       notifyListeners();
@@ -75,7 +85,9 @@ class TournamentService extends ChangeNotifier {
       _tournaments = snap.docs.map(Tournament.fromFirestore).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       notifyListeners();
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   // ── My enrollments ───────────────────────────────────────────────────────
@@ -95,11 +107,15 @@ class TournamentService extends ChangeNotifier {
         final team = TournamentTeam.fromMap(doc.id, doc.data());
         if (team.tournamentId.isNotEmpty) {
           _myTeamMap[team.tournamentId] = team;
-          _myEnrolledIds.add(team.tournamentId);
+          if (!_myEnrolledIds.contains(team.tournamentId)) {
+            _myEnrolledIds.add(team.tournamentId);
+          }
         }
       }
       notifyListeners();
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   // ── Load detail (teams + matches) ───────────────────────────────────────
@@ -115,8 +131,9 @@ class TournamentService extends ChangeNotifier {
         ref.collection('groups').get(),
       ]);
 
-      _teams[tournamentId] = (results[0] as QuerySnapshot)
-          .docs.map(TournamentTeam.fromFirestore).toList();
+      _teams[tournamentId] = (results[0] as QuerySnapshot).docs
+          .map(TournamentTeam.fromFirestore)
+          .toList();
 
       // Derive enrollment for the current user from loaded teams.
       // This covers both new enrollments (in `enrollments` collection) and
@@ -124,7 +141,10 @@ class TournamentService extends ChangeNotifier {
       final currentUserId = UserService().userId ?? '';
       if (currentUserId.isNotEmpty) {
         for (final team in _teams[tournamentId]!) {
-          if (team.enrolledBy == currentUserId) {
+          if (team.enrolledBy == currentUserId ||
+              team.captainUserId == currentUserId ||
+              team.viceCaptainUserId == currentUserId ||
+              team.playerUserIds.contains(currentUserId)) {
             _myTeamMap[tournamentId] = team;
             if (!_myEnrolledIds.contains(tournamentId)) {
               _myEnrolledIds.add(tournamentId);
@@ -135,23 +155,28 @@ class TournamentService extends ChangeNotifier {
       }
 
       // Sort matches in memory — avoids composite index requirement
-      _matches[tournamentId] = ((results[1] as QuerySnapshot)
-          .docs.map(TournamentMatch.fromFirestore).toList())
-        ..sort((a, b) {
-          final r = a.round.compareTo(b.round);
-          return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
-        });
+      _matches[tournamentId] =
+          ((results[1] as QuerySnapshot).docs
+                .map(TournamentMatch.fromFirestore)
+                .toList())
+            ..sort((a, b) {
+              final r = a.round.compareTo(b.round);
+              return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
+            });
 
-      _venues[tournamentId] = (results[2] as QuerySnapshot)
-          .docs.map(TournamentVenue.fromFirestore).toList();
+      _venues[tournamentId] = (results[2] as QuerySnapshot).docs
+          .map(TournamentVenue.fromFirestore)
+          .toList();
 
       _admins[tournamentId] = (results[3] as QuerySnapshot).docs.map((doc) {
         return TournamentAdmin.fromMap(doc.data() as Map<String, dynamic>);
       }).toList();
 
-      _groups[tournamentId] = ((results[4] as QuerySnapshot)
-          .docs.map(TournamentGroup.fromFirestore).toList())
-        ..sort((a, b) => a.name.compareTo(b.name));
+      _groups[tournamentId] =
+          ((results[4] as QuerySnapshot).docs
+                .map(TournamentGroup.fromFirestore)
+                .toList())
+            ..sort((a, b) => a.name.compareTo(b.name));
 
       // ── Pre-fetch captain photos with fallback chain ─────────────────
       // Fallback: captain → vice captain (from squad) → any squad player with photo
@@ -166,7 +191,9 @@ class TournamentService extends ChangeNotifier {
             .toSet();
 
         // Also load all squads for this tournament to find vice captains
-        await Future.wait(teams.map((t) => _loadSquadInternal(tournamentId, t.id)));
+        await Future.wait(
+          teams.map((t) => _loadSquadInternal(tournamentId, t.id)),
+        );
 
         // Add vice captain and squad player userIds
         for (final t in teams) {
@@ -182,7 +209,8 @@ class TournamentService extends ChangeNotifier {
             .toList();
         if (toFetch.isNotEmpty) {
           final profiles = await Future.wait(
-              toFetch.map((uid) => UserService().loadProfileById(uid)));
+            toFetch.map((uid) => UserService().loadProfileById(uid)),
+          );
           for (var i = 0; i < toFetch.length; i++) {
             final photo = profiles[i]?.imageUrl;
             if (photo != null && photo.isNotEmpty) {
@@ -199,7 +227,8 @@ class TournamentService extends ChangeNotifier {
           String? fallbackPhoto;
           // Vice captain first
           for (final p in squad) {
-            if (p.isViceCaptain && p.userId.isNotEmpty &&
+            if (p.isViceCaptain &&
+                p.userId.isNotEmpty &&
                 _captainPhotoCache.containsKey(p.userId)) {
               fallbackPhoto = _captainPhotoCache[p.userId];
               break;
@@ -223,21 +252,28 @@ class TournamentService extends ChangeNotifier {
             _captainPhotoCache['team:${t.id}'] = fallbackPhoto;
           }
         }
-      } catch (e) { /* ignored */ }
+      } catch (e) {
+        /* ignored */
+      }
 
       // ── Self-healing: repair missing bracket advancements ────────────
       try {
         // For League+KO: seed KO bracket from group results if not done yet
         final tourn = _tournaments
-            .where((t) => t.id == tournamentId).firstOrNull;
+            .where((t) => t.id == tournamentId)
+            .firstOrNull;
         if (tourn?.format == TournamentFormat.leagueKnockout) {
           await _advanceGroupWinnersToKO(tournamentId);
         }
         await _repairAdvancements(tournamentId);
-      } catch (e) { /* ignored */ }
+      } catch (e) {
+        /* ignored */
+      }
 
       notifyListeners();
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   /// One-pass repair: for every completed match with a winner, ensure
@@ -252,24 +288,23 @@ class TournamentService extends ChangeNotifier {
     final allSnap = await matchesRef.get();
     if (allSnap.docs.isEmpty) return;
 
-
     // Build map: "round_matchIndex" → (docRef, data)
-    final docMap = <String, ({DocumentReference ref, Map<String, dynamic> data})>{};
+    final docMap =
+        <String, ({DocumentReference ref, Map<String, dynamic> data})>{};
     for (final d in allSnap.docs) {
       final data = d.data();
-      final r  = (data['round']      as num?)?.toInt();
+      final r = (data['round'] as num?)?.toInt();
       final mi = (data['matchIndex'] as num?)?.toInt();
       if (r != null && mi != null) {
         docMap['${r}_$mi'] = (ref: d.reference, data: data);
       }
     }
 
-
     final batch = _db.batch();
     int fixes = 0;
 
     for (final entry in docMap.entries) {
-      final data     = entry.value.data;
+      final data = entry.value.data;
       final winnerId = data['winnerId'] as String?;
       if (winnerId == null || winnerId.isEmpty) continue;
 
@@ -277,14 +312,14 @@ class TournamentService extends ChangeNotifier {
       final note = data['note'] as String? ?? '';
       if (note.startsWith('Group')) continue;
 
-      final round      = (data['round']      as num).toInt();
+      final round = (data['round'] as num).toInt();
       final matchIndex = (data['matchIndex'] as num).toInt();
       final winnerName = data['winnerName'] as String? ?? '';
 
-      final nextRound      = round + 1;
+      final nextRound = round + 1;
       final nextMatchIndex = matchIndex ~/ 2;
-      final isSlotA        = matchIndex.isEven;
-      final nextKey        = '${nextRound}_$nextMatchIndex';
+      final isSlotA = matchIndex.isEven;
+      final nextKey = '${nextRound}_$nextMatchIndex';
 
       final next = docMap[nextKey];
       if (next == null) continue; // final round — nowhere to advance
@@ -305,15 +340,12 @@ class TournamentService extends ChangeNotifier {
       await batch.commit();
       // Re-read into in-memory cache
       final snap = await matchesRef.get();
-      _matches[tournamentId] = (snap.docs
-          .map(TournamentMatch.fromFirestore)
-          .toList())
-        ..sort((a, b) {
-          final r = a.round.compareTo(b.round);
-          return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
-        });
-    } else {
-    }
+      _matches[tournamentId] =
+          (snap.docs.map(TournamentMatch.fromFirestore).toList())..sort((a, b) {
+            final r = a.round.compareTo(b.round);
+            return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
+          });
+    } else {}
   }
 
   // ── Create tournament ───────────────────────────────────────────────────
@@ -325,88 +357,91 @@ class TournamentService extends ChangeNotifier {
   }
 
   Future<String> createTournament({
-    required String           name,
-    required String           sport,
+    required String name,
+    required String sport,
     required TournamentFormat format,
-    required DateTime         startDate,
-    required String           location,
-    required int              maxTeams,
-    required double           entryFee,
-    required double           serviceFee,
-    required ScheduleMode     scheduleMode,
-    String?                   prizePool,
-    int                       playersPerTeam = 0,
-    DateTime?                 endDate,
-    String?                   rules,
-    String?                   bannerUrl,
-    ScoringType               scoringType = ScoringType.standard,
-    int                       bestOf = 3,
-    int                       pointsToWin = 21,
-    int                       winPoints = 3,
-    int                       drawPoints = 1,
-    int                       lossPoints = 0,
-    String?                   customScoringLabel,
-    bool                      isPrivate = false,
+    required DateTime startDate,
+    required String location,
+    required int maxTeams,
+    required double entryFee,
+    required double serviceFee,
+    required ScheduleMode scheduleMode,
+    String? prizePool,
+    int playersPerTeam = 0,
+    DateTime? endDate,
+    String? rules,
+    String? bannerUrl,
+    ScoringType scoringType = ScoringType.standard,
+    int bestOf = 3,
+    int pointsToWin = 21,
+    int winPoints = 3,
+    int drawPoints = 1,
+    int lossPoints = 0,
+    String? customScoringLabel,
+    bool isPrivate = false,
   }) async {
     if (maxTeams > 4 && !UserService().hasFullAccess) {
       throw PremiumRequiredException();
     }
 
-    final userId   = UserService().userId ?? '';
+    final userId = UserService().userId ?? '';
     final userName = UserService().profile?.name ?? 'Unknown';
 
     final ref = _db.collection(_col).doc();
     final tournament = Tournament(
-      id:               ref.id,
-      name:             name,
-      sport:            sport,
-      format:           format,
-      status:           TournamentStatus.open,
-      startDate:        startDate,
-      location:         location,
-      maxTeams:         maxTeams,
-      entryFee:         entryFee,
-      serviceFee:       serviceFee,
-      createdBy:        userId,
-      createdByName:    userName,
-      createdAt:        DateTime.now(),
-      scheduleMode:     scheduleMode,
+      id: ref.id,
+      name: name,
+      sport: sport,
+      format: format,
+      status: TournamentStatus.open,
+      startDate: startDate,
+      location: location,
+      maxTeams: maxTeams,
+      entryFee: entryFee,
+      serviceFee: serviceFee,
+      createdBy: userId,
+      createdByName: userName,
+      createdAt: DateTime.now(),
+      scheduleMode: scheduleMode,
       bracketGenerated: false,
-      prizePool:        prizePool,
-      registeredTeams:  0,
-      playersPerTeam:   playersPerTeam,
-      endDate:          endDate,
-      rules:            rules,
-      bannerUrl:        bannerUrl,
-      scoringType:      scoringType,
-      bestOf:           bestOf,
-      pointsToWin:      pointsToWin,
-      winPoints:        winPoints,
-      drawPoints:       drawPoints,
-      lossPoints:       lossPoints,
+      prizePool: prizePool,
+      registeredTeams: 0,
+      playersPerTeam: playersPerTeam,
+      endDate: endDate,
+      rules: rules,
+      bannerUrl: bannerUrl,
+      scoringType: scoringType,
+      bestOf: bestOf,
+      pointsToWin: pointsToWin,
+      winPoints: winPoints,
+      drawPoints: drawPoints,
+      lossPoints: lossPoints,
       customScoringLabel: customScoringLabel,
-      isPrivate:        isPrivate,
-      joinCode:         isPrivate ? _generateJoinCode() : null,
+      isPrivate: isPrivate,
+      joinCode: isPrivate ? _generateJoinCode() : null,
     );
 
     await ref.set(tournament.toMap());
-    AnalyticsService().logEvent(AnalyticsEvents.tournamentCreated, parameters: {
-      'sport':         sport,
-      'format':        format.name,
-      'is_private':    isPrivate,
-      'max_teams':     maxTeams,
-      'has_entry_fee': entryFee > 0,
-    });
+    AnalyticsService().logEvent(
+      AnalyticsEvents.tournamentCreated,
+      parameters: {
+        'sport': sport,
+        'format': format.name,
+        'is_private': isPrivate,
+        'max_teams': maxTeams,
+        'has_entry_fee': entryFee > 0,
+      },
+    );
 
     // Store the location as the primary venue in the venues subcollection
     if (location.trim().isNotEmpty) {
       final venueRef = ref.collection('venues').doc();
       final venue = TournamentVenue(
-        id:           venueRef.id,
+        id: venueRef.id,
         tournamentId: ref.id,
-        name:         location,
-        address:      location,
-        city:         location.split(',').last.trim(),
+        name: location,
+        address: location,
+        city: location.split(',').last.trim(),
       );
       await venueRef.set(venue.toMap());
     }
@@ -417,8 +452,9 @@ class TournamentService extends ChangeNotifier {
   // ── Upload banner image ──────────────────────────────────────────────────
 
   Future<String> uploadBanner(String tournamentId, File image) async {
-    final ref = FirebaseStorage.instance
-        .ref('tournament_banners/$tournamentId.jpg');
+    final ref = FirebaseStorage.instance.ref(
+      'tournament_banners/$tournamentId.jpg',
+    );
     await ref.putFile(image);
     final url = await ref.getDownloadURL();
     await _db.collection(_col).doc(tournamentId).update({'bannerUrl': url});
@@ -428,15 +464,15 @@ class TournamentService extends ChangeNotifier {
   // ── Enroll team ─────────────────────────────────────────────────────────
 
   Future<void> enrollTeam({
-    required String       tournamentId,
-    required String       teamName,
-    required String       captainName,
-    required String       captainPhone,
-    String                captainUserId     = '',
-    String                viceCaptainName   = '',
-    String                viceCaptainUserId = '',
+    required String tournamentId,
+    required String teamName,
+    required String captainName,
+    required String captainPhone,
+    String captainUserId = '',
+    String viceCaptainName = '',
+    String viceCaptainUserId = '',
     required List<String> players,
-    List<String>          playerUserIds = const [],
+    List<String> playerUserIds = const [],
   }) async {
     final userId = UserService().userId ?? '';
 
@@ -475,22 +511,22 @@ class TournamentService extends ChangeNotifier {
     }
 
     final seed = existing.docs.length + 1;
-    final ref  = teamsRef.doc();
+    final ref = teamsRef.doc();
     final team = TournamentTeam(
-      id:                ref.id,
-      tournamentId:      tournamentId,
-      teamName:          teamName,
-      captainName:       captainName,
-      captainPhone:      captainPhone,
-      captainUserId:     captainUserId,
-      viceCaptainName:   viceCaptainName,
+      id: ref.id,
+      tournamentId: tournamentId,
+      teamName: teamName,
+      captainName: captainName,
+      captainPhone: captainPhone,
+      captainUserId: captainUserId,
+      viceCaptainName: viceCaptainName,
       viceCaptainUserId: viceCaptainUserId,
-      players:           players,
-      playerUserIds:     playerUserIds,
-      enrolledBy:        userId,
-      enrolledAt:        DateTime.now(),
-      paymentConfirmed:  true,
-      seed:              seed,
+      players: players,
+      playerUserIds: playerUserIds,
+      enrolledBy: userId,
+      enrolledAt: DateTime.now(),
+      paymentConfirmed: true,
+      seed: seed,
     );
 
     // ── Atomic batch: all writes succeed or none do ───────────────────────
@@ -508,10 +544,10 @@ class TournamentService extends ChangeNotifier {
     });
 
     await batch.commit(); // throws on any permission error — nothing is written
-    AnalyticsService().logEvent(AnalyticsEvents.tournamentJoined, parameters: {
-      'sport':         tourn.sport,
-      'has_entry_fee': tourn.entryFee > 0,
-    });
+    AnalyticsService().logEvent(
+      AnalyticsEvents.tournamentJoined,
+      parameters: {'sport': tourn.sport, 'has_entry_fee': tourn.entryFee > 0},
+    );
 
     // Refresh local cache only after successful commit
     await loadDetail(tournamentId);
@@ -533,9 +569,9 @@ class TournamentService extends ChangeNotifier {
     if (tourn.createdBy.isNotEmpty && tourn.createdBy != userId) {
       await NotificationService.send(
         toUserId: tourn.createdBy,
-        type:     NotifType.tournamentUpdate,
-        title:    '${tourn.name} — New Enrollment',
-        body:     '$teamName (captain: $captainName) enrolled in your tournament',
+        type: NotifType.tournamentUpdate,
+        title: '${tourn.name} — New Enrollment',
+        body: '$teamName (captain: $captainName) enrolled in your tournament',
         targetId: tournamentId,
       );
     }
@@ -547,9 +583,9 @@ class TournamentService extends ChangeNotifier {
       if (t.enrolledBy.isEmpty) continue;
       await NotificationService.send(
         toUserId: t.enrolledBy,
-        type:     NotifType.tournamentUpdate,
-        title:    '${tourn.name} — New Team',
-        body:     '$enrollerName\'s team "$teamName" just enrolled',
+        type: NotifType.tournamentUpdate,
+        title: '${tourn.name} — New Team',
+        body: '$enrollerName\'s team "$teamName" just enrolled',
         targetId: tournamentId,
       );
     }
@@ -559,9 +595,9 @@ class TournamentService extends ChangeNotifier {
       if (pUid.isEmpty || pUid == userId) continue;
       await NotificationService.send(
         toUserId: pUid,
-        type:     NotifType.tournamentUpdate,
-        title:    'You\'ve been added to $teamName',
-        body:     '$enrollerName added you to "$teamName" in ${tourn.name}',
+        type: NotifType.tournamentUpdate,
+        title: 'You\'ve been added to $teamName',
+        body: '$enrollerName added you to "$teamName" in ${tourn.name}',
         targetId: tournamentId,
       );
     }
@@ -572,14 +608,19 @@ class TournamentService extends ChangeNotifier {
   Future<void> generateSchedule(String tournamentId) async {
     await loadDetail(tournamentId);
     final teams = _teams[tournamentId] ?? [];
-    if (teams.length < 2) throw Exception('Need at least 2 teams to generate schedule.');
+    if (teams.length < 2) {
+      throw Exception('Need at least 2 teams to generate schedule.');
+    }
 
     final tournDoc = _tournaments.firstWhere(
       (t) => t.id == tournamentId,
       orElse: () => throw Exception('Tournament not found'),
     );
 
-    final matchesRef = _db.collection(_col).doc(tournamentId).collection('matches');
+    final matchesRef = _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches');
 
     // Clear existing matches
     final existing = await matchesRef.get();
@@ -603,7 +644,9 @@ class TournamentService extends ChangeNotifier {
     }
 
     // Mark bracket as generated
-    await _db.collection(_col).doc(tournamentId).update({'bracketGenerated': true});
+    await _db.collection(_col).doc(tournamentId).update({
+      'bracketGenerated': true,
+    });
     await loadDetail(tournamentId);
   }
 
@@ -639,18 +682,20 @@ class TournamentService extends ChangeNotifier {
 
       final ref = matchesRef.doc();
       final match = TournamentMatch(
-        id:          ref.id,
+        id: ref.id,
         tournamentId: tournamentId,
-        round:       1,
-        matchIndex:  i,
-        teamAId:     a?.id,
-        teamBId:     isBye ? null : b.id,
-        teamAName:   a?.teamName,
-        teamBName:   isBye ? null : b.teamName,
-        isBye:       isBye,
-        result:      isBye ? TournamentMatchResult.bye : TournamentMatchResult.pending,
-        winnerId:    isBye ? a?.id : null,
-        winnerName:  isBye ? a?.teamName : null,
+        round: 1,
+        matchIndex: i,
+        teamAId: a?.id,
+        teamBId: isBye ? null : b.id,
+        teamAName: a?.teamName,
+        teamBName: isBye ? null : b.teamName,
+        isBye: isBye,
+        result: isBye
+            ? TournamentMatchResult.bye
+            : TournamentMatchResult.pending,
+        winnerId: isBye ? a?.id : null,
+        winnerName: isBye ? a?.teamName : null,
       );
       batch.set(ref, match.toMap());
     }
@@ -662,11 +707,11 @@ class TournamentService extends ChangeNotifier {
       for (int i = 0; i < matchCount; i++) {
         final ref = matchesRef.doc();
         final match = TournamentMatch(
-          id:          ref.id,
+          id: ref.id,
           tournamentId: tournamentId,
-          round:       r,
-          matchIndex:  i,
-          result:      TournamentMatchResult.pending,
+          round: r,
+          matchIndex: i,
+          result: TournamentMatchResult.pending,
         );
         batch.set(ref, match.toMap());
       }
@@ -680,7 +725,7 @@ class TournamentService extends ChangeNotifier {
     final docMap = <String, QueryDocumentSnapshot>{};
     for (final d in allSnap.docs) {
       final data = d.data() as Map<String, dynamic>;
-      final r  = (data['round'] as num?)?.toInt();
+      final r = (data['round'] as num?)?.toInt();
       final mi = (data['matchIndex'] as num?)?.toInt();
       if (r != null && mi != null) docMap['${r}_$mi'] = d;
     }
@@ -689,17 +734,17 @@ class TournamentService extends ChangeNotifier {
     bool hasByeWrites = false;
     for (final d in allSnap.docs) {
       final data = d.data() as Map<String, dynamic>;
-      final isBye    = data['isBye'] as bool? ?? false;
+      final isBye = data['isBye'] as bool? ?? false;
       final winnerId = data['winnerId'] as String?;
       if (!isBye || winnerId == null || winnerId.isEmpty) continue;
 
-      final round      = (data['round']      as num).toInt();
+      final round = (data['round'] as num).toInt();
       final matchIndex = (data['matchIndex'] as num).toInt();
-      final nextRound      = round + 1;
+      final nextRound = round + 1;
       final nextMatchIndex = matchIndex ~/ 2;
-      final isSlotA        = matchIndex.isEven;
-      final nextKey        = '${nextRound}_$nextMatchIndex';
-      final nextDoc        = docMap[nextKey];
+      final isSlotA = matchIndex.isEven;
+      final nextKey = '${nextRound}_$nextMatchIndex';
+      final nextDoc = docMap[nextKey];
       if (nextDoc == null) continue;
 
       final winnerName = data['winnerName'] as String? ?? '';
@@ -717,9 +762,9 @@ class TournamentService extends ChangeNotifier {
     List<TournamentTeam> teams,
     CollectionReference matchesRef,
   ) async {
-    final n      = teams.length;
+    final n = teams.length;
     final rounds = n.isEven ? n - 1 : n;
-    final batch  = _db.batch();
+    final batch = _db.batch();
 
     // Circle method
     final rotation = List<TournamentTeam?>.from(teams);
@@ -738,15 +783,15 @@ class TournamentService extends ChangeNotifier {
 
         final ref = matchesRef.doc();
         final match = TournamentMatch(
-          id:          ref.id,
+          id: ref.id,
           tournamentId: tournamentId,
-          round:       r + 1,
-          matchIndex:  mi++,
-          teamAId:     a.id,
-          teamBId:     b.id,
-          teamAName:   a.teamName,
-          teamBName:   b.teamName,
-          result:      TournamentMatchResult.pending,
+          round: r + 1,
+          matchIndex: mi++,
+          teamAId: a.id,
+          teamBId: b.id,
+          teamAName: a.teamName,
+          teamBName: b.teamName,
+          result: TournamentMatchResult.pending,
         );
         batch.set(ref, match.toMap());
       }
@@ -765,9 +810,9 @@ class TournamentService extends ChangeNotifier {
   ) async {
     final n = teams.length;
     // Divide into groups of 4 (or 3 if remainder works out)
-    final groupSize   = (n % 4 == 3 || n < 5) ? 3 : 4;
-    final groupCount  = (n / groupSize).ceil();
-    final seeded      = [...teams]..sort((a, b) => a.seed.compareTo(b.seed));
+    final groupSize = (n % 4 == 3 || n < 5) ? 3 : 4;
+    final groupCount = (n / groupSize).ceil();
+    final seeded = [...teams]..sort((a, b) => a.seed.compareTo(b.seed));
 
     final batch = _db.batch();
     // Round offset for knockout rounds (comes after all group rounds)
@@ -776,17 +821,17 @@ class TournamentService extends ChangeNotifier {
     // ── Group stage ────────────────────────────────────────────────────────
     for (int g = 0; g < groupCount; g++) {
       final groupLabel = String.fromCharCode('A'.codeUnitAt(0) + g);
-      final start  = g * groupSize;
-      final end    = math.min(start + groupSize, n);
-      final group  = seeded.sublist(start, end);
-      final gn     = group.length;
+      final start = g * groupSize;
+      final end = math.min(start + groupSize, n);
+      final group = seeded.sublist(start, end);
+      final gn = group.length;
       final rounds = gn.isEven ? gn - 1 : gn;
 
       if (rounds > rrRounds) rrRounds = rounds;
 
       final rotation = List<TournamentTeam?>.from(group);
       if (gn.isOdd) rotation.add(null);
-      final fixed  = rotation[0];
+      final fixed = rotation[0];
       final rotate = rotation.sublist(1);
 
       for (int r = 0; r < rounds; r++) {
@@ -797,18 +842,18 @@ class TournamentService extends ChangeNotifier {
           final b = current[current.length - 1 - i];
           if (a == null || b == null) continue;
 
-          final ref   = matchesRef.doc();
+          final ref = matchesRef.doc();
           final match = TournamentMatch(
-            id:           ref.id,
+            id: ref.id,
             tournamentId: tournamentId,
-            round:        r + 1,
-            matchIndex:   mi++,
-            teamAId:      a.id,
-            teamBId:      b.id,
-            teamAName:    a.teamName,
-            teamBName:    b.teamName,
-            result:       TournamentMatchResult.pending,
-            note:         'Group $groupLabel',
+            round: r + 1,
+            matchIndex: mi++,
+            teamAId: a.id,
+            teamBId: b.id,
+            teamAName: a.teamName,
+            teamBName: b.teamName,
+            result: TournamentMatchResult.pending,
+            note: 'Group $groupLabel',
           );
           batch.set(ref, match.toMap());
         }
@@ -818,24 +863,24 @@ class TournamentService extends ChangeNotifier {
 
     // ── Knockout stage ─────────────────────────────────────────────────────
     // top 2 per group advance → bracket size = groupCount * 2
-    final koTeams    = groupCount * 2;
+    final koTeams = groupCount * 2;
     final bracketSize = _nextPowerOf2(koTeams);
     final totalKORounds = _log2(bracketSize).toInt();
     final koRoundOffset = rrRounds + 1;
 
     for (int r = 0; r < totalKORounds; r++) {
       final matchCount = bracketSize ~/ math.pow(2, r + 1).toInt();
-      final roundNum   = koRoundOffset + r;
-      final label      = TournamentService.roundLabel(matchCount);
+      final roundNum = koRoundOffset + r;
+      final label = TournamentService.roundLabel(matchCount);
       for (int i = 0; i < matchCount; i++) {
-        final ref   = matchesRef.doc();
+        final ref = matchesRef.doc();
         final match = TournamentMatch(
-          id:           ref.id,
+          id: ref.id,
           tournamentId: tournamentId,
-          round:        roundNum,
-          matchIndex:   i,
-          result:       TournamentMatchResult.pending,
-          note:         label,
+          round: roundNum,
+          matchIndex: i,
+          result: TournamentMatchResult.pending,
+          note: label,
         );
         batch.set(ref, match.toMap());
       }
@@ -847,46 +892,46 @@ class TournamentService extends ChangeNotifier {
   // ── Update tournament ────────────────────────────────────────────────────
 
   Future<void> updateTournament({
-    required String           tournamentId,
-    required String           name,
-    required String           sport,
+    required String tournamentId,
+    required String name,
+    required String sport,
     required TournamentFormat format,
-    required DateTime         startDate,
-    required String           location,
-    required int              maxTeams,
-    required double           entryFee,
-    required double           serviceFee,
-    int                       playersPerTeam = 0,
-    DateTime?                 endDate,
-    String?                   prizePool,
-    String?                   rules,
-    ScoringType               scoringType = ScoringType.standard,
-    int                       bestOf = 3,
-    int                       pointsToWin = 21,
-    int                       winPoints = 3,
-    int                       drawPoints = 1,
-    int                       lossPoints = 0,
-    String?                   customScoringLabel,
+    required DateTime startDate,
+    required String location,
+    required int maxTeams,
+    required double entryFee,
+    required double serviceFee,
+    int playersPerTeam = 0,
+    DateTime? endDate,
+    String? prizePool,
+    String? rules,
+    ScoringType scoringType = ScoringType.standard,
+    int bestOf = 3,
+    int pointsToWin = 21,
+    int winPoints = 3,
+    int drawPoints = 1,
+    int lossPoints = 0,
+    String? customScoringLabel,
   }) async {
     await _db.collection(_col).doc(tournamentId).update({
-      'name':          name,
-      'sport':         sport,
-      'format':        format.name,
-      'startDate':     Timestamp.fromDate(startDate),
-      'location':      location,
-      'maxTeams':      maxTeams,
-      'entryFee':      entryFee,
-      'serviceFee':    serviceFee,
+      'name': name,
+      'sport': sport,
+      'format': format.name,
+      'startDate': Timestamp.fromDate(startDate),
+      'location': location,
+      'maxTeams': maxTeams,
+      'entryFee': entryFee,
+      'serviceFee': serviceFee,
       'playersPerTeam': playersPerTeam,
-      'endDate':       endDate != null ? Timestamp.fromDate(endDate) : null,
-      'prizePool':     prizePool,
-      'rules':         rules,
-      'scoringType':   scoringType.name,
-      'bestOf':        bestOf,
-      'pointsToWin':   pointsToWin,
-      'winPoints':     winPoints,
-      'drawPoints':    drawPoints,
-      'lossPoints':    lossPoints,
+      'endDate': endDate != null ? Timestamp.fromDate(endDate) : null,
+      'prizePool': prizePool,
+      'rules': rules,
+      'scoringType': scoringType.name,
+      'bestOf': bestOf,
+      'pointsToWin': pointsToWin,
+      'winPoints': winPoints,
+      'drawPoints': drawPoints,
+      'lossPoints': lossPoints,
       'customScoringLabel': customScoringLabel,
     });
     await loadTournaments();
@@ -895,7 +940,9 @@ class TournamentService extends ChangeNotifier {
   // ── Update tournament status ─────────────────────────────────────────────
 
   Future<void> updateTournamentStatus(
-      String id, TournamentStatus status) async {
+    String id,
+    TournamentStatus status,
+  ) async {
     await _db.collection(_col).doc(id).update({'status': status.name});
     await loadTournaments();
   }
@@ -912,7 +959,9 @@ class TournamentService extends ChangeNotifier {
         snap = await ref.collection(sub).limit(200).get();
         if (snap.docs.isEmpty) break;
         final batch = _db.batch();
-        for (final d in snap.docs) { batch.delete(d.reference); }
+        for (final d in snap.docs) {
+          batch.delete(d.reference);
+        }
         await batch.commit();
       } while (snap.docs.length == 200);
     }
@@ -927,7 +976,9 @@ class TournamentService extends ChangeNotifier {
         .get();
     if (enrSnap.docs.isNotEmpty) {
       final batch = _db.batch();
-      for (final d in enrSnap.docs) { batch.delete(d.reference); }
+      for (final d in enrSnap.docs) {
+        batch.delete(d.reference);
+      }
       await batch.commit();
     }
 
@@ -954,7 +1005,9 @@ class TournamentService extends ChangeNotifier {
         snap = await ref.collection(sub).limit(200).get();
         if (snap.docs.isEmpty) break;
         final batch = _db.batch();
-        for (final d in snap.docs) { batch.delete(d.reference); }
+        for (final d in snap.docs) {
+          batch.delete(d.reference);
+        }
         await batch.commit();
       } while (snap.docs.length == 200);
     }
@@ -974,7 +1027,9 @@ class TournamentService extends ChangeNotifier {
         .get();
     if (enrSnap.docs.isNotEmpty) {
       final batch = _db.batch();
-      for (final d in enrSnap.docs) { batch.delete(d.reference); }
+      for (final d in enrSnap.docs) {
+        batch.delete(d.reference);
+      }
       await batch.commit();
     }
 
@@ -1003,7 +1058,9 @@ class TournamentService extends ChangeNotifier {
       snap = await ref.collection('matches').limit(200).get();
       if (snap.docs.isEmpty) break;
       final batch = _db.batch();
-      for (final d in snap.docs) { batch.delete(d.reference); }
+      for (final d in snap.docs) {
+        batch.delete(d.reference);
+      }
       await batch.commit();
     } while (snap.docs.length == 200);
 
@@ -1016,26 +1073,69 @@ class TournamentService extends ChangeNotifier {
 
   Future<void> seedDummyTeams(String tournamentId, {int count = 27}) async {
     final teamNames = [
-      'Thunder Bolts', 'Iron Eagles', 'Storm Riders', 'Neon Hawks',
-      'Dark Wolves', 'Blaze FC', 'Arctic Foxes', 'Shadow Panthers',
-      'Royal Strikers', 'Fire Dragons', 'Silver Sharks', 'Cobra Kings',
-      'Phantom Squad', 'Golden Lions', 'Red Falcons', 'Night Owls',
-      'Blue Bullets', 'Desert Ravens', 'Titan Warriors', 'Rapid Rockets',
-      'Cyber Wolves', 'Steel Jaguars', 'Volt Tigers', 'Solar Bears',
-      'Crimson Hawks', 'Frost Giants', 'Jade Serpents',
+      'Thunder Bolts',
+      'Iron Eagles',
+      'Storm Riders',
+      'Neon Hawks',
+      'Dark Wolves',
+      'Blaze FC',
+      'Arctic Foxes',
+      'Shadow Panthers',
+      'Royal Strikers',
+      'Fire Dragons',
+      'Silver Sharks',
+      'Cobra Kings',
+      'Phantom Squad',
+      'Golden Lions',
+      'Red Falcons',
+      'Night Owls',
+      'Blue Bullets',
+      'Desert Ravens',
+      'Titan Warriors',
+      'Rapid Rockets',
+      'Cyber Wolves',
+      'Steel Jaguars',
+      'Volt Tigers',
+      'Solar Bears',
+      'Crimson Hawks',
+      'Frost Giants',
+      'Jade Serpents',
     ];
 
     final captains = [
-      'Arjun Sharma', 'Rahul Mehta', 'Priya Patel', 'Karan Singh',
-      'Ananya Gupta', 'Vikram Nair', 'Sneha Joshi', 'Rohit Kumar',
-      'Pooja Reddy', 'Aditya Verma', 'Meera Iyer', 'Suresh Pillai',
-      'Divya Menon', 'Nikhil Das', 'Kavya Rao', 'Amit Bose',
-      'Ritika Shah', 'Sandeep Tiwari', 'Lakshmi Nair', 'Gaurav Jain',
-      'Swati Mishra', 'Harish Yadav', 'Nisha Kapoor', 'Rajesh Pandey',
-      'Deepa Srinivas', 'Mohit Aggarwal', 'Alka Dubey',
+      'Arjun Sharma',
+      'Rahul Mehta',
+      'Priya Patel',
+      'Karan Singh',
+      'Ananya Gupta',
+      'Vikram Nair',
+      'Sneha Joshi',
+      'Rohit Kumar',
+      'Pooja Reddy',
+      'Aditya Verma',
+      'Meera Iyer',
+      'Suresh Pillai',
+      'Divya Menon',
+      'Nikhil Das',
+      'Kavya Rao',
+      'Amit Bose',
+      'Ritika Shah',
+      'Sandeep Tiwari',
+      'Lakshmi Nair',
+      'Gaurav Jain',
+      'Swati Mishra',
+      'Harish Yadav',
+      'Nisha Kapoor',
+      'Rajesh Pandey',
+      'Deepa Srinivas',
+      'Mohit Aggarwal',
+      'Alka Dubey',
     ];
 
-    final phones = List.generate(27, (i) => '9${(800000000 + i * 1111111) % 1000000000}'.padLeft(10, '9'));
+    final phones = List.generate(
+      27,
+      (i) => '9${(800000000 + i * 1111111) % 1000000000}'.padLeft(10, '9'),
+    );
 
     final teamsRef = _db.collection(_col).doc(tournamentId).collection('teams');
     final existing = await teamsRef.get();
@@ -1046,20 +1146,20 @@ class TournamentService extends ChangeNotifier {
       final ref = teamsRef.doc();
       final seed = existingCount + i + 1;
       final team = TournamentTeam(
-        id:               ref.id,
-        tournamentId:     tournamentId,
-        teamName:         teamNames[i % teamNames.length],
-        captainName:      captains[i % captains.length],
-        captainPhone:     phones[i % phones.length],
-        captainUserId:    '',
-        viceCaptainName:  '',
+        id: ref.id,
+        tournamentId: tournamentId,
+        teamName: teamNames[i % teamNames.length],
+        captainName: captains[i % captains.length],
+        captainPhone: phones[i % phones.length],
+        captainUserId: '',
+        viceCaptainName: '',
         viceCaptainUserId: '',
-        players:          [],
-        playerUserIds:    [],
-        enrolledBy:       'dummy_seed',
-        enrolledAt:       DateTime.now(),
+        players: [],
+        playerUserIds: [],
+        enrolledBy: 'dummy_seed',
+        enrolledAt: DateTime.now(),
         paymentConfirmed: true,
-        seed:             seed,
+        seed: seed,
       );
       batch.set(ref, team.toMap());
     }
@@ -1102,7 +1202,9 @@ class TournamentService extends ChangeNotifier {
     required String tournamentId,
     required String matchId,
   }) async {
-    final match = matchesFor(tournamentId).where((m) => m.id == matchId).firstOrNull;
+    final match = matchesFor(
+      tournamentId,
+    ).where((m) => m.id == matchId).firstOrNull;
     if (match == null || !match.isPlayed) return;
 
     final t = _tournaments.where((t) => t.id == tournamentId).firstOrNull;
@@ -1110,7 +1212,7 @@ class TournamentService extends ChangeNotifier {
     // 1. Undo RR/League stats for this match
     if (t != null &&
         (t.format == TournamentFormat.roundRobin ||
-         t.format == TournamentFormat.leagueKnockout)) {
+            t.format == TournamentFormat.leagueKnockout)) {
       await _undoRRStats(tournamentId, match, t);
     }
 
@@ -1121,12 +1223,12 @@ class TournamentService extends ChangeNotifier {
         .collection('matches')
         .doc(matchId)
         .update({
-      'scoreA':     FieldValue.delete(),
-      'scoreB':     FieldValue.delete(),
-      'winnerId':   FieldValue.delete(),
-      'winnerName': FieldValue.delete(),
-      'result':     TournamentMatchResult.pending.name,
-    });
+          'scoreA': FieldValue.delete(),
+          'scoreB': FieldValue.delete(),
+          'winnerId': FieldValue.delete(),
+          'winnerName': FieldValue.delete(),
+          'result': TournamentMatchResult.pending.name,
+        });
 
     // 3. Refresh in-memory cache and notify UI
     await loadDetail(tournamentId);
@@ -1140,7 +1242,7 @@ class TournamentService extends ChangeNotifier {
   ) async {
     if (match.teamAId == null || match.teamBId == null) return;
 
-    final wPts = t.winPoints  > 0 ? t.winPoints  : 3;
+    final wPts = t.winPoints > 0 ? t.winPoints : 3;
     final dPts = t.drawPoints > 0 ? t.drawPoints : 1;
     final lPts = t.lossPoints;
 
@@ -1149,19 +1251,19 @@ class TournamentService extends ChangeNotifier {
 
     switch (match.result) {
       case TournamentMatchResult.teamAWin:
-        updA['wins']   = FieldValue.increment(-1);
+        updA['wins'] = FieldValue.increment(-1);
         updA['points'] = FieldValue.increment(-wPts);
         updB['losses'] = FieldValue.increment(-1);
         if (lPts != 0) updB['points'] = FieldValue.increment(-lPts);
       case TournamentMatchResult.teamBWin:
-        updB['wins']   = FieldValue.increment(-1);
+        updB['wins'] = FieldValue.increment(-1);
         updB['points'] = FieldValue.increment(-wPts);
         updA['losses'] = FieldValue.increment(-1);
         if (lPts != 0) updA['points'] = FieldValue.increment(-lPts);
       case TournamentMatchResult.draw:
-        updA['draws']  = FieldValue.increment(-1);
+        updA['draws'] = FieldValue.increment(-1);
         updA['points'] = FieldValue.increment(-dPts);
-        updB['draws']  = FieldValue.increment(-1);
+        updB['draws'] = FieldValue.increment(-1);
         updB['points'] = FieldValue.increment(-dPts);
       case TournamentMatchResult.pending:
       case TournamentMatchResult.bye:
@@ -1180,17 +1282,16 @@ class TournamentService extends ChangeNotifier {
   Future<void> updateMatchResult({
     required String tournamentId,
     required String matchId,
-    required int    scoreA,
-    required int    scoreB,
+    required int scoreA,
+    required int scoreB,
     required String winnerId,
     required String winnerName,
   }) async {
-
     final result = scoreA > scoreB
         ? TournamentMatchResult.teamAWin
         : scoreB > scoreA
-            ? TournamentMatchResult.teamBWin
-            : TournamentMatchResult.draw;
+        ? TournamentMatchResult.teamBWin
+        : TournamentMatchResult.draw;
 
     final matchesRef = _db
         .collection(_col)
@@ -1199,11 +1300,11 @@ class TournamentService extends ChangeNotifier {
 
     // 1. Save the score
     await matchesRef.doc(matchId).update({
-      'scoreA':     scoreA,
-      'scoreB':     scoreB,
-      'winnerId':   winnerId,
+      'scoreA': scoreA,
+      'scoreB': scoreB,
+      'winnerId': winnerId,
       'winnerName': winnerName,
-      'result':     result.name,
+      'result': result.name,
     });
 
     // 2. Read the match we just updated to get its round/matchIndex
@@ -1214,18 +1315,17 @@ class TournamentService extends ChangeNotifier {
       return;
     }
 
-    final round      = (mData['round']      as num).toInt();
+    final round = (mData['round'] as num).toInt();
     final matchIndex = (mData['matchIndex'] as num).toInt();
-    final matchNote  = mData['note'] as String? ?? '';
+    final matchNote = mData['note'] as String? ?? '';
     final isGroupMatch = matchNote.startsWith('Group');
-
 
     // 3. Advance winner directly — but ONLY for knockout matches.
     //    Group-stage (RR) matches must NOT trigger knockout advancement.
     if (winnerId.isNotEmpty && !isGroupMatch) {
-      final nextRound      = round + 1;
+      final nextRound = round + 1;
       final nextMatchIndex = matchIndex ~/ 2;
-      final isSlotA        = matchIndex.isEven;
+      final isSlotA = matchIndex.isEven;
 
       // Fetch ALL match docs to find the next-round match
       final allSnap = await matchesRef.get();
@@ -1234,15 +1334,15 @@ class TournamentService extends ChangeNotifier {
       final docMap = <String, String>{};
       for (final d in allSnap.docs) {
         final dd = d.data();
-        final r  = (dd['round'] as num?)?.toInt();
+        final r = (dd['round'] as num?)?.toInt();
         final mi = (dd['matchIndex'] as num?)?.toInt();
         if (r != null && mi != null) docMap['R${r}M$mi'] = d.id;
       }
 
       final nextDoc = allSnap.docs.where((d) {
         final dd = d.data();
-        return (dd['round']      as num?)?.toInt() == nextRound &&
-               (dd['matchIndex'] as num?)?.toInt() == nextMatchIndex;
+        return (dd['round'] as num?)?.toInt() == nextRound &&
+            (dd['matchIndex'] as num?)?.toInt() == nextMatchIndex;
       }).firstOrNull;
 
       if (nextDoc != null) {
@@ -1250,13 +1350,13 @@ class TournamentService extends ChangeNotifier {
             ? {'teamAId': winnerId, 'teamAName': winnerName}
             : {'teamBId': winnerId, 'teamBName': winnerName};
         await matchesRef.doc(nextDoc.id).update(update);
-      } else {
-      }
+      } else {}
     }
 
     // 4. Update RR stats if applicable
     final tournDoc = _tournaments
-        .where((t) => t.id == tournamentId).firstOrNull;
+        .where((t) => t.id == tournamentId)
+        .firstOrNull;
     final format = tournDoc?.format;
     if (format == TournamentFormat.roundRobin ||
         format == TournamentFormat.leagueKnockout) {
@@ -1283,7 +1383,7 @@ class TournamentService extends ChangeNotifier {
 
     // Use tournament's configured scoring — fall back to standard 3/1/0
     final t = _tournaments.where((t) => t.id == tournamentId).firstOrNull;
-    final wPts = t?.winPoints  ?? 3;
+    final wPts = t?.winPoints ?? 3;
     final dPts = t?.drawPoints ?? 1;
     final lPts = t?.lossPoints ?? 0;
 
@@ -1291,19 +1391,19 @@ class TournamentService extends ChangeNotifier {
     final Map<String, dynamic> updateB = {'played': FieldValue.increment(1)};
 
     if (scoreA > scoreB) {
-      updateA['wins']   = FieldValue.increment(1);
+      updateA['wins'] = FieldValue.increment(1);
       updateA['points'] = FieldValue.increment(wPts);
       updateB['losses'] = FieldValue.increment(1);
       if (lPts != 0) updateB['points'] = FieldValue.increment(lPts);
     } else if (scoreB > scoreA) {
-      updateB['wins']   = FieldValue.increment(1);
+      updateB['wins'] = FieldValue.increment(1);
       updateB['points'] = FieldValue.increment(wPts);
       updateA['losses'] = FieldValue.increment(1);
       if (lPts != 0) updateA['points'] = FieldValue.increment(lPts);
     } else {
-      updateA['draws']  = FieldValue.increment(1);
+      updateA['draws'] = FieldValue.increment(1);
       updateA['points'] = FieldValue.increment(dPts);
-      updateB['draws']  = FieldValue.increment(1);
+      updateB['draws'] = FieldValue.increment(1);
       updateB['points'] = FieldValue.increment(dPts);
     }
 
@@ -1360,13 +1460,14 @@ class TournamentService extends ChangeNotifier {
     final earlyKORound = koMatches
         .map((m) => (m.data['round'] as num).toInt())
         .reduce(math.min);
-    final firstRoundKOPlayed = koMatches.any((m) =>
-        (m.data['round'] as num).toInt() == earlyKORound &&
-        (m.data['result'] != null && m.data['result'] != 'pending'));
+    final firstRoundKOPlayed = koMatches.any(
+      (m) =>
+          (m.data['round'] as num).toInt() == earlyKORound &&
+          (m.data['result'] != null && m.data['result'] != 'pending'),
+    );
     if (firstRoundKOPlayed) {
       return;
     }
-
 
     // Group matches by their group label
     final groupMap = <String, List<Map<String, dynamic>>>{};
@@ -1405,31 +1506,38 @@ class TournamentService extends ChangeNotifier {
 
     for (final groupName in sortedGroupNames) {
       final teamIds = groupTeamIds[groupName]!;
-      final rankings = <({String id, String name, int pts, int wins, int gd})>[];
+      final rankings =
+          <({String id, String name, int pts, int wins, int gd})>[];
 
       for (final tid in teamIds) {
         final t = teamById[tid];
         if (t == null) continue;
-        final pts  = (t['points'] as num?)?.toInt() ?? 0;
-        final wins = (t['wins']   as num?)?.toInt() ?? 0;
+        final pts = (t['points'] as num?)?.toInt() ?? 0;
+        final wins = (t['wins'] as num?)?.toInt() ?? 0;
 
         // Calculate goal difference from group matches
         int gf = 0, ga = 0;
         for (final m in groupMap[groupName]!) {
           final aId = m['teamAId'] as String?;
           final bId = m['teamBId'] as String?;
-          final sA  = (m['scoreA'] as num?)?.toInt() ?? 0;
-          final sB  = (m['scoreB'] as num?)?.toInt() ?? 0;
-          if (aId == tid) { gf += sA; ga += sB; }
-          if (bId == tid) { gf += sB; ga += sA; }
+          final sA = (m['scoreA'] as num?)?.toInt() ?? 0;
+          final sB = (m['scoreB'] as num?)?.toInt() ?? 0;
+          if (aId == tid) {
+            gf += sA;
+            ga += sB;
+          }
+          if (bId == tid) {
+            gf += sB;
+            ga += sA;
+          }
         }
 
         rankings.add((
-          id:   tid,
+          id: tid,
           name: t['teamName'] as String? ?? 'Unknown',
-          pts:  pts,
+          pts: pts,
           wins: wins,
-          gd:   gf - ga,
+          gd: gf - ga,
         ));
       }
 
@@ -1442,7 +1550,6 @@ class TournamentService extends ChangeNotifier {
         return b.gd.compareTo(a.gd);
       });
 
-
       // Top 2 from each group qualify
       for (int i = 0; i < math.min(2, rankings.length); i++) {
         qualifiers.add((teamId: rankings[i].id, teamName: rankings[i].name));
@@ -1451,7 +1558,6 @@ class TournamentService extends ChangeNotifier {
 
     if (qualifiers.isEmpty) return;
 
-
     // Seed qualifiers into KO matches.
     // Standard cross-seeding: Group A #1 vs Group B #2, Group B #1 vs Group A #2
     // For >2 groups, fill bracket slots in order.
@@ -1459,20 +1565,30 @@ class TournamentService extends ChangeNotifier {
     final firstKORound = koMatches
         .map((m) => (m.data['round'] as num).toInt())
         .reduce(math.min);
-    final firstRoundKO = koMatches
-        .where((m) => (m.data['round'] as num).toInt() == firstKORound)
-        .toList()
-      ..sort((a, b) => (a.data['matchIndex'] as num).toInt()
-          .compareTo((b.data['matchIndex'] as num).toInt()));
+    final firstRoundKO =
+        koMatches
+            .where((m) => (m.data['round'] as num).toInt() == firstKORound)
+            .toList()
+          ..sort(
+            (a, b) => (a.data['matchIndex'] as num).toInt().compareTo(
+              (b.data['matchIndex'] as num).toInt(),
+            ),
+          );
 
     // Cross-seed: A1 vs B2, B1 vs A2, C1 vs D2, D1 vs C2, ...
     final seeded = <({String teamId, String teamName})>[];
     final groupCount = sortedGroupNames.length;
     for (int g = 0; g < groupCount; g += 2) {
-      final g1Top = qualifiers.length > g * 2     ? qualifiers[g * 2]     : null;
-      final g1Run = qualifiers.length > g * 2 + 1 ? qualifiers[g * 2 + 1] : null;
-      final g2Top = qualifiers.length > g * 2 + 2 ? qualifiers[g * 2 + 2] : null;
-      final g2Run = qualifiers.length > g * 2 + 3 ? qualifiers[g * 2 + 3] : null;
+      final g1Top = qualifiers.length > g * 2 ? qualifiers[g * 2] : null;
+      final g1Run = qualifiers.length > g * 2 + 1
+          ? qualifiers[g * 2 + 1]
+          : null;
+      final g2Top = qualifiers.length > g * 2 + 2
+          ? qualifiers[g * 2 + 2]
+          : null;
+      final g2Run = qualifiers.length > g * 2 + 3
+          ? qualifiers[g * 2 + 3]
+          : null;
       // Match 1: A1 vs B2
       if (g1Top != null) seeded.add(g1Top);
       if (g2Run != null) seeded.add(g2Run);
@@ -1487,12 +1603,12 @@ class TournamentService extends ChangeNotifier {
     for (final ko in firstRoundKO) {
       final Map<String, dynamic> update = {};
       if (slotIdx < seeded.length) {
-        update['teamAId']   = seeded[slotIdx].teamId;
+        update['teamAId'] = seeded[slotIdx].teamId;
         update['teamAName'] = seeded[slotIdx].teamName;
         slotIdx++;
       }
       if (slotIdx < seeded.length) {
-        update['teamBId']   = seeded[slotIdx].teamId;
+        update['teamBId'] = seeded[slotIdx].teamId;
         update['teamBName'] = seeded[slotIdx].teamName;
         slotIdx++;
       }
@@ -1508,7 +1624,9 @@ class TournamentService extends ChangeNotifier {
   static int _nextPowerOf2(int n) {
     if (n <= 0) return 1;
     int p = 1;
-    while (p < n) { p <<= 1; }
+    while (p < n) {
+      p <<= 1;
+    }
     return p;
   }
 
@@ -1516,49 +1634,66 @@ class TournamentService extends ChangeNotifier {
 
   /// Human-readable description of what the auto-schedule will generate.
   static String scheduleRecommendation(
-      int teamCount, String sport, TournamentFormat format) {
+    int teamCount,
+    String sport,
+    TournamentFormat format,
+  ) {
     if (teamCount < 2) return 'Need at least 2 teams';
 
     if (format == TournamentFormat.roundRobin) {
       final matches = (teamCount * (teamCount - 1)) ~/ 2;
-      final rounds  = teamCount.isEven ? teamCount - 1 : teamCount;
+      final rounds = teamCount.isEven ? teamCount - 1 : teamCount;
       return 'Round Robin: every team plays each other once '
-             '($matches matches, $rounds rounds)';
+          '($matches matches, $rounds rounds)';
     }
 
     if (format == TournamentFormat.leagueKnockout) {
-      final groupSize  = (teamCount % 4 == 3 || teamCount < 5) ? 3 : 4;
+      final groupSize = (teamCount % 4 == 3 || teamCount < 5) ? 3 : 4;
       final groupCount = (teamCount / groupSize).ceil();
-      final koTeams    = groupCount * 2;
+      final koTeams = groupCount * 2;
       final bracketSize = _nextPowerOf2(koTeams);
-      final koRounds   = _log2(bracketSize).toInt();
-      final koLabel    = koRounds == 1 ? 'Final'
-          : koRounds == 2 ? 'Semi-finals → Final'
-          : koRounds == 3 ? 'Quarter-finals → SF → Final'
+      final koRounds = _log2(bracketSize).toInt();
+      final koLabel = koRounds == 1
+          ? 'Final'
+          : koRounds == 2
+          ? 'Semi-finals → Final'
+          : koRounds == 3
+          ? 'Quarter-finals → SF → Final'
           : 'R16 → QF → SF → Final';
       return '$groupCount group(s) of $groupSize → top 2 advance → $koLabel';
     }
 
     // Knockout
     final bracketSize = _nextPowerOf2(teamCount);
-    final byeCount    = bracketSize - teamCount;
-    final rounds      = _log2(bracketSize).toInt();
-    final label       = rounds == 1 ? 'Final'
-        : rounds == 2 ? 'Semi-finals → Final'
-        : rounds == 3 ? 'Quarter-finals → SF → Final'
+    final byeCount = bracketSize - teamCount;
+    final rounds = _log2(bracketSize).toInt();
+    final label = rounds == 1
+        ? 'Final'
+        : rounds == 2
+        ? 'Semi-finals → Final'
+        : rounds == 3
+        ? 'Quarter-finals → SF → Final'
         : 'R16 → QF → SF → Final';
-    final byeStr = byeCount > 0 ? ' ($byeCount bye${byeCount > 1 ? "s" : ""})' : '';
+    final byeStr = byeCount > 0
+        ? ' ($byeCount bye${byeCount > 1 ? "s" : ""})'
+        : '';
     return 'Single Elimination: $label$byeStr';
   }
 
   static String roundLabel(int matchCount) {
     switch (matchCount) {
-      case 1:  return 'Final';
-      case 2:  return 'Semi-finals';
-      case 4:  return 'Quarter-finals';
-      case 8:  return 'Round of 16';
-      case 16: return 'Round of 32';
-      default: return 'Round of ${matchCount * 2}';
+      case 1:
+        return 'Final';
+      case 2:
+        return 'Semi-finals';
+      case 4:
+        return 'Quarter-finals';
+      case 8:
+        return 'Round of 16';
+      case 16:
+        return 'Round of 32';
+      default:
+        return 'Round of ${matchCount * 2}';
     }
   }
 
@@ -1579,7 +1714,7 @@ class TournamentService extends ChangeNotifier {
 
     final rounds = <TournamentRound>[];
     for (int i = 0; i < total; i++) {
-      final key    = sortedKeys[i];
+      final key = sortedKeys[i];
       final sorted = [...byRound[key]!]
         ..sort((a, b) => a.matchIndex.compareTo(b.matchIndex));
 
@@ -1592,11 +1727,9 @@ class TournamentService extends ChangeNotifier {
         _ => 'Round ${i + 1}',
       };
 
-      rounds.add(TournamentRound(
-        roundNumber: key,
-        label:       label,
-        matches:     sorted,
-      ));
+      rounds.add(
+        TournamentRound(roundNumber: key, label: label, matches: sorted),
+      );
     }
     return rounds;
   }
@@ -1607,8 +1740,11 @@ class TournamentService extends ChangeNotifier {
     final uid = UserService().userId ?? '';
     if (uid.isEmpty) return false;
     try {
-      return _tournaments.firstWhere((t) => t.id == tournamentId).createdBy == uid;
-    } catch (_) { return false; }
+      return _tournaments.firstWhere((t) => t.id == tournamentId).createdBy ==
+          uid;
+    } catch (_) {
+      return false;
+    }
   }
 
   bool isAdmin(String tournamentId) {
@@ -1620,7 +1756,9 @@ class TournamentService extends ChangeNotifier {
   bool canDo(String tournamentId, AdminPermission permission) {
     if (isHost(tournamentId)) return true;
     final uid = UserService().userId ?? '';
-    final admin = _admins[tournamentId]?.where((a) => a.userId == uid).firstOrNull;
+    final admin = _admins[tournamentId]
+        ?.where((a) => a.userId == uid)
+        .firstOrNull;
     return admin?.permissions.contains(permission) ?? false;
   }
 
@@ -1631,22 +1769,26 @@ class TournamentService extends ChangeNotifier {
     required String name,
     required String address,
     required String city,
-    int     capacity       = 0,
-    String  pitchType      = '',
-    bool    hasFloodlights = false,
+    int capacity = 0,
+    String pitchType = '',
+    bool hasFloodlights = false,
     String? imageUrl,
   }) async {
-    final ref = _db.collection(_col).doc(tournamentId).collection('venues').doc();
+    final ref = _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('venues')
+        .doc();
     final venue = TournamentVenue(
-      id:             ref.id,
-      tournamentId:   tournamentId,
-      name:           name,
-      address:        address,
-      city:           city,
-      capacity:       capacity,
-      pitchType:      pitchType,
+      id: ref.id,
+      tournamentId: tournamentId,
+      name: name,
+      address: address,
+      city: city,
+      capacity: capacity,
+      pitchType: pitchType,
       hasFloodlights: hasFloodlights,
-      imageUrl:       imageUrl,
+      imageUrl: imageUrl,
     );
     await ref.set(venue.toMap());
     await loadDetail(tournamentId);
@@ -1659,25 +1801,35 @@ class TournamentService extends ChangeNotifier {
     required String name,
     required String address,
     required String city,
-    int     capacity       = 0,
-    String  pitchType      = '',
-    bool    hasFloodlights = false,
+    int capacity = 0,
+    String pitchType = '',
+    bool hasFloodlights = false,
     String? imageUrl,
   }) async {
-    await _db.collection(_col).doc(tournamentId).collection('venues').doc(venueId).update({
-      'name':           name,
-      'address':        address,
-      'city':           city,
-      'capacity':       capacity,
-      'pitchType':      pitchType,
-      'hasFloodlights': hasFloodlights,
-      'imageUrl': ?imageUrl,
-    });
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('venues')
+        .doc(venueId)
+        .update({
+          'name': name,
+          'address': address,
+          'city': city,
+          'capacity': capacity,
+          'pitchType': pitchType,
+          'hasFloodlights': hasFloodlights,
+          'imageUrl': ?imageUrl,
+        });
     await loadDetail(tournamentId);
   }
 
   Future<void> removeVenue(String tournamentId, String venueId) async {
-    await _db.collection(_col).doc(tournamentId).collection('venues').doc(venueId).delete();
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('venues')
+        .doc(venueId)
+        .delete();
     _venues[tournamentId]?.removeWhere((v) => v.id == venueId);
     notifyListeners();
   }
@@ -1685,21 +1837,26 @@ class TournamentService extends ChangeNotifier {
   // ── Admin methods ───────────────────────────────────────────────────────
 
   Future<void> addAdmin({
-    required String               tournamentId,
-    required String               userId,
-    required String               userName,
-    required String               numericId,
+    required String tournamentId,
+    required String userId,
+    required String userName,
+    required String numericId,
     required List<AdminPermission> permissions,
   }) async {
     final adminData = TournamentAdmin(
-      userId:      userId,
-      userName:    userName,
-      numericId:   numericId,
+      userId: userId,
+      userName: userName,
+      numericId: numericId,
       permissions: permissions,
-      assignedAt:  DateTime.now(),
+      assignedAt: DateTime.now(),
     );
     // Use userId as doc ID so duplicates are prevented
-    await _db.collection(_col).doc(tournamentId).collection('admins').doc(userId).set(adminData.toMap());
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('admins')
+        .doc(userId)
+        .set(adminData.toMap());
     // Also add userId to tournament.adminIds array
     await _db.collection(_col).doc(tournamentId).update({
       'adminIds': FieldValue.arrayUnion([userId]),
@@ -1708,7 +1865,12 @@ class TournamentService extends ChangeNotifier {
   }
 
   Future<void> removeAdmin(String tournamentId, String userId) async {
-    await _db.collection(_col).doc(tournamentId).collection('admins').doc(userId).delete();
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('admins')
+        .doc(userId)
+        .delete();
     await _db.collection(_col).doc(tournamentId).update({
       'adminIds': FieldValue.arrayRemove([userId]),
     });
@@ -1723,25 +1885,38 @@ class TournamentService extends ChangeNotifier {
     try {
       if (_squads[tournamentId]?.containsKey(teamId) == true) return;
       final snap = await _db
-          .collection(_col).doc(tournamentId)
-          .collection('teams').doc(teamId)
-          .collection('squad').get();
+          .collection(_col)
+          .doc(tournamentId)
+          .collection('teams')
+          .doc(teamId)
+          .collection('squad')
+          .get();
       _squads.putIfAbsent(tournamentId, () => {});
-      _squads[tournamentId]![teamId] =
-          snap.docs.map(TournamentSquadPlayer.fromFirestore).toList();
-    } catch (e) { /* ignored */ }
+      _squads[tournamentId]![teamId] = snap.docs
+          .map(TournamentSquadPlayer.fromFirestore)
+          .toList();
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   Future<void> loadSquad(String tournamentId, String teamId) async {
     try {
       final snap = await _db
-          .collection(_col).doc(tournamentId)
-          .collection('teams').doc(teamId)
-          .collection('squad').get();
+          .collection(_col)
+          .doc(tournamentId)
+          .collection('teams')
+          .doc(teamId)
+          .collection('squad')
+          .get();
       _squads.putIfAbsent(tournamentId, () => {});
-      _squads[tournamentId]![teamId] = snap.docs.map(TournamentSquadPlayer.fromFirestore).toList();
+      _squads[tournamentId]![teamId] = snap.docs
+          .map(TournamentSquadPlayer.fromFirestore)
+          .toList();
       notifyListeners();
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   Future<void> addPlayerToSquad({
@@ -1750,35 +1925,47 @@ class TournamentService extends ChangeNotifier {
     required String playerId,
     required String userId,
     required String playerName,
-    String  role          = '',
-    bool    isCaptain     = false,
-    bool    isViceCaptain = false,
-    int     jerseyNumber  = 0,
+    String role = '',
+    bool isCaptain = false,
+    bool isViceCaptain = false,
+    int jerseyNumber = 0,
   }) async {
-    final ref = _db.collection(_col).doc(tournamentId)
-        .collection('teams').doc(teamId)
-        .collection('squad').doc();
+    final ref = _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('teams')
+        .doc(teamId)
+        .collection('squad')
+        .doc();
     final player = TournamentSquadPlayer(
-      id:            ref.id,
-      teamId:        teamId,
-      tournamentId:  tournamentId,
-      playerId:      playerId,
-      userId:        userId,
-      playerName:    playerName,
-      role:          role,
-      isCaptain:     isCaptain,
+      id: ref.id,
+      teamId: teamId,
+      tournamentId: tournamentId,
+      playerId: playerId,
+      userId: userId,
+      playerName: playerName,
+      role: role,
+      isCaptain: isCaptain,
       isViceCaptain: isViceCaptain,
-      jerseyNumber:  jerseyNumber,
+      jerseyNumber: jerseyNumber,
     );
     await ref.set(player.toMap());
     await loadSquad(tournamentId, teamId);
   }
 
   Future<void> removePlayerFromSquad(
-      String tournamentId, String teamId, String playerId) async {
-    await _db.collection(_col).doc(tournamentId)
-        .collection('teams').doc(teamId)
-        .collection('squad').doc(playerId).delete();
+    String tournamentId,
+    String teamId,
+    String playerId,
+  ) async {
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('teams')
+        .doc(teamId)
+        .collection('squad')
+        .doc(playerId)
+        .delete();
     _squads[tournamentId]?[teamId]?.removeWhere((p) => p.id == playerId);
     notifyListeners();
   }
@@ -1787,61 +1974,86 @@ class TournamentService extends ChangeNotifier {
     required String tournamentId,
     required String teamId,
     required String docId,
-    bool?   isCaptain,
-    bool?   isViceCaptain,
+    bool? isCaptain,
+    bool? isViceCaptain,
     String? role,
-    int?    jerseyNumber,
+    int? jerseyNumber,
   }) async {
     final updates = <String, dynamic>{};
-    if (isCaptain     != null) updates['isCaptain']     = isCaptain;
+    if (isCaptain != null) updates['isCaptain'] = isCaptain;
     if (isViceCaptain != null) updates['isViceCaptain'] = isViceCaptain;
-    if (role          != null) updates['role']          = role;
-    if (jerseyNumber  != null) updates['jerseyNumber']  = jerseyNumber;
+    if (role != null) updates['role'] = role;
+    if (jerseyNumber != null) updates['jerseyNumber'] = jerseyNumber;
     if (updates.isEmpty) return;
-    await _db.collection(_col).doc(tournamentId)
-        .collection('teams').doc(teamId)
-        .collection('squad').doc(docId).update(updates);
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('teams')
+        .doc(teamId)
+        .collection('squad')
+        .doc(docId)
+        .update(updates);
     await loadSquad(tournamentId, teamId);
   }
 
   // ── Live match methods ──────────────────────────────────────────────────
 
-  Future<void> setMatchLive(String tournamentId, String matchId, {String? streamUrl}) async {
-    await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
-      'isLive': true,
-      'liveStreamUrl': ?streamUrl,
-    });
+  Future<void> setMatchLive(
+    String tournamentId,
+    String matchId, {
+    String? streamUrl,
+  }) async {
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches')
+        .doc(matchId)
+        .update({'isLive': true, 'liveStreamUrl': ?streamUrl});
     await loadDetail(tournamentId);
   }
 
   Future<void> endMatchLive(String tournamentId, String matchId) async {
-    await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
-      'isLive': false,
-    });
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches')
+        .doc(matchId)
+        .update({'isLive': false});
     await loadDetail(tournamentId);
   }
 
   Future<void> updateScorecard(
-      String tournamentId, String matchId, Map<String, dynamic> data) async {
-    await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
-      'scorecardData': data,
-    });
+    String tournamentId,
+    String matchId,
+    Map<String, dynamic> data,
+  ) async {
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches')
+        .doc(matchId)
+        .update({'scorecardData': data});
     await loadDetail(tournamentId);
   }
 
   /// Updates score + scorecard data live (mid-match, no winner set yet).
   Future<void> updateLiveScore(
-      String tournamentId,
-      String matchId,
-      int    scoreA,
-      int    scoreB,
-      Map<String, dynamic> scorecardData,
+    String tournamentId,
+    String matchId,
+    int scoreA,
+    int scoreB,
+    Map<String, dynamic> scorecardData,
   ) async {
-    await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
-      'scoreA':        scoreA,
-      'scoreB':        scoreB,
-      'scorecardData': scorecardData,
-    });
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches')
+        .doc(matchId)
+        .update({
+          'scoreA': scoreA,
+          'scoreB': scoreB,
+          'scorecardData': scorecardData,
+        });
     await loadDetail(tournamentId);
   }
 
@@ -1853,10 +2065,12 @@ class TournamentService extends ChangeNotifier {
     required String venueId,
     required String venueName,
   }) async {
-    await _db.collection(_col).doc(tournamentId).collection('matches').doc(matchId).update({
-      'venueId':   venueId,
-      'venueName': venueName,
-    });
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches')
+        .doc(matchId)
+        .update({'venueId': venueId, 'venueName': venueName});
     await loadDetail(tournamentId);
   }
 
@@ -1869,27 +2083,30 @@ class TournamentService extends ChangeNotifier {
     required String teamBId,
     required String teamBName,
     DateTime? scheduledAt,
-    String?   venueId,
-    String?   venueName,
-    int       round = 1,
-    String?   note,
+    String? venueId,
+    String? venueName,
+    int round = 1,
+    String? note,
   }) async {
-    final matchesRef = _db.collection(_col).doc(tournamentId).collection('matches');
-    final docRef     = matchesRef.doc();
+    final matchesRef = _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('matches');
+    final docRef = matchesRef.doc();
     final matchIndex = _nextMatchIndex(tournamentId, round);
     final match = TournamentMatch(
-      id:           docRef.id,
+      id: docRef.id,
       tournamentId: tournamentId,
-      round:        round,
-      matchIndex:   matchIndex,
-      teamAId:      teamAId,
-      teamAName:    teamAName,
-      teamBId:      teamBId,
-      teamBName:    teamBName,
-      scheduledAt:  scheduledAt,
-      venueId:      venueId,
-      venueName:    venueName,
-      note:         note,
+      round: round,
+      matchIndex: matchIndex,
+      teamAId: teamAId,
+      teamAName: teamAName,
+      teamBId: teamBId,
+      teamBName: teamBName,
+      scheduledAt: scheduledAt,
+      venueId: venueId,
+      venueName: venueName,
+      note: note,
     );
     await docRef.set(match.toMap());
     await loadDetail(tournamentId);
@@ -1910,17 +2127,19 @@ class TournamentService extends ChangeNotifier {
     required String tournamentId,
     required String matchId,
     DateTime? scheduledAt,
-    String?   venueId,
-    String?   venueName,
-    String?   note,
-    int?      round,
+    String? venueId,
+    String? venueName,
+    String? note,
+    int? round,
   }) async {
     final data = <String, dynamic>{};
-    if (scheduledAt != null) data['scheduledAt'] = Timestamp.fromDate(scheduledAt);
-    if (venueId != null)     data['venueId']     = venueId;
-    if (venueName != null)   data['venueName']   = venueName;
-    if (note != null)        data['note']        = note;
-    if (round != null)       data['round']       = round;
+    if (scheduledAt != null) {
+      data['scheduledAt'] = Timestamp.fromDate(scheduledAt);
+    }
+    if (venueId != null) data['venueId'] = venueId;
+    if (venueName != null) data['venueName'] = venueName;
+    if (note != null) data['note'] = note;
+    if (round != null) data['round'] = round;
     if (data.isEmpty) return;
     await _db
         .collection(_col)
@@ -1950,10 +2169,9 @@ class TournamentService extends ChangeNotifier {
     await batch1.commit();
 
     // Delete existing group-stage matches using cached data
-    final groupMatchIds = matchesFor(tournamentId)
-        .where((m) => m.groupId != null)
-        .map((m) => m.id)
-        .toList();
+    final groupMatchIds = matchesFor(
+      tournamentId,
+    ).where((m) => m.groupId != null).map((m) => m.id).toList();
     if (groupMatchIds.isNotEmpty) {
       final batch2 = _db.batch();
       for (final id in groupMatchIds) {
@@ -1968,10 +2186,10 @@ class TournamentService extends ChangeNotifier {
       final groupRef = ref.collection('groups').doc();
       batch3.set(groupRef, {
         'tournamentId': tournamentId,
-        'name':         'Group ${String.fromCharCode(65 + i)}',
-        'teamIds':      <String>[],
-        'teamNames':    <String, String>{},
-        'createdAt':    Timestamp.fromDate(DateTime.now()),
+        'name': 'Group ${String.fromCharCode(65 + i)}',
+        'teamIds': <String>[],
+        'teamNames': <String, String>{},
+        'createdAt': Timestamp.fromDate(DateTime.now()),
       });
     }
     await batch3.commit();
@@ -1983,8 +2201,10 @@ class TournamentService extends ChangeNotifier {
     // Update cached tournament object
     final idx = _tournaments.indexWhere((t) => t.id == tournamentId);
     if (idx != -1) {
-      _tournaments[idx] =
-          _tournaments[idx].copyWith(hasGroups: true, groupCount: count);
+      _tournaments[idx] = _tournaments[idx].copyWith(
+        hasGroups: true,
+        groupCount: count,
+      );
     }
     notifyListeners();
   }
@@ -2003,15 +2223,15 @@ class TournamentService extends ChangeNotifier {
     for (final g in groupsFor(tournamentId)) {
       if (g.teamIds.contains(teamId)) {
         batch.update(ref.collection('groups').doc(g.id), {
-          'teamIds':             FieldValue.arrayRemove([teamId]),
-          'teamNames.$teamId':   FieldValue.delete(),
+          'teamIds': FieldValue.arrayRemove([teamId]),
+          'teamNames.$teamId': FieldValue.delete(),
         });
       }
     }
     // Add to target group
     batch.update(ref.collection('groups').doc(groupId), {
-      'teamIds':             FieldValue.arrayUnion([teamId]),
-      'teamNames.$teamId':   teamName,
+      'teamIds': FieldValue.arrayUnion([teamId]),
+      'teamNames.$teamId': teamName,
     });
     await batch.commit();
     await loadDetail(tournamentId);
@@ -2029,21 +2249,20 @@ class TournamentService extends ChangeNotifier {
         .collection('groups')
         .doc(groupId)
         .update({
-      'teamIds':           FieldValue.arrayRemove([teamId]),
-      'teamNames.$teamId': FieldValue.delete(),
-    });
+          'teamIds': FieldValue.arrayRemove([teamId]),
+          'teamNames.$teamId': FieldValue.delete(),
+        });
     await loadDetail(tournamentId);
   }
 
   /// Generate round-robin matches for a single group, replacing any existing
   /// group matches for that group.
-  Future<void> generateGroupMatches(
-      String tournamentId, String groupId) async {
-    final group =
-        groupsFor(tournamentId).firstWhere((g) => g.id == groupId);
-    final allTeams  = teamsFor(tournamentId);
-    final groupTeams =
-        allTeams.where((t) => group.teamIds.contains(t.id)).toList();
+  Future<void> generateGroupMatches(String tournamentId, String groupId) async {
+    final group = groupsFor(tournamentId).firstWhere((g) => g.id == groupId);
+    final allTeams = teamsFor(tournamentId);
+    final groupTeams = allTeams
+        .where((t) => group.teamIds.contains(t.id))
+        .toList();
 
     if (groupTeams.length < 2) {
       throw Exception('${group.name} needs at least 2 teams.');
@@ -2052,10 +2271,9 @@ class TournamentService extends ChangeNotifier {
     final ref = _db.collection(_col).doc(tournamentId);
 
     // Delete existing matches for this group
-    final oldIds = matchesFor(tournamentId)
-        .where((m) => m.groupId == groupId)
-        .map((m) => m.id)
-        .toList();
+    final oldIds = matchesFor(
+      tournamentId,
+    ).where((m) => m.groupId == groupId).map((m) => m.id).toList();
     if (oldIds.isNotEmpty) {
       final del = _db.batch();
       for (final id in oldIds) {
@@ -2083,16 +2301,16 @@ class TournamentService extends ChangeNotifier {
         final b = pool[n - 1 - i];
         final mRef = ref.collection('matches').doc();
         final match = TournamentMatch(
-          id:           mRef.id,
+          id: mRef.id,
           tournamentId: tournamentId,
-          round:        round,
-          matchIndex:   matchIndex++,
-          teamAId:      a.id,
-          teamAName:    a.teamName,
-          teamBId:      b.id,
-          teamBName:    b.teamName,
-          groupId:      groupId,
-          note:         '${group.name} · Round $round',
+          round: round,
+          matchIndex: matchIndex++,
+          teamAId: a.id,
+          teamAName: a.teamName,
+          teamBId: b.id,
+          teamBName: b.teamName,
+          groupId: groupId,
+          note: '${group.name} · Round $round',
         );
         batch.set(mRef, match.toMap());
       }
@@ -2111,10 +2329,9 @@ class TournamentService extends ChangeNotifier {
     final ref = _db.collection(_col).doc(tournamentId);
 
     // Delete group-stage matches
-    final groupMatchIds = matchesFor(tournamentId)
-        .where((m) => m.groupId != null)
-        .map((m) => m.id)
-        .toList();
+    final groupMatchIds = matchesFor(
+      tournamentId,
+    ).where((m) => m.groupId != null).map((m) => m.id).toList();
     if (groupMatchIds.isNotEmpty) {
       final b1 = _db.batch();
       for (final id in groupMatchIds) {
@@ -2139,8 +2356,10 @@ class TournamentService extends ChangeNotifier {
 
     final idx = _tournaments.indexWhere((t) => t.id == tournamentId);
     if (idx != -1) {
-      _tournaments[idx] =
-          _tournaments[idx].copyWith(hasGroups: false, groupCount: 0);
+      _tournaments[idx] = _tournaments[idx].copyWith(
+        hasGroups: false,
+        groupCount: 0,
+      );
     }
     await loadDetail(tournamentId);
   }

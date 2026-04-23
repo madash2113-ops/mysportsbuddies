@@ -24,26 +24,26 @@ class UserService extends ChangeNotifier {
   static final UserService _instance = UserService._();
   factory UserService() => _instance;
 
-  static const _col     = 'users';
-  static const _prefKey = 'msb_user_id';   // kept for migration fallback
+  static const _col = 'users';
+  static const _prefKey = 'msb_user_id'; // kept for migration fallback
 
-  FirebaseFirestore  get _db      => FirebaseFirestore.instance;
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
   // Explicitly target the new-format bucket (firebasestorage.app).
   // FirebaseStorage.instance can default to the legacy appspot.com bucket
   // which doesn't exist for this project, causing object-not-found errors.
-  FirebaseStorage    get _storage => FirebaseStorage.instanceFor(
+  FirebaseStorage get _storage => FirebaseStorage.instanceFor(
     bucket: 'gs://mysportsbuddies-4d077.firebasestorage.app',
   );
-  FirebaseAuth       get _auth    => FirebaseAuth.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
 
-  String?      _userId;
+  String? _userId;
   UserProfile? _profile;
-  bool         _initialized = false;
+  bool _initialized = false;
   StreamSubscription<DocumentSnapshot>? _profileSub;
 
-  String?      get userId      => _userId;
-  UserProfile? get profile     => _profile;
-  bool         get initialized => _initialized;
+  String? get userId => _userId;
+  UserProfile? get profile => _profile;
+  bool get initialized => _initialized;
 
   /// True when the user may access all premium features.
   /// In dev mode (kDevMode = true) this is always true.
@@ -84,7 +84,6 @@ class UserService extends ChangeNotifier {
     });
   }
 
-
   // ── Init ─────────────────────────────────────────────────────────────────
 
   /// Call once after Firebase.initializeApp().
@@ -93,9 +92,11 @@ class UserService extends ChangeNotifier {
     _userId = await _signInAndGetId();
     await _loadProfile();
     await _ensureNumericId();
-    _backfillSearchFields();       // fire-and-forget: indexes current user
+    _backfillSearchFields(); // fire-and-forget: indexes current user
     _globalBackfillSearchFields(); // fire-and-forget: indexes all unindexed users
-    _startProfileListener(_userId!); // real-time updates (e.g. admin grants premium)
+    _startProfileListener(
+      _userId!,
+    ); // real-time updates (e.g. admin grants premium)
     _initialized = true;
     notifyListeners();
   }
@@ -110,24 +111,28 @@ class UserService extends ChangeNotifier {
       final reserved = kReservedNumericIds[_userId];
       // If a reserved ID is configured and current ID doesn't match, force it
       if (reserved != null && _profile?.numericId != reserved) {
-        await _db
-            .collection(_col)
-            .doc(_userId)
-            .set({'numericId': reserved, 'numericIdStr': reserved.toString()}, SetOptions(merge: true));
-        final base = _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
+        await _db.collection(_col).doc(_userId).set({
+          'numericId': reserved,
+          'numericIdStr': reserved.toString(),
+        }, SetOptions(merge: true));
+        final base =
+            _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
         _profile = base.copyWith(numericId: reserved);
         return;
       }
       // Otherwise generate a new ID only if one isn't already assigned
       if (_profile?.numericId != null) return;
       final newId = await _generateUniqueNumericId();
-      await _db
-          .collection(_col)
-          .doc(_userId)
-          .set({'numericId': newId, 'numericIdStr': newId.toString()}, SetOptions(merge: true));
-      final base = _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
+      await _db.collection(_col).doc(_userId).set({
+        'numericId': newId,
+        'numericIdStr': newId.toString(),
+      }, SetOptions(merge: true));
+      final base =
+          _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
       _profile = base.copyWith(numericId: newId);
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   /// Backfills all search index fields for the current user's Firestore doc.
@@ -138,26 +143,29 @@ class UserService extends ChangeNotifier {
     if (_userId == null || _profile == null) return;
     if (_profile!.name.isEmpty) return;
     try {
-      final doc  = await _db.collection(_col).doc(_userId).get();
+      final doc = await _db.collection(_col).doc(_userId).get();
       final data = doc.data() ?? {};
       // Re-index if ANY field is missing (handles incremental schema additions)
-      final needsUpdate = !data.containsKey('nameLower')
-          || !data.containsKey('nameReversed')
-          || !data.containsKey('nameWords')
-          || !data.containsKey('searchTokens')
-          || !data.containsKey('emailLower')
-          || !data.containsKey('numericIdStr');
+      final needsUpdate =
+          !data.containsKey('nameLower') ||
+          !data.containsKey('nameReversed') ||
+          !data.containsKey('nameWords') ||
+          !data.containsKey('searchTokens') ||
+          !data.containsKey('emailLower') ||
+          !data.containsKey('numericIdStr');
       if (!needsUpdate) return;
       final p = _profile!;
       await _db.collection(_col).doc(_userId).update({
-        'nameLower':    p.nameLower,
+        'nameLower': p.nameLower,
         'nameReversed': p.nameReversed,
-        'nameWords':    p.nameWords,
+        'nameWords': p.nameWords,
         'searchTokens': p.searchTokens,
-        'emailLower':   p.emailLower,
+        'emailLower': p.emailLower,
         if (p.numericIdStr != null) 'numericIdStr': p.numericIdStr,
       });
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   /// Global backfill — writes search index fields for all users who are
@@ -168,39 +176,43 @@ class UserService extends ChangeNotifier {
     if (_userId == null) return;
     try {
       final results = await Future.wait([
-        _db.collection(_col).where('searchTokens', isNull: true).limit(100).get(),
-        _db.collection(_col).where('emailLower',   isNull: true).limit(100).get(),
+        _db
+            .collection(_col)
+            .where('searchTokens', isNull: true)
+            .limit(100)
+            .get(),
+        _db.collection(_col).where('emailLower', isNull: true).limit(100).get(),
       ]);
 
-      final seen    = <String>{};
-      final allDocs = results.expand((s) => s.docs)
+      final seen = <String>{};
+      final allDocs = results
+          .expand((s) => s.docs)
           .where((d) => seen.add(d.id))
           .toList();
 
       if (allDocs.isEmpty) return;
 
       final batch = _db.batch();
-      int   count = 0;
+      int count = 0;
 
       for (final doc in allDocs) {
         final data = doc.data();
         final name = data['name'] as String? ?? '';
         if (name.isEmpty) continue;
 
-        final p      = UserProfile.fromFirestore(doc);
-        final update = <String, dynamic>{
-          'emailLower': p.emailLower,
-        };
+        final p = UserProfile.fromFirestore(doc);
+        final update = <String, dynamic>{'emailLower': p.emailLower};
 
         // Write numericIdStr if they already have a numericId but are missing the string form
-        if (data.containsKey('numericId') && !data.containsKey('numericIdStr')) {
+        if (data.containsKey('numericId') &&
+            !data.containsKey('numericIdStr')) {
           update['numericIdStr'] = p.numericId.toString();
         }
 
         if (!data.containsKey('searchTokens')) {
-          update['nameLower']    = p.nameLower;
+          update['nameLower'] = p.nameLower;
           update['nameReversed'] = p.nameReversed;
-          update['nameWords']    = p.nameWords;
+          update['nameWords'] = p.nameWords;
           update['searchTokens'] = p.searchTokens;
         }
 
@@ -211,7 +223,9 @@ class UserService extends ChangeNotifier {
       if (count > 0) {
         await batch.commit();
       }
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   /// Signs in anonymously (or reuses existing session) and returns the UID.
@@ -228,7 +242,9 @@ class UserService extends ChangeNotifier {
         await _migrateOldId(user.uid);
         return user.uid;
       }
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
     // Fallback: use SharedPreferences-based device ID
     return _loadOrCreateDeviceId();
   }
@@ -237,26 +253,30 @@ class UserService extends ChangeNotifier {
   /// their old data is not lost (best-effort).
   Future<void> _migrateOldId(String authUid) async {
     try {
-      final prefs   = await SharedPreferences.getInstance();
-      final oldId   = prefs.getString(_prefKey);
+      final prefs = await SharedPreferences.getInstance();
+      final oldId = prefs.getString(_prefKey);
       if (oldId != null && oldId.isNotEmpty && oldId != authUid) {
         // Store old→new mapping (fire-and-forget)
-        _db.collection('id_migrations').doc(oldId).set({
-          'newId':     authUid,
-          'migratedAt': FieldValue.serverTimestamp(),
-        }).catchError((dynamic _) {});
+        _db
+            .collection('id_migrations')
+            .doc(oldId)
+            .set({'newId': authUid, 'migratedAt': FieldValue.serverTimestamp()})
+            .catchError((dynamic _) {});
         // Clear old pref so we don't migrate again
         await prefs.remove(_prefKey);
       }
-    } catch (_) { /* ignored */ }
+    } catch (_) {
+      /* ignored */
+    }
   }
 
   Future<String> _loadOrCreateDeviceId() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      String? id  = prefs.getString(_prefKey);
+      String? id = prefs.getString(_prefKey);
       if (id == null || id.isEmpty) {
-        id = _auth.currentUser?.uid ??
+        id =
+            _auth.currentUser?.uid ??
             DateTime.now().millisecondsSinceEpoch.toRadixString(16);
         await prefs.setString(_prefKey, id);
       }
@@ -283,20 +303,22 @@ class UserService extends ChangeNotifier {
     if (_profile == null) {
       // First sign-in with this account — create an initial profile
       final newProfile = UserProfile(
-        id:        uid,
-        name:      name  ?? '',
-        email:     email ?? '',
-        phone:     phone ?? '',
+        id: uid,
+        name: name ?? '',
+        email: email ?? '',
+        phone: phone ?? '',
         updatedAt: DateTime.now(),
       );
       await saveProfile(newProfile);
     } else if (_profile!.name.isEmpty && (name?.isNotEmpty == true)) {
       // Profile exists but has no name yet (e.g. migrated from anonymous)
-      await saveProfile(_profile!.copyWith(
-        name:  name,
-        email: email ?? _profile!.email,
-        phone: phone ?? _profile!.phone,
-      ));
+      await saveProfile(
+        _profile!.copyWith(
+          name: name,
+          email: email ?? _profile!.email,
+          phone: phone ?? _profile!.phone,
+        ),
+      );
     }
 
     await _ensureNumericId();
@@ -323,30 +345,30 @@ class UserService extends ChangeNotifier {
   /// Also auto-generates a membershipId if the user is premium but has none.
   void _startProfileListener(String uid) {
     _profileSub?.cancel();
-    _profileSub = _db.collection(_col).doc(uid).snapshots().listen(
-      (snap) async {
-        if (!snap.exists) return;
-        final p = UserProfile.fromFirestore(snap);
-        _profile = p;
-        notifyListeners();
+    _profileSub = _db.collection(_col).doc(uid).snapshots().listen((
+      snap,
+    ) async {
+      if (!snap.exists) return;
+      final p = UserProfile.fromFirestore(snap);
+      _profile = p;
+      notifyListeners();
 
-        // Auto-generate membershipId if premium but none assigned yet
-        if (p.isPremium && (p.membershipId == null || p.membershipId!.isEmpty)) {
-          final suffix = (DateTime.now().millisecondsSinceEpoch % 9000 + 1000).toString();
-          final mid = p.numericId != null
-              ? 'MSB-${p.numericId}-$suffix'
-              : 'MSB-${uid.substring(0, 6).toUpperCase()}-$suffix';
-          try {
-            await _db.collection(_col).doc(uid).set(
-              {'membershipId': mid},
-              SetOptions(merge: true),
-            );
-          } catch (e) { /* ignored */ }
+      // Auto-generate membershipId if premium but none assigned yet
+      if (p.isPremium && (p.membershipId == null || p.membershipId!.isEmpty)) {
+        final suffix = (DateTime.now().millisecondsSinceEpoch % 9000 + 1000)
+            .toString();
+        final mid = p.numericId != null
+            ? 'MSB-${p.numericId}-$suffix'
+            : 'MSB-${uid.substring(0, 6).toUpperCase()}-$suffix';
+        try {
+          await _db.collection(_col).doc(uid).set({
+            'membershipId': mid,
+          }, SetOptions(merge: true));
+        } catch (e) {
+          /* ignored */
         }
-      },
-      onError: (dynamic e) {
-      },
-    );
+      }
+    }, onError: (dynamic e) {});
   }
 
   // ── Load ─────────────────────────────────────────────────────────────────
@@ -357,9 +379,13 @@ class UserService extends ChangeNotifier {
       final doc = await _db.collection(_col).doc(_userId).get();
       if (doc.exists) {
         _profile = UserProfile.fromFirestore(doc);
-        notifyListeners();
+      } else {
+        _profile = null;
       }
-    } catch (e) { /* ignored */ }
+      notifyListeners();
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
@@ -393,7 +419,7 @@ class UserService extends ChangeNotifier {
   /// Uploads profile image bytes to Firebase Storage and returns the download URL.
   Future<String> uploadProfileImageBytes(Uint8List bytes) async {
     final authUser = _auth.currentUser;
-    final id       = _userId ?? authUser?.uid ?? 'unknown';
+    final id = _userId ?? authUser?.uid ?? 'unknown';
 
     // ── Diagnostics ──────────────────────────────────────────────────────────
 
@@ -424,7 +450,6 @@ class UserService extends ChangeNotifier {
     } catch (e) {
       rethrow;
     }
-
 
     if (snapshot.state != TaskState.success) {
       throw FirebaseException(
@@ -483,7 +508,9 @@ class UserService extends ChangeNotifier {
           .collection(_col)
           .doc(userId)
           .set(data, SetOptions(merge: true));
-    } catch (e) { /* ignored */ }
+    } catch (e) {
+      /* ignored */
+    }
   }
 
   /// Search registered players by name.
@@ -497,9 +524,9 @@ class UserService extends ChangeNotifier {
     final q = query.trim();
     if (q.isEmpty) return [];
 
-    final qLow   = q.toLowerCase();
-    final qTitle = q[0].toUpperCase() +
-        (q.length > 1 ? q.substring(1).toLowerCase() : '');
+    final qLow = q.toLowerCase();
+    final qTitle =
+        q[0].toUpperCase() + (q.length > 1 ? q.substring(1).toLowerCase() : '');
     final qUpper = q.toUpperCase();
 
     Future<QuerySnapshot> prefixOn(String field, String value) => _db
@@ -513,15 +540,16 @@ class UserService extends ChangeNotifier {
       // Run ALL case variants in parallel — Firestore Unicode ordering means
       // each stored case ('avinash', 'Avinash', 'AVINASH') needs its own query.
       final snaps = await Future.wait([
-        prefixOn('nameLower',    qLow),    // indexed lowercase field
-        prefixOn('nameReversed', qLow),    // indexed reversed field
-        _db.collection(_col)
+        prefixOn('nameLower', qLow), // indexed lowercase field
+        prefixOn('nameReversed', qLow), // indexed reversed field
+        _db
+            .collection(_col)
             .where('nameWords', arrayContains: qLow)
             .limit(limit)
             .get(),
-        prefixOn('name', qLow),    // stored as lowercase: "avinash kumar"
-        prefixOn('name', qTitle),  // stored as title-case: "Avinash Kumar"
-        prefixOn('name', qUpper),  // stored as ALLCAPS:   "AVINASH KUMAR"
+        prefixOn('name', qLow), // stored as lowercase: "avinash kumar"
+        prefixOn('name', qTitle), // stored as title-case: "Avinash Kumar"
+        prefixOn('name', qUpper), // stored as ALLCAPS:   "AVINASH KUMAR"
       ]);
 
       final seen = <String>{};
@@ -555,15 +583,12 @@ class UserService extends ChangeNotifier {
   /// Cancels the current user's premium subscription.
   Future<void> cancelPremium() async {
     if (_userId == null) return;
-    await _db.collection(_col).doc(_userId).set(
-      {
-        'isPremium': false,
-        'planTier': PlanTier.free.name,
-        'subscriptionStatus': SubscriptionStatus.cancelled.name,
-        'entitlements': <String>[],
-      },
-      SetOptions(merge: true),
-    );
+    await _db.collection(_col).doc(_userId).set({
+      'isPremium': false,
+      'planTier': PlanTier.free.name,
+      'subscriptionStatus': SubscriptionStatus.cancelled.name,
+      'entitlements': <String>[],
+    }, SetOptions(merge: true));
   }
 
   /// Returns true if [phone] is already stored on a different user's profile.
@@ -603,8 +628,10 @@ class UserService extends ChangeNotifier {
 
     try {
       final snaps = await Future.wait(
-        variants.map((v) =>
-            _db.collection(_col).where('phone', isEqualTo: v).limit(1).get()),
+        variants.map(
+          (v) =>
+              _db.collection(_col).where('phone', isEqualTo: v).limit(1).get(),
+        ),
       );
       for (final snap in snaps) {
         if (snap.docs.isNotEmpty) {

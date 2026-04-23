@@ -540,6 +540,7 @@ class _RightPanel extends StatelessWidget {
                   labelColor: _kRed,
                   iconColor: _kRed,
                   onTap: () async {
+                    final nav = Navigator.of(context, rootNavigator: true);
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (_) => AlertDialog(
@@ -570,7 +571,11 @@ class _RightPanel extends StatelessWidget {
                         ],
                       ),
                     );
-                    if (confirmed == true) await AuthService().signOut();
+                    if (confirmed == true) {
+                      await AuthService().signOut();
+                      if (!nav.mounted) return;
+                      nav.pushNamedAndRemoveUntil('/web-landing', (_) => false);
+                    }
                   },
                 ),
               ],
