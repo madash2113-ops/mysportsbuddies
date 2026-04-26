@@ -1,14 +1,24 @@
 'use strict';
 
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
-const admin = require('firebase-admin');
-const pool  = require('./db');
+const { defineSecret }      = require('firebase-functions/params');
+const admin                 = require('firebase-admin');
+const { getPool }           = require('./db');
 
 admin.initializeApp();
 
+// Declare secrets so Firebase injects them as environment variables at runtime
+const SUPABASE_HOST     = defineSecret('SUPABASE_HOST');
+const SUPABASE_PASSWORD = defineSecret('SUPABASE_PASSWORD');
+
+// Shared options applied to every trigger
+const fnOpts = {
+  secrets: [SUPABASE_HOST, SUPABASE_PASSWORD],
+  timeoutSeconds: 60,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert Firestore Timestamp or JS Date to ISO string; null otherwise. */
 const ts = (v) => {
   if (!v) return null;
   if (v.toDate) return v.toDate().toISOString();
@@ -16,22 +26,20 @@ const ts = (v) => {
   return null;
 };
 
-/** Safely run a query; log error but don't crash the function on DB failure. */
 const run = async (label, queryFn) => {
   try {
     await queryFn();
   } catch (err) {
     console.error(`[${label}] Supabase error:`, err.message);
-    throw err; // re-throw so Cloud Functions marks the invocation failed
+    throw err;
   }
 };
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
-// Firestore: users/{userId}
-// Mirrors: UserProfile model (user_profile.dart)
 
-exports.syncUser = onDocumentWritten('users/{userId}', async (event) => {
-  const uid = event.params.userId;
+exports.syncUser = onDocumentWritten({ document: 'users/{userId}', ...fnOpts }, async (event) => {
+  const pool = getPool();
+  const uid  = event.params.userId;
 
   if (!event.data.after.exists) {
     await run('syncUser:delete', () =>
@@ -73,32 +81,31 @@ exports.syncUser = onDocumentWritten('users/{userId}', async (event) => {
         updated_at          = NOW()
     `, [
       uid,
-      d.numericId            ?? null,
-      d.name                 ?? null,
-      d.email                ?? null,
-      d.phone                ?? null,
-      d.location             ?? null,
-      d.dob                  ?? null,
-      d.bio                  ?? null,
-      d.imageUrl             ?? null,
-      d.isPremium            ?? false,
-      d.isAdmin              ?? false,
-      d.planTier             ?? 'free',
-      d.subscriptionStatus   ?? 'none',
-      d.tournamentsPlayed    ?? 0,
-      d.matchesPlayed        ?? 0,
-      d.matchesWon           ?? 0,
-      d.favoriteSports       ?? [],
+      d.numericId          ?? null,
+      d.name               ?? null,
+      d.email              ?? null,
+      d.phone              ?? null,
+      d.location           ?? null,
+      d.dob                ?? null,
+      d.bio                ?? null,
+      d.imageUrl           ?? null,
+      d.isPremium          ?? false,
+      d.isAdmin            ?? false,
+      d.planTier           ?? 'free',
+      d.subscriptionStatus ?? 'none',
+      d.tournamentsPlayed  ?? 0,
+      d.matchesPlayed      ?? 0,
+      d.matchesWon         ?? 0,
+      d.favoriteSports     ?? [],
     ])
   );
 });
 
 // ─── VENUES ───────────────────────────────────────────────────────────────────
-// Firestore: venues/{venueId}
-// Mirrors: VenueModel (venue_model.dart)
 
-exports.syncVenue = onDocumentWritten('venues/{venueId}', async (event) => {
-  const vid = event.params.venueId;
+exports.syncVenue = onDocumentWritten({ document: 'venues/{venueId}', ...fnOpts }, async (event) => {
+  const pool = getPool();
+  const vid  = event.params.venueId;
 
   if (!event.data.after.exists) {
     await run('syncVenue:delete', () =>
@@ -135,35 +142,34 @@ exports.syncVenue = onDocumentWritten('venues/{venueId}', async (event) => {
         timings        = EXCLUDED.timings
     `, [
       vid,
-      d.ownerId        ?? null,
-      d.name           ?? null,
-      d.description    ?? null,
-      d.address        ?? null,
-      d.lat            ?? null,
-      d.lng            ?? null,
-      d.sports         ?? [],
-      d.photoUrls      ?? [],
-      d.phone          ?? null,
-      d.email          ?? null,
-      d.pricePerHour   ?? 0,
+      d.ownerId       ?? null,
+      d.name          ?? null,
+      d.description   ?? null,
+      d.address       ?? null,
+      d.lat           ?? null,
+      d.lng           ?? null,
+      d.sports        ?? [],
+      d.photoUrls     ?? [],
+      d.phone         ?? null,
+      d.email         ?? null,
+      d.pricePerHour  ?? 0,
       JSON.stringify(d.timings ?? {}),
-      d.status         ?? 'active',
-      d.isVerified     ?? false,
-      d.rating         ?? 0,
-      d.reviewCount    ?? 0,
-      ts(d.createdAt)  ?? new Date().toISOString(),
+      d.status        ?? 'active',
+      d.isVerified    ?? false,
+      d.rating        ?? 0,
+      d.reviewCount   ?? 0,
+      ts(d.createdAt) ?? new Date().toISOString(),
     ])
   );
 });
 
 // ─── TOURNAMENTS ──────────────────────────────────────────────────────────────
-// Firestore: tournaments/{tournamentId}
-// Mirrors: Tournament model (tournament.dart)
 
 exports.syncTournament = onDocumentWritten(
-  'tournaments/{tournamentId}',
+  { document: 'tournaments/{tournamentId}', ...fnOpts },
   async (event) => {
-    const tid = event.params.tournamentId;
+    const pool = getPool();
+    const tid  = event.params.tournamentId;
 
     if (!event.data.after.exists) {
       await run('syncTournament:delete', () =>
@@ -210,29 +216,29 @@ exports.syncTournament = onDocumentWritten(
       `, [
         tid,
         d.name, d.sport, d.format, d.status, d.location,
-        d.createdBy          ?? null,
-        d.createdByName      ?? null,
-        d.maxTeams           ?? 0,
-        d.playersPerTeam     ?? 0,
-        d.entryFee           ?? 0,
-        d.serviceFee         ?? 0,
-        d.registeredTeams    ?? 0,
-        d.enrolledTeamNames  ?? [],
-        d.prizePool          ?? null,
-        d.rules              ?? null,
-        d.description        ?? null,
-        d.bannerUrl          ?? null,
-        d.isPrivate          ?? false,
-        d.joinCode           ?? null,
-        d.bracketGenerated   ?? false,
-        d.hasGroups          ?? false,
-        d.groupCount         ?? 0,
-        d.scoringType        ?? 'standard',
-        d.bestOf             ?? 3,
-        d.pointsToWin        ?? 21,
-        d.winPoints          ?? 3,
-        d.drawPoints         ?? 1,
-        d.lossPoints         ?? 0,
+        d.createdBy         ?? null,
+        d.createdByName     ?? null,
+        d.maxTeams          ?? 0,
+        d.playersPerTeam    ?? 0,
+        d.entryFee          ?? 0,
+        d.serviceFee        ?? 0,
+        d.registeredTeams   ?? 0,
+        d.enrolledTeamNames ?? [],
+        d.prizePool         ?? null,
+        d.rules             ?? null,
+        d.description       ?? null,
+        d.bannerUrl         ?? null,
+        d.isPrivate         ?? false,
+        d.joinCode          ?? null,
+        d.bracketGenerated  ?? false,
+        d.hasGroups         ?? false,
+        d.groupCount        ?? 0,
+        d.scoringType       ?? 'standard',
+        d.bestOf            ?? 3,
+        d.pointsToWin       ?? 21,
+        d.winPoints         ?? 3,
+        d.drawPoints        ?? 1,
+        d.lossPoints        ?? 0,
         ts(d.startDate),
         ts(d.endDate),
         ts(d.createdAt) ?? new Date().toISOString(),
@@ -242,12 +248,11 @@ exports.syncTournament = onDocumentWritten(
 );
 
 // ─── TEAMS ────────────────────────────────────────────────────────────────────
-// Firestore: tournaments/{tournamentId}/teams/{teamId}
-// Mirrors: TournamentTeam model (tournament.dart)
 
 exports.syncTeam = onDocumentWritten(
-  'tournaments/{tournamentId}/teams/{teamId}',
+  { document: 'tournaments/{tournamentId}/teams/{teamId}', ...fnOpts },
   async (event) => {
+    const pool   = getPool();
     const teamId = event.params.teamId;
     const tournId = event.params.tournamentId;
 
@@ -259,7 +264,7 @@ exports.syncTeam = onDocumentWritten(
       return;
     }
 
-    const d = event.data.after.data();
+    const d          = event.data.after.data();
     const players    = d.players    ?? [];
     const playerUids = d.playerUserIds ?? [];
 
@@ -279,24 +284,22 @@ exports.syncTeam = onDocumentWritten(
           payment_confirmed    = EXCLUDED.payment_confirmed
       `, [
         teamId, tournId,
-        d.teamName             ?? null,
-        d.captainName          ?? null,
-        d.captainUserId        || null,
-        d.captainPhone         ?? null,
-        d.viceCaptainName      || null,
-        d.viceCaptainUserId    || null,
-        d.enrolledBy           || null,
-        d.seed                 ?? null,
-        d.paymentConfirmed     ?? false,
+        d.teamName          ?? null,
+        d.captainName       ?? null,
+        d.captainUserId     || null,
+        d.captainPhone      ?? null,
+        d.viceCaptainName   || null,
+        d.viceCaptainUserId || null,
+        d.enrolledBy        || null,
+        d.seed              ?? null,
+        d.paymentConfirmed  ?? false,
         ts(d.enrolledAt) ?? new Date().toISOString(),
       ]);
 
-      // Sync squad — delete stale rows, re-insert fresh
       await pool.query('DELETE FROM team_players WHERE team_id = $1', [teamId]);
       for (let i = 0; i < players.length; i++) {
         await pool.query(`
-          INSERT INTO team_players
-            (team_id, tournament_id, user_id, player_name, position)
+          INSERT INTO team_players (team_id, tournament_id, user_id, player_name, position)
           VALUES ($1,$2,$3,$4,$5)
         `, [
           teamId, tournId,
@@ -310,12 +313,11 @@ exports.syncTeam = onDocumentWritten(
 );
 
 // ─── MATCHES ──────────────────────────────────────────────────────────────────
-// Firestore: tournaments/{tournamentId}/matches/{matchId}
-// Mirrors: TournamentMatch model (tournament.dart)
 
 exports.syncMatch = onDocumentWritten(
-  'tournaments/{tournamentId}/matches/{matchId}',
+  { document: 'tournaments/{tournamentId}/matches/{matchId}', ...fnOpts },
   async (event) => {
+    const pool    = getPool();
     const matchId = event.params.matchId;
     const tournId = event.params.tournamentId;
 
@@ -344,39 +346,39 @@ exports.syncMatch = onDocumentWritten(
           $21,$22,NOW()
         )
         ON CONFLICT (id) DO UPDATE SET
-          team_a_id       = EXCLUDED.team_a_id,
-          team_a_name     = EXCLUDED.team_a_name,
-          team_b_id       = EXCLUDED.team_b_id,
-          team_b_name     = EXCLUDED.team_b_name,
-          winner_id       = EXCLUDED.winner_id,
-          winner_name     = EXCLUDED.winner_name,
-          score_a         = EXCLUDED.score_a,
-          score_b         = EXCLUDED.score_b,
-          result          = EXCLUDED.result,
-          is_live         = EXCLUDED.is_live,
-          scorecard_data  = EXCLUDED.scorecard_data,
-          scheduled_at    = EXCLUDED.scheduled_at,
-          updated_at      = NOW()
+          team_a_id      = EXCLUDED.team_a_id,
+          team_a_name    = EXCLUDED.team_a_name,
+          team_b_id      = EXCLUDED.team_b_id,
+          team_b_name    = EXCLUDED.team_b_name,
+          winner_id      = EXCLUDED.winner_id,
+          winner_name    = EXCLUDED.winner_name,
+          score_a        = EXCLUDED.score_a,
+          score_b        = EXCLUDED.score_b,
+          result         = EXCLUDED.result,
+          is_live        = EXCLUDED.is_live,
+          scorecard_data = EXCLUDED.scorecard_data,
+          scheduled_at   = EXCLUDED.scheduled_at,
+          updated_at     = NOW()
       `, [
         matchId, tournId,
-        d.round              ?? 1,
-        d.matchIndex         ?? 0,
-        d.teamAId            || null,
-        d.teamAName          || null,
-        d.teamBId            || null,
-        d.teamBName          || null,
-        d.winnerId           || null,
-        d.winnerName         || null,
-        d.scoreA             ?? null,
-        d.scoreB             ?? null,
-        d.result             ?? 'pending',
-        d.isBye              ?? false,
-        d.isLive             ?? false,
-        d.note               ?? null,
-        d.groupId            || null,
-        d.venueId            || null,
-        d.venueName          || null,
-        d.liveStreamUrl      || null,
+        d.round         ?? 1,
+        d.matchIndex    ?? 0,
+        d.teamAId       || null,
+        d.teamAName     || null,
+        d.teamBId       || null,
+        d.teamBName     || null,
+        d.winnerId      || null,
+        d.winnerName    || null,
+        d.scoreA        ?? null,
+        d.scoreB        ?? null,
+        d.result        ?? 'pending',
+        d.isBye         ?? false,
+        d.isLive        ?? false,
+        d.note          ?? null,
+        d.groupId       || null,
+        d.venueId       || null,
+        d.venueName     || null,
+        d.liveStreamUrl || null,
         d.scorecardData ? JSON.stringify(d.scorecardData) : null,
         ts(d.scheduledAt),
       ])
@@ -384,60 +386,62 @@ exports.syncMatch = onDocumentWritten(
   }
 );
 
-// ─── SCOREBOARDS (live match scores) ─────────────────────────────────────────
-// Firestore: matches/{matchId}
-// This is the flat top-level matches/scoreboards collection (not subcollection)
+// ─── SCOREBOARDS ──────────────────────────────────────────────────────────────
 
-exports.syncScoreboard = onDocumentWritten('matches/{matchId}', async (event) => {
-  const matchId = event.params.matchId;
+exports.syncScoreboard = onDocumentWritten(
+  { document: 'matches/{matchId}', ...fnOpts },
+  async (event) => {
+    const pool    = getPool();
+    const matchId = event.params.matchId;
 
-  if (!event.data.after.exists) {
-    await run('syncScoreboard:delete', () =>
-      pool.query('DELETE FROM scoreboards WHERE id = $1', [matchId])
+    if (!event.data.after.exists) {
+      await run('syncScoreboard:delete', () =>
+        pool.query('DELETE FROM scoreboards WHERE id = $1', [matchId])
+      );
+      return;
+    }
+
+    const d = event.data.after.data();
+
+    await run('syncScoreboard:upsert', () =>
+      pool.query(`
+        INSERT INTO scoreboards (
+          id, tournament_id, sport, score_data,
+          team_a_id, team_a_name, team_b_id, team_b_name,
+          score_a, score_b, winner_id, is_live, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          score_data = EXCLUDED.score_data,
+          score_a    = EXCLUDED.score_a,
+          score_b    = EXCLUDED.score_b,
+          winner_id  = EXCLUDED.winner_id,
+          is_live    = EXCLUDED.is_live,
+          updated_at = NOW()
+      `, [
+        matchId,
+        d.tournamentId || null,
+        d.sport        || null,
+        d.scoreData ? JSON.stringify(d.scoreData) : null,
+        d.teamAId      || null,
+        d.teamAName    || null,
+        d.teamBId      || null,
+        d.teamBName    || null,
+        d.scoreA       ?? null,
+        d.scoreB       ?? null,
+        d.winnerId     || null,
+        d.isLive       ?? false,
+      ])
     );
-    return;
   }
-
-  const d = event.data.after.data();
-
-  await run('syncScoreboard:upsert', () =>
-    pool.query(`
-      INSERT INTO scoreboards (
-        id, tournament_id, sport, score_data,
-        team_a_id, team_a_name, team_b_id, team_b_name,
-        score_a, score_b, winner_id, is_live, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
-      ON CONFLICT (id) DO UPDATE SET
-        score_data  = EXCLUDED.score_data,
-        score_a     = EXCLUDED.score_a,
-        score_b     = EXCLUDED.score_b,
-        winner_id   = EXCLUDED.winner_id,
-        is_live     = EXCLUDED.is_live,
-        updated_at  = NOW()
-    `, [
-      matchId,
-      d.tournamentId   || null,
-      d.sport          || null,
-      d.scoreData ? JSON.stringify(d.scoreData) : null,
-      d.teamAId        || null,
-      d.teamAName      || null,
-      d.teamBId        || null,
-      d.teamBName      || null,
-      d.scoreA         ?? null,
-      d.scoreB         ?? null,
-      d.winnerId       || null,
-      d.isLive         ?? false,
-    ])
-  );
-});
+);
 
 // ─── GAME LISTINGS ────────────────────────────────────────────────────────────
-// Firestore: game_listings/{listingId}
 
 exports.syncGameListing = onDocumentWritten(
-  'game_listings/{listingId}',
+  { document: 'game_listings/{listingId}', ...fnOpts },
   async (event) => {
-    const lid = event.params.listingId;
+    const pool = getPool();
+    const lid  = event.params.listingId;
 
     if (!event.data.after.exists) {
       await run('syncGameListing:delete', () =>
@@ -463,19 +467,19 @@ exports.syncGameListing = onDocumentWritten(
           fee             = EXCLUDED.fee
       `, [
         lid,
-        d.organizerId     || null,
-        d.organizerName   || null,
-        d.sport           || null,
-        d.venueName       || null,
-        d.address         || null,
-        d.lat             ?? null,
-        d.lng             ?? null,
+        d.organizerId   || null,
+        d.organizerName || null,
+        d.sport         || null,
+        d.venueName     || null,
+        d.address       || null,
+        d.lat           ?? null,
+        d.lng           ?? null,
         ts(d.scheduledAt),
-        d.maxPlayers      ?? null,
-        d.currentPlayers  ?? 0,
-        d.fee             ?? 0,
-        d.description     || null,
-        d.status          || 'open',
+        d.maxPlayers    ?? null,
+        d.currentPlayers ?? 0,
+        d.fee           ?? 0,
+        d.description   || null,
+        d.status        || 'open',
         ts(d.createdAt) ?? new Date().toISOString(),
       ])
     );
@@ -483,35 +487,38 @@ exports.syncGameListing = onDocumentWritten(
 );
 
 // ─── FOLLOWS ─────────────────────────────────────────────────────────────────
-// Firestore: follows/{followerId}_{followedId}
 
-exports.syncFollow = onDocumentWritten('follows/{followId}', async (event) => {
-  const followId = event.params.followId; // "{followerId}_{followedId}"
-  const parts = followId.split('_');
-  if (parts.length < 2) return;
-  const [followerId, followedId] = parts;
+exports.syncFollow = onDocumentWritten(
+  { document: 'follows/{followId}', ...fnOpts },
+  async (event) => {
+    const pool     = getPool();
+    const followId = event.params.followId;
+    const parts    = followId.split('_');
+    if (parts.length < 2) return;
+    const [followerId, followedId] = parts;
 
-  if (!event.data.after.exists) {
-    await run('syncFollow:delete', () =>
-      pool.query(
-        'DELETE FROM follows WHERE follower_id = $1 AND followed_id = $2',
-        [followerId, followedId]
-      )
+    if (!event.data.after.exists) {
+      await run('syncFollow:delete', () =>
+        pool.query(
+          'DELETE FROM follows WHERE follower_id = $1 AND followed_id = $2',
+          [followerId, followedId]
+        )
+      );
+      return;
+    }
+
+    const d = event.data.after.data();
+
+    await run('syncFollow:upsert', () =>
+      pool.query(`
+        INSERT INTO follows (follower_id, followed_id, created_at)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (follower_id, followed_id) DO NOTHING
+      `, [
+        followerId,
+        followedId,
+        ts(d.createdAt) ?? new Date().toISOString(),
+      ])
     );
-    return;
   }
-
-  const d = event.data.after.data();
-
-  await run('syncFollow:upsert', () =>
-    pool.query(`
-      INSERT INTO follows (follower_id, followed_id, created_at)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (follower_id, followed_id) DO NOTHING
-    `, [
-      followerId,
-      followedId,
-      ts(d.createdAt) ?? new Date().toISOString(),
-    ])
-  );
-});
+);
