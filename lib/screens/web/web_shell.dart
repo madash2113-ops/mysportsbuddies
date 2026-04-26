@@ -183,45 +183,23 @@ class _SidebarLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: _red,
-              borderRadius: BorderRadius.circular(9),
-              boxShadow: [
-                BoxShadow(color: _red.withValues(alpha: .30), blurRadius: 12),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.emoji_events_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
+      child: RichText(
+        text: TextSpan(
+          style: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            color: _tx,
+            letterSpacing: -.3,
           ),
-          const SizedBox(width: 10),
-          RichText(
-            text: TextSpan(
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: _tx,
-                letterSpacing: -.3,
-              ),
-              children: const [
-                TextSpan(text: 'My'),
-                TextSpan(
-                  text: 'Sports',
-                  style: TextStyle(color: _red),
-                ),
-                TextSpan(text: 'Buddies'),
-              ],
+          children: const [
+            TextSpan(text: 'My'),
+            TextSpan(
+              text: 'Sports',
+              style: TextStyle(color: _red),
             ),
-          ),
-        ],
+            TextSpan(text: 'Buddies'),
+          ],
+        ),
       ),
     );
   }

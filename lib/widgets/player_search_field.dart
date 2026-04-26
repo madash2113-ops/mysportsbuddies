@@ -172,9 +172,8 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
 
   Widget _buildDropdown() {
     final query = widget.controller.text.trim();
-    final fieldWidth = _layerLink.leaderSize?.width ?? 300.0;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final width = fieldWidth.clamp(260.0, screenWidth - 48.0).toDouble();
+    // Use the exact rendered width of the search field — no artificial minimum.
+    final fieldWidth = (_layerLink.leaderSize?.width ?? 280.0).toDouble();
 
     return CompositedTransformFollower(
       link: _layerLink,
@@ -182,12 +181,15 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
       targetAnchor: Alignment.bottomLeft,
       followerAnchor: Alignment.topLeft,
       offset: const Offset(0, 4),
-      child: Material(
-        color: Colors.transparent,
-        child: SizedBox(
-          width: width,
+      // Align breaks the tight overlay constraints so the container
+      // can shrink to its content height instead of filling the overlay.
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          color: Colors.transparent,
           child: Container(
-            constraints: const BoxConstraints(maxHeight: 240),
+            width: fieldWidth,
+            constraints: const BoxConstraints(maxHeight: 220),
             decoration: BoxDecoration(
               color: const Color(0xFF1C1C1E),
               borderRadius: BorderRadius.circular(12),
@@ -203,13 +205,11 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: _results.isEmpty
-                  // ── Loading indicator ─────────────────────────────────
+                  // ── Loading indicator ──────────────────────────────────
                   ? const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(
                             width: 14,
@@ -222,30 +222,29 @@ class _PlayerSearchFieldState extends State<PlayerSearchField> {
                           SizedBox(width: 10),
                           Text(
                             'Searching...',
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 13,
-                            ),
+                            style: TextStyle(color: Colors.white54, fontSize: 13),
                           ),
                         ],
                       ),
                     )
-                  // ── Results list ──────────────────────────────────────
-                  : ListView.separated(
-                      padding: EdgeInsets.zero,
-                      itemCount: _results.length,
-                      separatorBuilder: (_, _) =>
-                          const Divider(height: 1, color: Colors.white10),
-                      itemBuilder: (_, i) {
-                        final r = _results[i];
-                        return _ResultTile(
-                          result: r,
-                          query: query,
-                          isFirst: i == 0,
-                          isLast: i == _results.length - 1,
-                          onTap: () => _select(r),
-                        );
-                      },
+                  // ── Results — Column sizes to exact content height ─────
+                  : SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (int i = 0; i < _results.length; i++) ...[
+                            if (i > 0)
+                              const Divider(height: 1, color: Colors.white10),
+                            _ResultTile(
+                              result: _results[i],
+                              query: query,
+                              isFirst: i == 0,
+                              isLast: i == _results.length - 1,
+                              onTap: () => _select(_results[i]),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
             ),
           ),

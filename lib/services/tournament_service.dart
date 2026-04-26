@@ -556,6 +556,25 @@ class TournamentService extends ChangeNotifier {
     );
 
     final teamsRef = _db.collection(_col).doc(tournamentId).collection('teams');
+    final tournDoc  = _db.collection(_col).doc(tournamentId);
+
+    // Normalize: collapse internal whitespace + lowercase for all comparisons.
+    final nameLower = teamName.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    final cleanName = teamName.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+    // ── Client-side fast-fail against local cache ─────────────────────────
+    final cachedTeams = _teams[tournamentId] ?? [];
+    final cachedDup = cachedTeams.any(
+      (t) => t.teamName.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase() ==
+          nameLower,
+    );
+    if (cachedDup) {
+      throw Exception(
+        'A team named "$cleanName" is already enrolled. Please choose a different name.',
+      );
+    }
+
+    // ── Fetch teams collection (transactions only support DocumentReference) ─
     final existing = await teamsRef.get();
 
     // Guard: max teams
@@ -563,13 +582,18 @@ class TournamentService extends ChangeNotifier {
       throw Exception('Tournament is full.');
     }
 
-    // Guard: duplicate team name
-    final nameLower = teamName.trim().toLowerCase();
-    final duplicate = existing.docs.any(
-      (d) => (d.data()['teamName'] as String? ?? '').toLowerCase() == nameLower,
+    // Guard: duplicate name against live team docs
+    final nameInDocs = existing.docs.any(
+      (d) => (d.data()['teamName'] as String? ?? '')
+              .trim()
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .toLowerCase() ==
+          nameLower,
     );
-    if (duplicate) {
-      throw Exception('A team named "$teamName" is already enrolled');
+    if (nameInDocs) {
+      throw Exception(
+        'A team named "$cleanName" is already enrolled. Please choose a different name.',
+      );
     }
 
     // Guard: same user already enrolled (hosts can enroll multiple teams)
@@ -579,16 +603,16 @@ class TournamentService extends ChangeNotifier {
         (d) => (d.data()['enrolledBy'] as String? ?? '') == userId,
       );
       if (alreadyEnrolled) {
-        throw Exception('You have already enrolled a team in this tournament');
+        throw Exception('You have already enrolled a team in this tournament.');
       }
     }
 
     final seed = existing.docs.length + 1;
-    final ref = teamsRef.doc();
+    final ref  = teamsRef.doc();
     final team = TournamentTeam(
       id: ref.id,
       tournamentId: tournamentId,
-      teamName: teamName,
+      teamName: cleanName,
       captainName: captainName,
       captainPhone: captainPhone,
       captainUserId: captainUserId,
@@ -602,21 +626,37 @@ class TournamentService extends ChangeNotifier {
       seed: seed,
     );
 
-    // ── Atomic batch: all writes succeed or none do ───────────────────────
-    final batch = _db.batch();
+    // ── Atomic transaction: reads tournDoc, validates name reservation,
+    //    then writes team + mirrors + reserves the name in one commit.
+    //    If two users race with the same name, the second transaction
+    //    retries, reads the updated `enrolledTeamNames`, and throws.
+    await _db.runTransaction((tx) async {
+      final tournSnap = await tx.get(tournDoc);
+      final tournData = tournSnap.data() ?? <String, dynamic>{};
 
-    // 1. Team document in subcollection
-    batch.set(ref, team.toMap());
+      // Final atomic check — `enrolledTeamNames` is only written here,
+      // so this read-then-write on a single document is race-condition safe.
+      final reserved = List<String>.from(
+        tournData['enrolledTeamNames'] as List<dynamic>? ?? [],
+      );
+      if (reserved.contains(nameLower)) {
+        throw Exception(
+          'A team named "$cleanName" is already enrolled. Please choose a different name.',
+        );
+      }
 
-    // 2. Mirror to flat enrollments collection
-    batch.set(_db.collection('enrollments').doc(ref.id), team.toMap());
+      // 1. Team document
+      tx.set(ref, team.toMap());
 
-    // 3. Increment counter on the parent tournament doc
-    batch.update(_db.collection(_col).doc(tournamentId), {
-      'registeredTeams': FieldValue.increment(1),
-    });
+      // 2. Mirror to flat enrollments collection
+      tx.set(_db.collection('enrollments').doc(ref.id), team.toMap());
 
-    await batch.commit(); // throws on any permission error — nothing is written
+      // 3. Increment counter + atomically reserve the name
+      tx.update(tournDoc, {
+        'registeredTeams': FieldValue.increment(1),
+        'enrolledTeamNames': FieldValue.arrayUnion([nameLower]),
+      });
+    }); // nothing is written if the transaction throws
     AnalyticsService().logEvent(
       AnalyticsEvents.tournamentJoined,
       parameters: {'sport': tourn.sport, 'has_entry_fee': tourn.entryFee > 0},

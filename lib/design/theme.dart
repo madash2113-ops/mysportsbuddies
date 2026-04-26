@@ -49,25 +49,14 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ButtonStyle(
-          backgroundBuilder: (context, states, child) {
-            final disabled = states.contains(WidgetState.disabled);
-            return DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: disabled ? null : const LinearGradient(
-                  colors: [AppColors.primaryDark, AppColors.primary],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                color: disabled ? const Color(0xFF444444) : null,
-              ),
-              child: child,
-            );
-          },
-          backgroundColor: WidgetStateProperty.all(Colors.transparent),
-          shadowColor:      WidgetStateProperty.all(Colors.transparent),
-          foregroundColor:  WidgetStateProperty.all(Colors.white),
-          overlayColor:     WidgetStateProperty.all(Colors.white.withValues(alpha: 0.12)),
-          minimumSize:      WidgetStateProperty.all(const Size.fromHeight(44)),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) return const Color(0xFF444444);
+            return AppColors.primary;
+          }),
+          shadowColor:     WidgetStateProperty.all(Colors.transparent),
+          foregroundColor: WidgetStateProperty.all(Colors.white),
+          overlayColor:    WidgetStateProperty.all(Colors.white.withValues(alpha: 0.12)),
+          minimumSize:     WidgetStateProperty.all(const Size.fromHeight(44)),
           shape: WidgetStateProperty.all(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -170,25 +159,14 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ButtonStyle(
-          backgroundBuilder: (context, states, child) {
-            final disabled = states.contains(WidgetState.disabled);
-            return DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: disabled ? null : const LinearGradient(
-                  colors: [AppColors.primaryDark, AppColors.primary],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                color: disabled ? const Color(0xFFBBBBBB) : null,
-              ),
-              child: child,
-            );
-          },
-          backgroundColor: WidgetStateProperty.all(Colors.transparent),
-          shadowColor:      WidgetStateProperty.all(Colors.transparent),
-          foregroundColor:  WidgetStateProperty.all(Colors.white),
-          overlayColor:     WidgetStateProperty.all(Colors.white.withValues(alpha: 0.12)),
-          minimumSize:      WidgetStateProperty.all(const Size.fromHeight(44)),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) return const Color(0xFFBBBBBB);
+            return AppColorsLight.primary;
+          }),
+          shadowColor:     WidgetStateProperty.all(Colors.transparent),
+          foregroundColor: WidgetStateProperty.all(Colors.white),
+          overlayColor:    WidgetStateProperty.all(Colors.white.withValues(alpha: 0.12)),
+          minimumSize:     WidgetStateProperty.all(const Size.fromHeight(44)),
           shape: WidgetStateProperty.all(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
