@@ -76,7 +76,7 @@ class _WebShellState extends State<WebShell> {
     Navigator.of(
       context,
       rootNavigator: true,
-    ).pushNamedAndRemoveUntil('/web-landing', (_) => false);
+    ).pushNamedAndRemoveUntil('/', (_) => false);
   }
 
   int get _index => WebShellController().value;
@@ -92,16 +92,40 @@ class _WebShellState extends State<WebShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 800;
     return Scaffold(
       backgroundColor: _bg,
+      bottomNavigationBar: isMobile
+          ? BottomNavigationBar(
+              backgroundColor: _sidebar,
+              selectedItemColor: _red,
+              unselectedItemColor: _m1,
+              currentIndex: _index.clamp(0, _navItems.length - 1),
+              onTap: WebShellController().navigateTo,
+              type: BottomNavigationBarType.fixed,
+              showSelectedLabels: true,
+              showUnselectedLabels: true,
+              selectedFontSize: 10,
+              unselectedFontSize: 10,
+              items: _navItems.map((item) {
+                return BottomNavigationBarItem(
+                  icon: Icon(item.$2),
+                  activeIcon: Icon(item.$1),
+                  label: item.$3,
+                );
+              }).toList(),
+            )
+          : null,
       body: Row(
         children: [
-          _Sidebar(
-            selectedIndex: _index,
-            navItems: _navItems,
-            onSelect: WebShellController().navigateTo,
-          ),
-          Container(width: .8, color: _border),
+          if (!isMobile) ...[
+            _Sidebar(
+              selectedIndex: _index,
+              navItems: _navItems,
+              onSelect: WebShellController().navigateTo,
+            ),
+            Container(width: .8, color: _border),
+          ],
           Expanded(
             child: Column(
               children: [
@@ -366,13 +390,15 @@ class _TopHeaderState extends State<_TopHeader> {
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          _LocationPill(
-            location: profile?.location.isNotEmpty == true
-                ? profile!.location
-                : 'Set location',
-            onTap: _openLocationSearch,
-          ),
+          if (MediaQuery.of(context).size.width > 600) ...[
+            const SizedBox(width: 16),
+            _LocationPill(
+              location: profile?.location.isNotEmpty == true
+                  ? profile!.location
+                  : 'Set location',
+              onTap: _openLocationSearch,
+            ),
+          ],
           const SizedBox(width: 12),
           const _NotifBell(),
           const SizedBox(width: 12),
@@ -503,7 +529,7 @@ class _UserAvatarState extends State<_UserAvatar> {
     final nav = Navigator.of(context, rootNavigator: true);
     await AuthService().signOut();
     if (!mounted) return;
-    nav.pushNamedAndRemoveUntil('/web-landing', (_) => false);
+    nav.pushNamedAndRemoveUntil('/', (_) => false);
   }
 
   @override

@@ -26,7 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
     } else {
       Navigator.pushReplacementNamed(
         context,
-        kIsWeb ? '/web-landing' : '/welcome',
+        kIsWeb ? '/' : '/welcome',
       );
     }
   }

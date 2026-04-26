@@ -326,17 +326,22 @@ class AuthService extends ChangeNotifier {
 
   Future<void> signOut() async {
     try {
-      await GoogleSignIn.instance.signOut();
-    } catch (_) {
-      /* ignored */
+      try {
+        await GoogleSignIn.instance.signOut().timeout(const Duration(seconds: 2));
+      } catch (_) {}
+      await _auth.signOut();
+    } catch (e) {
+      debugPrint('AuthService.signOut error: $e');
+    } finally {
+      try {
+        AnalyticsService().logEvent(AnalyticsEvents.logout);
+        AnalyticsService().setUserId(null);
+        await UserService().clearSession();
+        // Restore anonymous session so pre-login Firestore queries (like isPhoneInUse) still work
+        await _auth.signInAnonymously();
+      } catch (_) {}
+      notifyListeners();
     }
-    await _auth.signOut();
-    AnalyticsService().logEvent(AnalyticsEvents.logout);
-    AnalyticsService().setUserId(null); // Clear analytics ID
-    // Clear the loaded app session. Creating a fresh anonymous auth session
-    // immediately after logout can leave guarded screens appearing active.
-    await UserService().clearSession();
-    notifyListeners();
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────

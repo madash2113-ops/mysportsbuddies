@@ -384,16 +384,21 @@ class UserService extends ChangeNotifier {
 
   Future<void> _loadProfile() async {
     if (_userId == null) return;
-    try {
-      final doc = await _db.collection(_col).doc(_userId).get();
-      if (doc.exists) {
-        _profile = UserProfile.fromFirestore(doc);
-      } else {
-        _profile = null;
+    // Retry up to 3 times to handle Web Auth Token sync race conditions
+    for (int i = 0; i < 3; i++) {
+      try {
+        final doc = await _db.collection(_col).doc(_userId).get();
+        if (doc.exists) {
+          _profile = UserProfile.fromFirestore(doc);
+        } else {
+          _profile = null;
+        }
+        notifyListeners();
+        return; // Success
+      } catch (e) {
+        if (i == 2) return; // Give up on last attempt
+        await Future.delayed(const Duration(milliseconds: 500));
       }
-      notifyListeners();
-    } catch (e) {
-      /* ignored */
     }
   }
 
