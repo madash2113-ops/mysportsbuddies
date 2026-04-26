@@ -101,6 +101,15 @@ class UserService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> clearSession() async {
+    await _profileSub?.cancel();
+    _profileSub = null;
+    _userId = null;
+    _profile = null;
+    _initialized = false;
+    notifyListeners();
+  }
+
   /// If the current user has no numericId yet, generate a unique one and
   /// persist it to Firestore. If a reserved ID is configured in
   /// [kReservedNumericIds] for this UID, that ID is used (and enforced even
@@ -609,16 +618,28 @@ class UserService extends ChangeNotifier {
     return true;
   }
 
-  /// Search by phone number — tries all common storage formats in parallel
-  /// (+91XXXXXXXXXX, 91XXXXXXXXXX, 0XXXXXXXXXX, XXXXXXXXXX).
+  /// Search by phone number — tries common storage formats in parallel.
+  /// Handles plain local digits plus common country-code variants such as:
+  ///   XXXXXXXXXX
+  ///   +1XXXXXXXXXX / 1XXXXXXXXXX
+  ///   +91XXXXXXXXXX / 91XXXXXXXXXX / 0XXXXXXXXXX
   Future<UserProfile?> searchByPhone(String phone) async {
     final digits = phone.trim().replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return null;
 
     // Build the set of format variants to query
-    final variants = <String>{phone.trim(), digits};
+    final variants = <String>{phone.trim(), digits, '+$digits'};
     if (digits.length == 10) {
-      variants.addAll(['+91$digits', '91$digits', '0$digits']);
+      variants.addAll([
+        '+1$digits',
+        '1$digits',
+        '+91$digits',
+        '91$digits',
+        '0$digits',
+      ]);
+    } else if (digits.length == 11 && digits.startsWith('1')) {
+      final local = digits.substring(1);
+      variants.addAll([local, '+1$local']);
     } else if (digits.length == 12 && digits.startsWith('91')) {
       variants.add(digits.substring(2)); // strip country code
       variants.add('+$digits');
@@ -636,6 +657,25 @@ class UserService extends ChangeNotifier {
       for (final snap in snaps) {
         if (snap.docs.isNotEmpty) {
           return UserProfile.fromFirestore(snap.docs.first);
+        }
+      }
+
+      // Fallback for legacy profiles saved with inconsistent phone formatting.
+      // Compare normalized digits client-side so existing users still route to
+      // OTP/login even if their number was stored differently.
+      final local10 = digits.length >= 10
+          ? digits.substring(digits.length - 10)
+          : digits;
+      final scan = await _db.collection(_col).limit(500).get();
+      for (final doc in scan.docs) {
+        final profile = UserProfile.fromFirestore(doc);
+        final existingDigits = profile.phone.replaceAll(RegExp(r'\D'), '');
+        if (existingDigits.isEmpty) continue;
+        final existingLocal10 = existingDigits.length >= 10
+            ? existingDigits.substring(existingDigits.length - 10)
+            : existingDigits;
+        if (existingDigits == digits || existingLocal10 == local10) {
+          return profile;
         }
       }
       return null;

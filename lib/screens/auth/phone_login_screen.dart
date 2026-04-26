@@ -10,13 +10,13 @@ import '../../services/user_service.dart';
 import 'auth_router.dart';
 
 // Design tokens — matches web_login_page.dart
-const _bg      = Color(0xFF080808);
+const _bg = Color(0xFF080808);
 const _surface = Color(0xFF0F0F0F);
-const _card    = Color(0xFF161616);
-const _bd2     = Color(0xFF2A2A2A);
-const _tx      = Color(0xFFF0F0F0);
-const _muted   = Color(0xFF888888);
-const _red     = Color(0xFFFB3640);
+const _card = Color(0xFF161616);
+const _bd2 = Color(0xFF2A2A2A);
+const _tx = Color(0xFFF0F0F0);
+const _muted = Color(0xFF888888);
+const _red = Color(0xFFFB3640);
 
 enum _Step { phone, otp }
 
@@ -29,8 +29,8 @@ class PhoneLoginScreen extends StatefulWidget {
 
 class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   // ── Shared ──────────────────────────────────────────────────────────────
-  _Step   _step    = _Step.phone;
-  bool    _loading = false;
+  _Step _step = _Step.phone;
+  bool _loading = false;
   String? _error;
 
   // ── Phone step ───────────────────────────────────────────────────────────
@@ -38,17 +38,18 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   late Country _country;
 
   // ── OTP step ─────────────────────────────────────────────────────────────
-  final _otpCtrl  = TextEditingController();
+  final _otpCtrl = TextEditingController();
   final _otpFocus = FocusNode();
-  String _otp       = '';
-  int    _countdown = 60;
+  String _otp = '';
+  int _countdown = 60;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _country = LocationCountryService.detectFromLocale()
-        ?? CountryParser.parseCountryCode('IN');
+    _country =
+        LocationCountryService.detectFromLocale() ??
+        CountryParser.parseCountryCode('IN');
     _refineCountry();
     _otpFocus.addListener(() => setState(() {}));
   }
@@ -56,8 +57,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   void _refineCountry() {
     LocationCountryService()
         .getCachedOrDetectCountryCode()
-        .timeout(const Duration(seconds: 5),
-            onTimeout: () => '+${_country.phoneCode}')
+        .timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => '+${_country.phoneCode}',
+        )
         .then((code) {
           if (!mounted) return;
           final refined = LocationCountryService.getCountryFromCode(code);
@@ -72,7 +75,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     _timer?.cancel();
     setState(() => _countdown = 60);
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_countdown == 0) { t.cancel(); return; }
+      if (_countdown == 0) {
+        t.cancel();
+        return;
+      }
       if (mounted) setState(() => _countdown--);
     });
   }
@@ -94,20 +100,43 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       return;
     }
     final fullPhone = '+${_country.phoneCode}$number';
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final inUse = await UserService().isPhoneInUse(fullPhone);
+    if (!mounted) return;
+    if (!inUse) {
+      setState(() => _loading = false);
+      Navigator.pushNamed(
+        context,
+        '/register-user',
+        arguments: {'phone': fullPhone},
+      );
+      return;
+    }
 
     await AuthService().sendOtp(
       fullPhone,
       onCodeSent: () {
         if (!mounted) return;
-        setState(() { _loading = false; _step = _Step.otp; _error = null; });
+        setState(() {
+          _loading = false;
+          _step = _Step.otp;
+          _error = null;
+        });
         _startCountdown();
         WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _otpFocus.requestFocus());
+          (_) => _otpFocus.requestFocus(),
+        );
       },
       onError: (msg) {
         if (!mounted) return;
-        setState(() { _loading = false; _error = msg; });
+        setState(() {
+          _loading = false;
+          _error = msg;
+        });
       },
       onAutoVerified: () {
         if (!mounted) return;
@@ -120,14 +149,17 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   // ── OTP input ────────────────────────────────────────────────────────────
   void _onOtpChanged(String val) {
     final digits = val.replaceAll(RegExp(r'\D'), '');
-    final capped  = digits.length > 6 ? digits.substring(0, 6) : digits;
+    final capped = digits.length > 6 ? digits.substring(0, 6) : digits;
     if (capped != val) {
       _otpCtrl.value = TextEditingValue(
         text: capped,
         selection: TextSelection.collapsed(offset: capped.length),
       );
     }
-    setState(() { _otp = capped; _error = null; });
+    setState(() {
+      _otp = capped;
+      _error = null;
+    });
     if (capped.length == 6) {
       _otpFocus.unfocus();
       _verify();
@@ -140,11 +172,14 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       setState(() => _error = 'Please enter the complete 6-digit code.');
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final ok = await AuthService().verifyOtp(_otp);
     if (!mounted) return;
     if (ok) {
-      final profile   = UserService().profile;
+      final profile = UserService().profile;
       final isNewUser = profile == null || profile.name.trim().isEmpty;
       if (isNewUser) {
         Navigator.pushReplacementNamed(context, '/complete-profile');
@@ -154,8 +189,8 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     } else {
       setState(() {
         _loading = false;
-        _error   = AuthService().error ?? 'Verification failed. Try again.';
-        _otp     = '';
+        _error = AuthService().error ?? 'Verification failed. Try again.';
+        _otp = '';
       });
       _otpCtrl.clear();
       _otpFocus.requestFocus();
@@ -166,26 +201,33 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   Future<void> _resend() async {
     final phone = AuthService().pendingPhone;
     if (phone == null || phone.isEmpty) return;
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     await AuthService().sendOtp(
       phone,
       onCodeSent: () {
         if (!mounted) return;
         setState(() => _loading = false);
-        _otp = ''; _otpCtrl.clear();
+        _otp = '';
+        _otpCtrl.clear();
         _startCountdown();
         _otpFocus.requestFocus();
       },
       onError: (msg) {
         if (!mounted) return;
-        setState(() { _loading = false; _error = msg; });
+        setState(() {
+          _loading = false;
+          _error = msg;
+        });
       },
     );
   }
 
   // ── OTP box ───────────────────────────────────────────────────────────────
   Widget _box(int i) {
-    final filled   = i < _otp.length;
+    final filled = i < _otp.length;
     final isActive = _otpFocus.hasFocus && i == _otp.length && i < 6;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
@@ -199,27 +241,30 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           color: isActive
               ? _red
               : filled
-                  ? _red.withValues(alpha: 0.5)
-                  : _bd2,
+              ? _red.withValues(alpha: 0.5)
+              : _bd2,
           width: isActive ? 2 : 1.2,
         ),
       ),
       child: Text(
         filled ? _otp[i] : '',
         style: const TextStyle(
-            color: _tx, fontSize: 22, fontWeight: FontWeight.w700),
+          color: _tx,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
 
   // ── Error text ────────────────────────────────────────────────────────────
   Widget _errorBanner(String msg) => Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(
-          msg,
-          style: TextStyle(color: _red.withValues(alpha: 0.9), fontSize: 13),
-        ),
-      );
+    padding: const EdgeInsets.only(top: 8),
+    child: Text(
+      msg,
+      style: TextStyle(color: _red.withValues(alpha: 0.9), fontSize: 13),
+    ),
+  );
 
   // ── Phone content ─────────────────────────────────────────────────────────
   Widget _buildPhone() {
@@ -234,11 +279,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.arrow_back_ios_new_rounded,
-                  color: _muted, size: 12),
+              Icon(Icons.arrow_back_ios_new_rounded, color: _muted, size: 12),
               SizedBox(width: 6),
-              Text('Back',
-                  style: TextStyle(color: _muted, fontSize: 13)),
+              Text('Back', style: TextStyle(color: _muted, fontSize: 13)),
             ],
           ),
         ),
@@ -265,7 +308,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         const Text(
           'Phone Number',
           style: TextStyle(
-              color: _tx, fontSize: 12.5, fontWeight: FontWeight.w500),
+            color: _tx,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         const SizedBox(height: 8),
 
@@ -275,17 +321,16 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
             color: _card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _error != null
-                  ? _red.withValues(alpha: 0.8)
-                  : _bd2,
+              color: _error != null ? _red.withValues(alpha: 0.8) : _bd2,
               width: 1.2,
             ),
           ),
           child: Row(
             children: [
               InkWell(
-                borderRadius:
-                    const BorderRadius.horizontal(left: Radius.circular(12)),
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(12),
+                ),
                 onTap: () => showCountryPicker(
                   context: context,
                   showPhoneCode: true,
@@ -298,12 +343,16 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 15),
+                    horizontal: 14,
+                    vertical: 15,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_country.flagEmoji,
-                          style: const TextStyle(fontSize: 18)),
+                      Text(
+                        _country.flagEmoji,
+                        style: const TextStyle(fontSize: 18),
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '+${_country.phoneCode}',
@@ -314,8 +363,11 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                         ),
                       ),
                       const SizedBox(width: 2),
-                      const Icon(Icons.arrow_drop_down,
-                          color: _muted, size: 18),
+                      const Icon(
+                        Icons.arrow_drop_down,
+                        color: _muted,
+                        size: 18,
+                      ),
                     ],
                   ),
                 ),
@@ -332,7 +384,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     hintStyle: TextStyle(color: _muted),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 15),
+                      horizontal: 14,
+                      vertical: 15,
+                    ),
                   ),
                   onSubmitted: (_) => _sendOtp(),
                 ),
@@ -362,14 +416,17 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Text(
                     'Send OTP',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600),
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
           ),
         ),
@@ -401,16 +458,18 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           onTap: () {
             _timer?.cancel();
             _otpCtrl.clear();
-            setState(() { _step = _Step.phone; _otp = ''; _error = null; });
+            setState(() {
+              _step = _Step.phone;
+              _otp = '';
+              _error = null;
+            });
           },
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.arrow_back_ios_new_rounded,
-                  color: _muted, size: 12),
+              Icon(Icons.arrow_back_ios_new_rounded, color: _muted, size: 12),
               SizedBox(width: 6),
-              Text('Back',
-                  style: TextStyle(color: _muted, fontSize: 13)),
+              Text('Back', style: TextStyle(color: _muted, fontSize: 13)),
             ],
           ),
         ),
@@ -443,14 +502,12 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         const SizedBox(height: 6),
         RichText(
           text: TextSpan(
-            style: const TextStyle(
-                color: _muted, fontSize: 13.5, height: 1.5),
+            style: const TextStyle(color: _muted, fontSize: 13.5, height: 1.5),
             children: [
               const TextSpan(text: 'We sent a 6-digit code to '),
               TextSpan(
                 text: phone,
-                style: const TextStyle(
-                    color: _tx, fontWeight: FontWeight.w600),
+                style: const TextStyle(color: _tx, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -470,13 +527,13 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
               opacity: 0,
               child: AutofillGroup(
                 child: TextField(
-                  controller:      _otpCtrl,
-                  focusNode:       _otpFocus,
-                  autofillHints:   const [AutofillHints.oneTimeCode],
-                  keyboardType:    TextInputType.number,
+                  controller: _otpCtrl,
+                  focusNode: _otpFocus,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  maxLength:       6,
-                  onChanged:       _onOtpChanged,
+                  maxLength: 6,
+                  onChanged: _onOtpChanged,
                   decoration: const InputDecoration(
                     counterText: '',
                     border: InputBorder.none,
@@ -496,8 +553,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
           child: _countdown > 0
               ? Text(
                   'Resend OTP in ${_countdown}s',
-                  style:
-                      const TextStyle(color: _muted, fontSize: 13),
+                  style: const TextStyle(color: _muted, fontSize: 13),
                 )
               : GestureDetector(
                   onTap: _loading ? null : _resend,
@@ -531,7 +587,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Text(
                     'Verify & Continue',
@@ -566,10 +624,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                 gradient: RadialGradient(
                   center: const Alignment(0, -0.5),
                   radius: 1.0,
-                  colors: [
-                    _red.withValues(alpha: 0.07),
-                    Colors.transparent,
-                  ],
+                  colors: [_red.withValues(alpha: 0.07), Colors.transparent],
                 ),
               ),
             ),
@@ -578,7 +633,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
             Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 48),
+                  horizontal: 24,
+                  vertical: 48,
+                ),
                 child: Container(
                   width: 420,
                   decoration: BoxDecoration(
@@ -594,7 +651,9 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     ],
                   ),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 36, vertical: 40),
+                    horizontal: 36,
+                    vertical: 40,
+                  ),
                   child: AnimatedSize(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
@@ -612,9 +671,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                           child: child,
                         ),
                       ),
-                      child: _step == _Step.phone
-                          ? _buildPhone()
-                          : _buildOtp(),
+                      child: _step == _Step.phone ? _buildPhone() : _buildOtp(),
                     ),
                   ),
                 ),

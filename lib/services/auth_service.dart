@@ -26,10 +26,12 @@ class AuthService extends ChangeNotifier {
   int? _resendToken;
   String? _pendingPhone; // stored so OTP screen can show "sent to <number>"
   bool _googleSignInInitialized = false;
+  bool _lastAuthWasNewUser = false;
 
   bool get loading => _loading;
   String? get error => _error;
   String? get pendingPhone => _pendingPhone;
+  bool get lastAuthWasNewUser => _lastAuthWasNewUser;
   User? get currentUser => _auth.currentUser;
   bool get isSignedIn =>
       _auth.currentUser != null && !(_auth.currentUser!.isAnonymous);
@@ -228,6 +230,26 @@ class AuthService extends ChangeNotifier {
   Future<bool> signInWithGoogle() async {
     _setLoading(true);
     try {
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider()
+          ..addScope('email')
+          ..addScope('profile');
+        final result = await _auth.signInWithPopup(provider);
+        _lastAuthWasNewUser = result.additionalUserInfo?.isNewUser ?? false;
+        final user = result.user;
+        if (user == null) {
+          _error = 'Google sign-in failed. Please try again.';
+          notifyListeners();
+          return false;
+        }
+        await _postAuth(user, name: user.displayName, email: user.email);
+        AnalyticsService().logEvent(
+          AnalyticsEvents.login,
+          parameters: {'method': 'google'},
+        );
+        return true;
+      }
+
       if (!_googleSignInInitialized) {
         await GoogleSignIn.instance.initialize();
         _googleSignInInitialized = true;
@@ -239,6 +261,7 @@ class AuthService extends ChangeNotifier {
         idToken: googleAuth.idToken,
       );
       final result = await _auth.signInWithCredential(credential);
+      _lastAuthWasNewUser = result.additionalUserInfo?.isNewUser ?? false;
       await _postAuth(
         result.user!,
         name: googleUser.displayName,
@@ -253,8 +276,45 @@ class AuthService extends ChangeNotifier {
       _error = _friendlyError(e);
       notifyListeners();
       return false;
+    } on GoogleSignInException catch (e) {
+      _error = e.code == GoogleSignInExceptionCode.canceled
+          ? 'Google sign-in was cancelled.'
+          : 'Google sign-in failed. ${e.description ?? "Please try again."}';
+      notifyListeners();
+      return false;
     } catch (e) {
       _error = 'Google sign-in failed. Please try again.';
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> signInWithApple() async {
+    _setLoading(true);
+    try {
+      final provider = AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name');
+      final result = kIsWeb
+          ? await _auth.signInWithPopup(provider)
+          : await _auth.signInWithProvider(provider);
+      _lastAuthWasNewUser = result.additionalUserInfo?.isNewUser ?? false;
+      final user = result.user;
+      if (user == null) {
+        _error = 'Apple sign-in failed. Please try again.';
+        notifyListeners();
+        return false;
+      }
+      await _postAuth(user, name: user.displayName, email: user.email);
+      AnalyticsService().logEvent(
+        AnalyticsEvents.login,
+        parameters: {'method': 'apple'},
+      );
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = _friendlyError(e);
       notifyListeners();
       return false;
     } finally {
@@ -273,8 +333,9 @@ class AuthService extends ChangeNotifier {
     await _auth.signOut();
     AnalyticsService().logEvent(AnalyticsEvents.logout);
     AnalyticsService().setUserId(null); // Clear analytics ID
-    // Re-initialise UserService which will fall back to anonymous auth
-    await UserService().init();
+    // Clear the loaded app session. Creating a fresh anonymous auth session
+    // immediately after logout can leave guarded screens appearing active.
+    await UserService().clearSession();
     notifyListeners();
   }
 
@@ -282,6 +343,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _signInWithCredential(AuthCredential credential) async {
     final result = await _auth.signInWithCredential(credential);
+    _lastAuthWasNewUser = result.additionalUserInfo?.isNewUser ?? false;
     await _postAuth(result.user!, phone: _pendingPhone);
   }
 

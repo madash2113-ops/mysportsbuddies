@@ -661,12 +661,6 @@ class _WebTournamentsPageState extends State<WebTournamentsPage> {
             label: 'Create Tournament',
             onTap: _openCreateTournament,
           ),
-          const SizedBox(width: 10),
-          _OutlineBtn(
-            icon: Icons.group_add_outlined,
-            label: 'Join Tournament',
-            onTap: () {},
-          ),
         ],
       ),
     );
@@ -1252,12 +1246,21 @@ class _WebCreateTournamentDialogState
   final _entryFee = TextEditingController();
   final _prize = TextEditingController();
   final _rules = TextEditingController();
+  final _customScoringLabel = TextEditingController();
   String _sport = 'Cricket';
   TournamentFormat _format = TournamentFormat.leagueKnockout;
   DateTime? _startDate;
   DateTime? _endDate;
   int _maxTeams = 4;
   int _playersPerTeam = 11;
+  ScoringType _scoringType = ScoringType.standard;
+  bool _sameScoreAllRounds = true;
+  int _bestOf = 2;
+  int _pointsToWin = 21;
+  int _winPoints = 3;
+  int _drawPoints = 1;
+  int _lossPoints = 0;
+  final Map<String, dynamic> _roundScoringConfig = {};
   bool _freeEntry = true;
   bool _private = false;
   bool _saving = false;
@@ -1279,12 +1282,172 @@ class _WebCreateTournamentDialogState
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _applySportDefaults(_sport);
+  }
+
+  List<ScoringType> _relevantScoringTypes(String sport) {
+    const setSports = {
+      'Badminton',
+      'Tennis',
+      'Table Tennis',
+      'Volleyball',
+      'Squash',
+      'Padel',
+      'Beach Volleyball',
+    };
+    const inningsSports = {'Cricket', 'Baseball', 'Softball'};
+    const fieldSports = {
+      'Football',
+      'Rugby',
+      'Hockey',
+      'Handball',
+      'Throwball',
+      'Futsal',
+      'Kabaddi',
+      'Lacrosse',
+    };
+    if (setSports.contains(sport)) {
+      return [ScoringType.bestOfSets, ScoringType.standard];
+    }
+    if (inningsSports.contains(sport)) {
+      return [ScoringType.standard];
+    }
+    if (fieldSports.contains(sport)) {
+      return [ScoringType.standard, ScoringType.points];
+    }
+    return [ScoringType.standard];
+  }
+
+  ScoringType _defaultScoringType(String sport) =>
+      _relevantScoringTypes(sport).first;
+
+  int _defaultPointsToWin(String sport) {
+    switch (sport) {
+      case 'Table Tennis':
+        return 11;
+      case 'Badminton':
+        return 21;
+      case 'Volleyball':
+        return 25;
+      case 'Squash':
+        return 11;
+      case 'Football':
+      case 'Hockey':
+      case 'Handball':
+      case 'Throwball':
+      case 'Kabaddi':
+        return 1;
+      default:
+        return 21;
+    }
+  }
+
+  bool _isInningsSport(String sport) =>
+      const {'Cricket', 'Baseball', 'Softball'}.contains(sport);
+
+  bool _sportAllowsDraws(String sport) {
+    const noDrawSports = {
+      'Badminton',
+      'Tennis',
+      'Table Tennis',
+      'Volleyball',
+      'Squash',
+      'Padel',
+      'Beach Volleyball',
+      'Boxing',
+      'MMA',
+      'Wrestling',
+      'Fencing',
+    };
+    return !noDrawSports.contains(sport);
+  }
+
+  int _sportDefaultPlayers(String sport) {
+    switch (sport) {
+      case 'Cricket':
+        return 11;
+      case 'Football':
+        return 11;
+      case 'Basketball':
+        return 5;
+      case 'Volleyball':
+        return 6;
+      case 'Badminton':
+        return 2;
+      case 'Tennis':
+        return 2;
+      case 'Table Tennis':
+        return 1;
+      case 'Handball':
+        return 7;
+      case 'Throwball':
+        return 7;
+      case 'Kabaddi':
+        return 7;
+      case 'Hockey':
+        return 11;
+      case 'Boxing':
+        return 1;
+      default:
+        return 5;
+    }
+  }
+
+  String _standardScoreLabel(String sport) {
+    const goalSports = {
+      'Football',
+      'Hockey',
+      'Handball',
+      'Throwball',
+      'Kabaddi',
+    };
+    if (_isInningsSport(sport)) {
+      return 'Series';
+    }
+    if (goalSports.contains(sport)) {
+      return 'Goals To Win';
+    }
+    if (sport == 'Basketball') {
+      return 'Points Target';
+    }
+    return 'Score Target';
+  }
+
+  int _storedBestOfForCreate() {
+    final safe = _bestOf < 1 ? 1 : _bestOf;
+    return _isInningsSport(_sport) ? safe : _storedBestOfFromUiSetsToWin(safe);
+  }
+
+  int _roundBestOfFromConfig(Map<String, dynamic> config) {
+    final raw = (config['bestOf'] as num?)?.toInt();
+    if (raw == null) {
+      return _bestOf;
+    }
+    return _isInningsSport(_sport) ? raw : _uiSetsToWinFromStoredBestOf(raw);
+  }
+
+  void _applySportDefaults(String sport) {
+    _sport = sport;
+    _playersPerTeam = _sportDefaultPlayers(sport);
+    _scoringType = _defaultScoringType(sport);
+    _bestOf = _isInningsSport(sport) ? 1 : 2;
+    _pointsToWin = _isInningsSport(sport) ? 0 : _defaultPointsToWin(sport);
+    if (!_sportAllowsDraws(sport)) {
+      _drawPoints = 0;
+    }
+    _roundScoringConfig.clear();
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     _location.dispose();
     _entryFee.dispose();
     _prize.dispose();
     _rules.dispose();
+    _customScoringLabel.dispose();
     super.dispose();
   }
 
@@ -1351,6 +1514,17 @@ class _WebCreateTournamentDialogState
         playersPerTeam: _playersPerTeam,
         endDate: _endDate,
         rules: _rules.text.trim().isEmpty ? null : _rules.text.trim(),
+        scoringType: _scoringType,
+        bestOf: _storedBestOfForCreate(),
+        pointsToWin: _isInningsSport(_sport) ? 0 : _pointsToWin,
+        winPoints: _winPoints,
+        drawPoints: _sportAllowsDraws(_sport) ? _drawPoints : 0,
+        lossPoints: _lossPoints,
+        customScoringLabel: _customScoringLabel.text.trim().isEmpty
+            ? null
+            : _customScoringLabel.text.trim(),
+        sameScoreAllRounds: _sameScoreAllRounds,
+        roundScoringConfig: _sameScoreAllRounds ? null : _roundScoringConfig,
         isPrivate: _private,
       );
       if (mounted) Navigator.pop(context, true);
@@ -1466,7 +1640,8 @@ class _WebCreateTournamentDialogState
                             icon: _sportIcon(sport),
                             active: _sport == sport,
                             color: _sportAccent(sport),
-                            onTap: () => setState(() => _sport = sport),
+                            onTap: () =>
+                                setState(() => _applySportDefaults(sport)),
                           ),
                       ],
                     ),
@@ -1488,6 +1663,152 @@ class _WebCreateTournamentDialogState
                             color: _red,
                             onTap: () => setState(() => _format = format),
                           ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    _InfoPanel(
+                      title: 'Scoring',
+                      children: [
+                        Text(
+                          _isInningsSport(_sport)
+                              ? 'Cricket and innings-based sports use series scoring. Set and point-target controls are hidden here.'
+                              : _scoringType == ScoringType.bestOfSets
+                              ? 'Use sets and per-set point targets for rally sports.'
+                              : _scoringType == ScoringType.points
+                              ? 'Set standings points for wins, draws, and losses.'
+                              : 'Use the target score that fits this sport.',
+                          style: _t(size: 11, color: _m1),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 14,
+                          runSpacing: 14,
+                          children: [
+                            SizedBox(
+                              width: 240,
+                              child: DropdownButtonFormField<ScoringType>(
+                                initialValue: _scoringType,
+                                dropdownColor: _card,
+                                decoration: _webInputDecoration('Scoring Type'),
+                                style: _t(size: 13),
+                                items: _relevantScoringTypes(_sport)
+                                    .map(
+                                      (type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(_scoringTypeLabel(type)),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) => setState(
+                                  () => _scoringType = value ?? _scoringType,
+                                ),
+                              ),
+                            ),
+                            if (_isInningsSport(_sport))
+                              SizedBox(
+                                width: 180,
+                                child: _buildCreateStepperField(
+                                  label: 'Series',
+                                  value: _bestOf,
+                                  onChanged: (value) => setState(
+                                    () => _bestOf = value < 1 ? 1 : value,
+                                  ),
+                                ),
+                              ),
+                            if (_scoringType == ScoringType.bestOfSets)
+                              SizedBox(
+                                width: 160,
+                                child: _buildCreateStepperField(
+                                  label: 'Sets To Win',
+                                  value: _bestOf,
+                                  onChanged: (value) => setState(
+                                    () => _bestOf = value < 1 ? 1 : value,
+                                  ),
+                                ),
+                              ),
+                            if (_scoringType == ScoringType.bestOfSets)
+                              SizedBox(
+                                width: 180,
+                                child: _buildCreateStepperField(
+                                  label: 'Points To Win',
+                                  value: _pointsToWin,
+                                  onChanged: (value) =>
+                                      setState(() => _pointsToWin = value),
+                                ),
+                              ),
+                            if (_scoringType == ScoringType.standard &&
+                                !_isInningsSport(_sport))
+                              SizedBox(
+                                width: 180,
+                                child: _buildCreateStepperField(
+                                  label: _standardScoreLabel(_sport),
+                                  value: _pointsToWin,
+                                  onChanged: (value) =>
+                                      setState(() => _pointsToWin = value),
+                                ),
+                              ),
+                            if (_scoringType == ScoringType.points) ...[
+                              SizedBox(
+                                width: 150,
+                                child: _buildCreateStepperField(
+                                  label: 'Win Points',
+                                  value: _winPoints,
+                                  onChanged: (value) =>
+                                      setState(() => _winPoints = value),
+                                ),
+                              ),
+                              if (_sportAllowsDraws(_sport))
+                                SizedBox(
+                                  width: 150,
+                                  child: _buildCreateStepperField(
+                                    label: 'Draw Points',
+                                    value: _drawPoints,
+                                    onChanged: (value) =>
+                                        setState(() => _drawPoints = value),
+                                  ),
+                                ),
+                              SizedBox(
+                                width: 150,
+                                child: _buildCreateStepperField(
+                                  label: 'Loss Points',
+                                  value: _lossPoints,
+                                  onChanged: (value) =>
+                                      setState(() => _lossPoints = value),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (_format == TournamentFormat.knockout ||
+                            _format == TournamentFormat.leagueKnockout) ...[
+                          const SizedBox(height: 18),
+                          _ToggleRow(
+                            title: 'Same Scoring For All Rounds',
+                            subtitle:
+                                'Turn this off to set different scores for quarterfinals, semifinals, and the final.',
+                            value: _sameScoreAllRounds,
+                            onChanged: (value) =>
+                                setState(() => _sameScoreAllRounds = value),
+                          ),
+                          if (!_sameScoreAllRounds) ...[
+                            const SizedBox(height: 18),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                _buildCreateRoundScoreCard(
+                                  'quarterFinal',
+                                  'Quarterfinals',
+                                ),
+                                _buildCreateRoundScoreCard(
+                                  'semiFinal',
+                                  'Semifinals',
+                                ),
+                                _buildCreateRoundScoreCard('final', 'Final'),
+                              ],
+                            ),
+                          ],
+                        ],
                       ],
                     ),
                     const SizedBox(height: 22),
@@ -1595,6 +1916,108 @@ class _WebCreateTournamentDialogState
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreateStepperField({
+    required String label,
+    required int value,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: _t(size: 12, color: _m1, weight: FontWeight.w800),
+        ),
+        const SizedBox(height: 7),
+        Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .035),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: .08)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => onChanged(value > 0 ? value - 1 : 0),
+                icon: const Icon(Icons.remove_rounded, color: _m1),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    '$value',
+                    style: _t(size: 14, weight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => onChanged(value + 1),
+                icon: const Icon(Icons.add_rounded, color: _m1),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCreateRoundScoreCard(String key, String title) {
+    final config = Map<String, dynamic>.from(
+      (_roundScoringConfig[key] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final bestOf = _roundBestOfFromConfig(config);
+    final pointsToWin =
+        (config['pointsToWin'] as num?)?.toInt() ?? _pointsToWin;
+
+    void setValue(String field, int value) {
+      final updated = Map<String, dynamic>.from(config);
+      updated[field] = field == 'bestOf'
+          ? (_isInningsSport(_sport)
+                ? (value < 1 ? 1 : value)
+                : _storedBestOfFromUiSetsToWin(value))
+          : value;
+      setState(() => _roundScoringConfig[key] = updated);
+    }
+
+    return SizedBox(
+      width: 280,
+      child: _MiniPanel(
+        title: title,
+        subtitle: 'Override default scoring for this stage',
+        child: Column(
+          children: [
+            if (_isInningsSport(_sport))
+              _buildCreateStepperField(
+                label: 'Series',
+                value: bestOf,
+                onChanged: (value) => setValue('bestOf', value < 1 ? 1 : value),
+              ),
+            if (_scoringType == ScoringType.bestOfSets) ...[
+              _buildCreateStepperField(
+                label: 'Sets To Win',
+                value: bestOf,
+                onChanged: (value) => setValue('bestOf', value < 1 ? 1 : value),
+              ),
+              const SizedBox(height: 12),
+              _buildCreateStepperField(
+                label: 'Points To Win',
+                value: pointsToWin,
+                onChanged: (value) => setValue('pointsToWin', value),
+              ),
+            ],
+            if (_scoringType == ScoringType.standard &&
+                !_isInningsSport(_sport))
+              _buildCreateStepperField(
+                label: _standardScoreLabel(_sport),
+                value: pointsToWin,
+                onChanged: (value) => setValue('pointsToWin', value),
+              ),
           ],
         ),
       ),

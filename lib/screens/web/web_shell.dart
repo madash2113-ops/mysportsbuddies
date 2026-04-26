@@ -59,15 +59,26 @@ class _WebShellState extends State<WebShell> {
   void initState() {
     super.initState();
     WebShellController().addListener(_onNav);
+    AuthService().addListener(_onAuthChanged);
   }
 
   @override
   void dispose() {
     WebShellController().removeListener(_onNav);
+    AuthService().removeListener(_onAuthChanged);
     super.dispose();
   }
 
   void _onNav() => setState(() {});
+  void _onAuthChanged() {
+    if (!mounted || AuthService().isSignedIn) return;
+    WebShellController().navigateTo(0);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).pushNamedAndRemoveUntil('/web-landing', (_) => false);
+  }
+
   int get _index => WebShellController().value;
 
   static const _navItems = <(IconData, IconData, String)>[

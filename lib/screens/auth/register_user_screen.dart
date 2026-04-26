@@ -8,11 +8,11 @@ import '../../services/user_service.dart';
 import 'auth_router.dart';
 
 // ── Design tokens (matches login_screen.dart) ─────────────────────────────────
-const _bg      = Color(0xFF030303);
-const _panelR  = Color(0xFF0B0B0B);
-const _tx      = Color(0xFFF2F2F2);
-const _m1      = Color(0xFF888888);
-const _red     = Color(0xFFFF2B2B);
+const _bg = Color(0xFF030303);
+const _panelR = Color(0xFF0B0B0B);
+const _tx = Color(0xFFF2F2F2);
+const _m1 = Color(0xFF888888);
+const _red = Color(0xFFFF2B2B);
 const _redDeep = Color(0xFFB3001B);
 
 // ── Country code model ────────────────────────────────────────────────────────
@@ -61,21 +61,24 @@ class RegisterUserScreen extends StatefulWidget {
 
 class _RegisterUserScreenState extends State<RegisterUserScreen>
     with SingleTickerProviderStateMixin {
-  final _nameCtrl  = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _passCtrl  = TextEditingController();
+  final _passCtrl = TextEditingController();
 
-  bool    _obscurePass   = true;
-  bool    _loading       = false;
-  bool    _googleLoading = false;
+  bool _obscurePass = true;
+  bool _loading = false;
+  bool _googleLoading = false;
+  bool _appleLoading = false;
   String? _error;
-  String  _dialCode      = '+1';
-  String  _countryFlag   = '🇺🇸';
+  String _dialCode = '+1';
+  String _countryFlag = '🇺🇸';
+  bool _appliedRouteArgs = false;
 
-  late final AnimationController _fadeCtrl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 500))
-        ..forward();
+  late final AnimationController _fadeCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 500),
+  )..forward();
 
   @override
   void dispose() {
@@ -87,6 +90,50 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_appliedRouteArgs) return;
+    _appliedRouteArgs = true;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      final phone = (args['phone'] as String?)?.trim();
+      if (phone != null && phone.isNotEmpty && _phoneCtrl.text.trim().isEmpty) {
+        final parsed = _splitPhone(phone);
+        _dialCode = parsed.$1;
+        _countryFlag = parsed.$2;
+        _phoneCtrl.text = parsed.$3;
+      }
+      final email = (args['email'] as String?)?.trim();
+      if (email != null && email.isNotEmpty && _emailCtrl.text.trim().isEmpty) {
+        _emailCtrl.text = email;
+      }
+      final name = (args['name'] as String?)?.trim();
+      if (name != null && name.isNotEmpty && _nameCtrl.text.trim().isEmpty) {
+        _nameCtrl.text = name;
+      }
+    }
+  }
+
+  (String, String, String) _splitPhone(String phone) {
+    final trimmed = phone.trim();
+    if (!trimmed.startsWith('+')) {
+      return (_dialCode, _countryFlag, trimmed);
+    }
+
+    final match =
+        (_kCountries.toList()
+              ..sort((a, b) => b.dial.length.compareTo(a.dial.length)))
+            .where((c) => trimmed.startsWith(c.dial))
+            .firstOrNull;
+
+    if (match == null) {
+      return (_dialCode, _countryFlag, trimmed.replaceFirst('+', ''));
+    }
+
+    return (match.dial, match.flag, trimmed.substring(match.dial.length));
+  }
+
   Future<void> _showCountryPicker() async {
     final result = await showModalBottomSheet<_CC>(
       context: context,
@@ -95,14 +142,17 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
       builder: (_) => const _CountryPickerSheet(),
     );
     if (result != null) {
-      setState(() { _dialCode = result.dial; _countryFlag = result.flag; });
+      setState(() {
+        _dialCode = result.dial;
+        _countryFlag = result.flag;
+      });
     }
   }
 
   Future<void> _register() async {
-    final name  = _nameCtrl.text.trim();
+    final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
-    final pass  = _passCtrl.text;
+    final pass = _passCtrl.text;
     final rawPhone = _phoneCtrl.text.trim();
     final phone = rawPhone.isEmpty
         ? ''
@@ -121,7 +171,10 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
       return;
     }
 
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     if (phone.isNotEmpty) {
       final inUse = await UserService().isPhoneInUse(phone);
@@ -146,7 +199,10 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
     }
 
     final ok = await AuthService().signUpWithEmail(
-      name: name, email: email, password: pass, phone: phone,
+      name: name,
+      email: email,
+      password: pass,
+      phone: phone,
     );
     if (!mounted) return;
     if (ok) {
@@ -160,11 +216,14 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
   }
 
   Future<void> _googleSignUp() async {
-    setState(() { _googleLoading = true; _error = null; });
+    setState(() {
+      _googleLoading = true;
+      _error = null;
+    });
     final ok = await AuthService().signInWithGoogle();
     if (!mounted) return;
     if (ok) {
-      await navigateAfterLogin(context);
+      await _routeAfterSocialAuth();
     } else {
       setState(() {
         _googleLoading = false;
@@ -173,14 +232,43 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
     }
   }
 
+  Future<void> _appleSignUp() async {
+    setState(() {
+      _appleLoading = true;
+      _error = null;
+    });
+    final ok = await AuthService().signInWithApple();
+    if (!mounted) return;
+    if (ok) {
+      await _routeAfterSocialAuth();
+    } else {
+      setState(() {
+        _appleLoading = false;
+        _error = AuthService().error;
+      });
+    }
+  }
+
+  Future<void> _routeAfterSocialAuth() async {
+    final profile = UserService().profile;
+    final needsSignup =
+        AuthService().lastAuthWasNewUser ||
+        profile == null ||
+        profile.name.trim().isEmpty;
+    if (needsSignup) {
+      Navigator.pushReplacementNamed(context, '/complete-profile');
+      return;
+    }
+    await navigateAfterLogin(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
       body: LayoutBuilder(
-        builder: (_, c) => c.maxWidth >= 900
-            ? _webLayout(context)
-            : _mobileLayout(context),
+        builder: (_, c) =>
+            c.maxWidth >= 900 ? _webLayout(context) : _mobileLayout(context),
       ),
     );
   }
@@ -188,51 +276,72 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
   // ── Web: centered card ────────────────────────────────────────────────────
 
   Widget _webLayout(BuildContext context) {
-    return Row(children: [
-      const Expanded(flex: 55, child: _LeftPanel()),
-      Expanded(flex: 45, child: _rightPanel(context)),
-    ]);
+    return Row(
+      children: [
+        const Expanded(flex: 55, child: _LeftPanel()),
+        Expanded(flex: 45, child: _rightPanel(context)),
+      ],
+    );
   }
 
   Widget _rightPanel(BuildContext context) {
     return Container(
       color: _panelR,
-      child: Stack(children: [
-        Positioned(bottom: -80, right: -80,
-            child: _GlowOrb(360, _red.withValues(alpha: .07))),
-        SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 40),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: FadeTransition(
-                  opacity: CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut),
-                  child: _formColumn(context, showBackToSite: true),
+      child: Stack(
+        children: [
+          Positioned(
+            bottom: -80,
+            right: -80,
+            child: _GlowOrb(360, _red.withValues(alpha: .07)),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 56,
+                  vertical: 40,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: _fadeCtrl,
+                      curve: Curves.easeOut,
+                    ),
+                    child: _formColumn(context, showBackToSite: true),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
   // ── Mobile ────────────────────────────────────────────────────────────────
 
   Widget _mobileLayout(BuildContext context) {
-    return Stack(children: [
-      Positioned(top: -100, left: -100,
-          child: _GlowOrb(400, _red.withValues(alpha: .12))),
-      Positioned(bottom: -60, right: -80,
-          child: _GlowOrb(300, _red.withValues(alpha: .08))),
-      SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _formColumn(context, showBackToSite: false),
+    return Stack(
+      children: [
+        Positioned(
+          top: -100,
+          left: -100,
+          child: _GlowOrb(400, _red.withValues(alpha: .12)),
         ),
-      ),
-    ]);
+        Positioned(
+          bottom: -60,
+          right: -80,
+          child: _GlowOrb(300, _red.withValues(alpha: .08)),
+        ),
+        SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _formColumn(context, showBackToSite: false),
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Shared form column ────────────────────────────────────────────────────
@@ -246,30 +355,48 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
         // Back link
         GestureDetector(
           onTap: () => Navigator.pop(context),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.arrow_back_ios_new, color: _m1, size: 13),
-            const SizedBox(width: 6),
-            Text(showBackToSite ? 'Back to sign in' : 'Back',
-                style: const TextStyle(color: _m1, fontSize: 13)),
-          ]),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.arrow_back_ios_new, color: _m1, size: 13),
+              const SizedBox(width: 6),
+              Text(
+                showBackToSite ? 'Back to sign in' : 'Back',
+                style: const TextStyle(color: _m1, fontSize: 13),
+              ),
+            ],
+          ),
         ),
 
         const SizedBox(height: 36),
 
         // Heading
-        const Text('Create Account',
-            style: TextStyle(
-                color: _tx, fontSize: 28,
-                fontWeight: FontWeight.w800, letterSpacing: -.5)),
+        const Text(
+          'Create Account',
+          style: TextStyle(
+            color: _tx,
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.5,
+          ),
+        ),
         const SizedBox(height: 6),
-        const Text('Join the sports community today',
-            style: TextStyle(color: _m1, fontSize: 14)),
+        const Text(
+          'Join the sports community today',
+          style: TextStyle(color: _m1, fontSize: 14),
+        ),
 
         const SizedBox(height: 32),
 
         // ── Full Name ──────────────────────────────────────────────────────
-        const Text('Full Name',
-            style: TextStyle(color: _m1, fontSize: 12, fontWeight: FontWeight.w500)),
+        const Text(
+          'Full Name',
+          style: TextStyle(
+            color: _m1,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _nameCtrl,
@@ -281,8 +408,14 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
         const SizedBox(height: 16),
 
         // ── Email ──────────────────────────────────────────────────────────
-        const Text('Email Address',
-            style: TextStyle(color: _m1, fontSize: 12, fontWeight: FontWeight.w500)),
+        const Text(
+          'Email Address',
+          style: TextStyle(
+            color: _m1,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _emailCtrl,
@@ -294,8 +427,14 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
         const SizedBox(height: 16),
 
         // ── Password ───────────────────────────────────────────────────────
-        const Text('Password',
-            style: TextStyle(color: _m1, fontSize: 12, fontWeight: FontWeight.w500)),
+        const Text(
+          'Password',
+          style: TextStyle(
+            color: _m1,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _passCtrl,
@@ -308,7 +447,9 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
                 _obscurePass
                     ? Icons.visibility_outlined
                     : Icons.visibility_off_outlined,
-                color: _m1, size: 18),
+                color: _m1,
+                size: 18,
+              ),
             ),
           ),
         ),
@@ -316,54 +457,79 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
         const SizedBox(height: 16),
 
         // ── Phone (optional) ───────────────────────────────────────────────
-        Row(children: [
-          const Text('Phone Number',
-              style: TextStyle(color: _m1, fontSize: 12, fontWeight: FontWeight.w500)),
-          const SizedBox(width: 6),
-          Text('optional',
+        Row(
+          children: [
+            const Text(
+              'Phone Number',
               style: TextStyle(
-                  color: _m1.withValues(alpha: .45), fontSize: 11)),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          GestureDetector(
-            onTap: _showCountryPicker,
-            child: Container(
-              height: 50,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF111111),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: .1)),
+                color: _m1,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(_countryFlag, style: const TextStyle(fontSize: 16)),
-                const SizedBox(width: 5),
-                Text(_dialCode,
-                    style: const TextStyle(
-                        color: _tx, fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(width: 3),
-                const Icon(Icons.arrow_drop_down_rounded, color: _m1, size: 16),
-              ]),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(color: _tx, fontSize: 15),
-              decoration: _inputDeco('Phone number'),
+            const SizedBox(width: 6),
+            Text(
+              'optional',
+              style: TextStyle(color: _m1.withValues(alpha: .45), fontSize: 11),
             ),
-          ),
-        ]),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            GestureDetector(
+              onTap: _showCountryPicker,
+              child: Container(
+                height: 50,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF111111),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: .1)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_countryFlag, style: const TextStyle(fontSize: 16)),
+                    const SizedBox(width: 5),
+                    Text(
+                      _dialCode,
+                      style: const TextStyle(
+                        color: _tx,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    const Icon(
+                      Icons.arrow_drop_down_rounded,
+                      color: _m1,
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: const TextStyle(color: _tx, fontSize: 15),
+                decoration: _inputDeco('Phone number'),
+              ),
+            ),
+          ],
+        ),
 
         // Error
         if (_error != null) ...[
           const SizedBox(height: 10),
-          Text(_error!,
-              style: TextStyle(color: _red.withValues(alpha: .9), fontSize: 12)),
+          Text(
+            _error!,
+            style: TextStyle(color: _red.withValues(alpha: .9), fontSize: 12),
+          ),
         ],
 
         const SizedBox(height: 24),
@@ -379,52 +545,83 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
         const SizedBox(height: 24),
 
         // ── Divider ────────────────────────────────────────────────────────
-        Row(children: [
-          Expanded(child: Container(height: .8,
-              color: Colors.white.withValues(alpha: .07))),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Text('or sign up with',
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: .8,
+                color: Colors.white.withValues(alpha: .07),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                'or sign up with',
                 style: TextStyle(
-                    color: _m1.withValues(alpha: .6), fontSize: 11)),
-          ),
-          Expanded(child: Container(height: .8,
-              color: Colors.white.withValues(alpha: .07))),
-        ]),
+                  color: _m1.withValues(alpha: .6),
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Container(
+                height: .8,
+                color: Colors.white.withValues(alpha: .07),
+              ),
+            ),
+          ],
+        ),
 
         const SizedBox(height: 18),
 
         // ── Social ─────────────────────────────────────────────────────────
-        Row(children: [
-          Expanded(child: _SocialTile(
-            label: 'Google',
-            icon: Icons.g_mobiledata,
-            iconColor: const Color(0xFFEA4335),
-            loading: _googleLoading,
-            onTap: _googleLoading ? null : _googleSignUp,
-          )),
-          const SizedBox(width: 12),
-          Expanded(child: _SocialTile(
-            label: 'Facebook',
-            icon: Icons.facebook,
-            iconColor: const Color(0xFF1877F2),
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Facebook login coming soon!'))),
-          )),
-        ]),
+        Row(
+          children: [
+            Expanded(
+              child: _SocialTile(
+                label: 'Google',
+                icon: Icons.g_mobiledata,
+                iconColor: const Color(0xFFEA4335),
+                loading: _googleLoading,
+                onTap: _googleLoading ? null : _googleSignUp,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _SocialTile(
+                label: 'Apple',
+                icon: Icons.apple_rounded,
+                iconColor: Colors.white,
+                loading: _appleLoading,
+                onTap: _appleLoading ? null : _appleSignUp,
+              ),
+            ),
+          ],
+        ),
 
         const SizedBox(height: 28),
 
         Center(
           child: GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: const Text.rich(TextSpan(children: [
-              TextSpan(text: 'Already have an account?  ',
-                  style: TextStyle(color: _m1, fontSize: 14)),
-              TextSpan(text: 'Sign In',
-                  style: TextStyle(
-                      color: _red, fontSize: 14, fontWeight: FontWeight.w700)),
-            ])),
+            child: const Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Already have an account?  ',
+                    style: TextStyle(color: _m1, fontSize: 14),
+                  ),
+                  TextSpan(
+                    text: 'Sign In',
+                    style: TextStyle(
+                      color: _red,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
 
@@ -434,7 +631,9 @@ class _RegisterUserScreenState extends State<RegisterUserScreen>
           child: Text(
             'By signing up, you agree to our Terms & Privacy Policy',
             style: TextStyle(
-                color: Colors.white.withValues(alpha: .18), fontSize: 11),
+              color: Colors.white.withValues(alpha: .18),
+              fontSize: 11,
+            ),
             textAlign: TextAlign.center,
           ),
         ),
@@ -456,98 +655,208 @@ class _LeftPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: _bg,
-      child: Stack(children: [
-        Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-        Positioned(top: -60, left: -80,
-            child: _GlowOrb(480, _red.withValues(alpha: .10))),
-        Positioned(bottom: -80, right: -60,
-            child: _GlowOrb(380, _redDeep.withValues(alpha: .08))),
-        const Positioned(top: 120, left: 52,  child: _FloatEmoji('⚽', 22, .28)),
-        const Positioned(top: 240, right: 70, child: _FloatEmoji('🏏', 20, .22)),
-        const Positioned(top: 380, left: 36,  child: _FloatEmoji('🏀', 24, .26)),
-        const Positioned(top: 520, right: 48, child: _FloatEmoji('🎾', 20, .20)),
-        const Positioned(top: 660, left: 72,  child: _FloatEmoji('🥊', 22, .22)),
-        const Positioned(bottom: 220, right: 56, child: _FloatEmoji('🏐', 20, .18)),
-        const Positioned(bottom: 140, left: 44,  child: _FloatEmoji('🏋️', 20, .20)),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(56, 36, 40, 36),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      gradient: const LinearGradient(
-                          colors: [_red, _redDeep],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight),
-                      boxShadow: [BoxShadow(
-                          color: _red.withValues(alpha: .38), blurRadius: 14)],
+      child: Stack(
+        children: [
+          Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+          Positioned(
+            top: -60,
+            left: -80,
+            child: _GlowOrb(480, _red.withValues(alpha: .10)),
+          ),
+          Positioned(
+            bottom: -80,
+            right: -60,
+            child: _GlowOrb(380, _redDeep.withValues(alpha: .08)),
+          ),
+          const Positioned(
+            top: 120,
+            left: 52,
+            child: _FloatEmoji('⚽', 22, .28),
+          ),
+          const Positioned(
+            top: 240,
+            right: 70,
+            child: _FloatEmoji('🏏', 20, .22),
+          ),
+          const Positioned(
+            top: 380,
+            left: 36,
+            child: _FloatEmoji('🏀', 24, .26),
+          ),
+          const Positioned(
+            top: 520,
+            right: 48,
+            child: _FloatEmoji('🎾', 20, .20),
+          ),
+          const Positioned(
+            top: 660,
+            left: 72,
+            child: _FloatEmoji('🥊', 22, .22),
+          ),
+          const Positioned(
+            bottom: 220,
+            right: 56,
+            child: _FloatEmoji('🏐', 20, .18),
+          ),
+          const Positioned(
+            bottom: 140,
+            left: 44,
+            child: _FloatEmoji('🏋️', 20, .20),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(56, 36, 40, 36),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          gradient: const LinearGradient(
+                            colors: [_red, _redDeep],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _red.withValues(alpha: .38),
+                              blurRadius: 14,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.emoji_events_rounded,
+                          color: Colors.white,
+                          size: 19,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'My',
+                              style: TextStyle(
+                                color: _tx,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Sports',
+                              style: TextStyle(
+                                color: _red,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Buddies',
+                              style: TextStyle(
+                                color: _tx,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  const Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Join\n',
+                          style: TextStyle(
+                            color: _tx,
+                            fontSize: 60,
+                            fontWeight: FontWeight.w900,
+                            height: 1.0,
+                            letterSpacing: -2.5,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Sports\n',
+                          style: TextStyle(
+                            color: _red,
+                            fontSize: 60,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                            letterSpacing: -2.5,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Community',
+                          style: TextStyle(
+                            color: _tx,
+                            fontSize: 60,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                            letterSpacing: -2.5,
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.emoji_events_rounded,
-                        color: Colors.white, size: 19),
                   ),
-                  const SizedBox(width: 10),
-                  const Text.rich(TextSpan(children: [
-                    TextSpan(text: 'My',
-                        style: TextStyle(color: _tx, fontSize: 14, fontWeight: FontWeight.w800)),
-                    TextSpan(text: 'Sports',
-                        style: TextStyle(color: _red, fontSize: 14, fontWeight: FontWeight.w900)),
-                    TextSpan(text: 'Buddies',
-                        style: TextStyle(color: _tx, fontSize: 14, fontWeight: FontWeight.w800)),
-                  ])),
-                ]),
-                const Spacer(),
-                const Text.rich(TextSpan(children: [
-                  TextSpan(text: 'Join\n',
-                      style: TextStyle(color: _tx, fontSize: 60, fontWeight: FontWeight.w900,
-                          height: 1.0, letterSpacing: -2.5)),
-                  TextSpan(text: 'Sports\n',
-                      style: TextStyle(color: _red, fontSize: 60, fontWeight: FontWeight.w900,
-                          height: 1.05, letterSpacing: -2.5)),
-                  TextSpan(text: 'Community',
-                      style: TextStyle(color: _tx, fontSize: 60, fontWeight: FontWeight.w900,
-                          height: 1.05, letterSpacing: -2.5)),
-                ])),
-                const SizedBox(height: 20),
-                const SizedBox(
-                  width: 420,
-                  child: Text(
-                    "Create your free account and start discovering games, tournaments, venues & athletes near you.",
-                    style: TextStyle(color: _m1, fontSize: 15, height: 1.65),
+                  const SizedBox(height: 20),
+                  const SizedBox(
+                    width: 420,
+                    child: Text(
+                      "Create your free account and start discovering games, tournaments, venues & athletes near you.",
+                      style: TextStyle(color: _m1, fontSize: 15, height: 1.65),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 36),
-                Row(children: [
-                  _StatChip('50K+', 'Players'),
-                  const SizedBox(width: 12),
-                  _StatChip('5K+', 'Tournaments'),
-                  const SizedBox(width: 12),
-                  _StatChip('22+', 'Sports'),
-                ]),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .04),
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(color: Colors.white.withValues(alpha: .08)),
+                  const SizedBox(height: 36),
+                  Row(
+                    children: [
+                      _StatChip('50K+', 'Players'),
+                      const SizedBox(width: 12),
+                      _StatChip('5K+', 'Tournaments'),
+                      const SizedBox(width: 12),
+                      _StatChip('22+', 'Sports'),
+                    ],
                   ),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('🇮🇳', style: TextStyle(fontSize: 13)),
-                    SizedBox(width: 8),
-                    Text('Made in India',
-                        style: TextStyle(color: _m1, fontSize: 12, fontWeight: FontWeight.w500)),
-                  ]),
-                ),
-              ],
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .04),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: .08),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('🇮🇳', style: TextStyle(fontSize: 13)),
+                        SizedBox(width: 8),
+                        Text(
+                          'Made in India',
+                          style: TextStyle(
+                            color: _m1,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
@@ -571,14 +880,19 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
     final lower = q.toLowerCase();
     setState(() {
       _filtered = _kCountries
-          .where((c) =>
-              c.name.toLowerCase().contains(lower) || c.dial.contains(lower))
+          .where(
+            (c) =>
+                c.name.toLowerCase().contains(lower) || c.dial.contains(lower),
+          )
           .toList();
     });
   }
 
   @override
-  void dispose() { _search.dispose(); super.dispose(); }
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -588,53 +902,83 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
         color: Color(0xFF111111),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Column(children: [
-        const SizedBox(height: 10),
-        Container(
-          width: 36, height: 4,
-          decoration: BoxDecoration(
-              color: Colors.white24, borderRadius: BorderRadius.circular(99)),
-        ),
-        const SizedBox(height: 16),
-        const Text('Select Country',
-            style: TextStyle(color: _tx, fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            controller: _search,
-            onChanged: _onSearch,
-            autofocus: true,
-            style: const TextStyle(color: _tx, fontSize: 14),
-            decoration: _inputDeco('Search country or code').copyWith(
-              prefixIcon: const Icon(Icons.search_rounded, color: _m1, size: 18),
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(99),
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _filtered.length,
-            itemBuilder: (_, i) {
-              final cc = _filtered[i];
-              return InkWell(
-                onTap: () => Navigator.pop(context, cc),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-                  child: Row(children: [
-                    Text(cc.flag, style: const TextStyle(fontSize: 20)),
-                    const SizedBox(width: 14),
-                    Expanded(child: Text(cc.name,
-                        style: const TextStyle(
-                            color: _tx, fontSize: 14, fontWeight: FontWeight.w500))),
-                    Text(cc.dial, style: const TextStyle(color: _m1, fontSize: 13)),
-                  ]),
-                ),
-              );
-            },
+          const SizedBox(height: 16),
+          const Text(
+            'Select Country',
+            style: TextStyle(
+              color: _tx,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-      ]),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: _search,
+              onChanged: _onSearch,
+              autofocus: true,
+              style: const TextStyle(color: _tx, fontSize: 14),
+              decoration: _inputDeco('Search country or code').copyWith(
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: _m1,
+                  size: 18,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _filtered.length,
+              itemBuilder: (_, i) {
+                final cc = _filtered[i];
+                return InkWell(
+                  onTap: () => Navigator.pop(context, cc),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 13,
+                    ),
+                    child: Row(
+                      children: [
+                        Text(cc.flag, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            cc.name,
+                            style: const TextStyle(
+                              color: _tx,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          cc.dial,
+                          style: const TextStyle(color: _m1, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -644,21 +988,24 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
 // ══════════════════════════════════════════════════════════════════════════════
 
 InputDecoration _inputDeco(String hint) => InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: _m1.withValues(alpha: .55), fontSize: 14),
-      filled: true,
-      fillColor: const Color(0xFF111111),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: .1))),
-      enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: .1))),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _red, width: 1.5)),
-    );
+  hintText: hint,
+  hintStyle: TextStyle(color: _m1.withValues(alpha: .55), fontSize: 14),
+  filled: true,
+  fillColor: const Color(0xFF111111),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  border: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: BorderSide(color: Colors.white.withValues(alpha: .1)),
+  ),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: BorderSide(color: Colors.white.withValues(alpha: .1)),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: const BorderSide(color: _red, width: 1.5),
+  ),
+);
 
 class _GradientBtn extends StatelessWidget {
   final String label;
@@ -666,7 +1013,9 @@ class _GradientBtn extends StatelessWidget {
   final VoidCallback onTap;
   final bool loading;
   const _GradientBtn({
-    required this.label, required this.icon, required this.onTap,
+    required this.label,
+    required this.icon,
+    required this.onTap,
     this.loading = false,
   });
 
@@ -679,35 +1028,50 @@ class _GradientBtn extends StatelessWidget {
         width: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-              colors: [
-                _red.withValues(alpha: loading ? .5 : 1),
-                _redDeep.withValues(alpha: loading ? .5 : 1),
-              ],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight),
+            colors: [
+              _red.withValues(alpha: loading ? .5 : 1),
+              _redDeep.withValues(alpha: loading ? .5 : 1),
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
           borderRadius: BorderRadius.circular(12),
-          boxShadow: loading ? null : [BoxShadow(
-              color: _red.withValues(alpha: .35),
-              blurRadius: 16,
-              offset: const Offset(0, 5))],
+          boxShadow: loading
+              ? null
+              : [
+                  BoxShadow(
+                    color: _red.withValues(alpha: .35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
         ),
         child: loading
             ? const Center(
                 child: SizedBox(
-                  width: 18, height: 18,
+                  width: 18,
+                  height: 18,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
               )
-            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(icon, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Text(label,
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700)),
-              ]),
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -720,8 +1084,11 @@ class _SocialTile extends StatelessWidget {
   final VoidCallback? onTap;
   final bool loading;
   const _SocialTile({
-    required this.label, required this.icon, required this.iconColor,
-    required this.onTap, this.loading = false,
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    required this.onTap,
+    this.loading = false,
   });
 
   @override
@@ -738,18 +1105,29 @@ class _SocialTile extends StatelessWidget {
         child: loading
             ? const Center(
                 child: SizedBox(
-                  width: 20, height: 20,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
               )
-            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(icon, color: iconColor, size: 22),
-                const SizedBox(width: 8),
-                Text(label,
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: iconColor, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
                     style: const TextStyle(
-                        color: _tx, fontSize: 13, fontWeight: FontWeight.w600)),
-              ]),
+                      color: _tx,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -768,16 +1146,28 @@ class _StatChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: .08)),
       ),
-      child: Column(children: [
-        Text(value,
+      child: Column(
+        children: [
+          Text(
+            value,
             style: const TextStyle(
-                color: _red, fontSize: 20,
-                fontWeight: FontWeight.w900, letterSpacing: -.5)),
-        const SizedBox(height: 2),
-        Text(label,
+              color: _red,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.5,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
             style: const TextStyle(
-                color: _m1, fontSize: 11, fontWeight: FontWeight.w500)),
-      ]),
+              color: _m1,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -788,8 +1178,10 @@ class _FloatEmoji extends StatelessWidget {
   const _FloatEmoji(this.emoji, this.size, this.opacity);
 
   @override
-  Widget build(BuildContext context) =>
-      Opacity(opacity: opacity, child: Text(emoji, style: TextStyle(fontSize: size)));
+  Widget build(BuildContext context) => Opacity(
+    opacity: opacity,
+    child: Text(emoji, style: TextStyle(fontSize: size)),
+  );
 }
 
 class _GlowOrb extends StatelessWidget {
@@ -800,11 +1192,14 @@ class _GlowOrb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-            colors: [color, Colors.transparent], stops: const [0, .65]),
+          colors: [color, Colors.transparent],
+          stops: const [0, .65],
+        ),
       ),
     );
   }

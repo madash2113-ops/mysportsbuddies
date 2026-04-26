@@ -18,7 +18,7 @@ enum BillingPeriod { monthly, annual, lifetime }
 
 class UserProfile {
   final String id;
-  final int? numericId;   // Unique 6-digit player ID, e.g. 483921
+  final int? numericId; // Unique 6-digit player ID, e.g. 483921
   final String name;
   final String email;
   final String phone;
@@ -27,9 +27,10 @@ class UserProfile {
   final String bio;
   final String? imageUrl;
   final DateTime updatedAt;
-  final bool isPremium;         // legacy — keep for backward compat during beta
+  final bool isPremium; // legacy — keep for backward compat during beta
   final bool isAdmin;
-  final String? membershipId;   // set when premium is granted, e.g. "MSB-517913-4821"
+  final String?
+  membershipId; // set when premium is granted, e.g. "MSB-517913-4821"
   final UserRole role;
 
   // ── Entitlement-based subscription fields (v2) ────────────────────────────
@@ -47,6 +48,7 @@ class UserProfile {
 
   // ── Sport preferences ─────────────────────────────────────────────────────
   final List<String>? favoriteSports;
+  final bool sportsIdentityCompleted;
 
   const UserProfile({
     required this.id,
@@ -67,6 +69,7 @@ class UserProfile {
     this.matchesPlayed = 0,
     this.matchesWon = 0,
     this.favoriteSports,
+    this.sportsIdentityCompleted = false,
     this.planTier = PlanTier.free,
     this.subscriptionStatus = SubscriptionStatus.none,
     this.billingPeriod,
@@ -117,93 +120,100 @@ class UserProfile {
   }
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        if (numericId != null) 'numericId': numericId,
-        'name': name,
-        // ── Search index fields (written on every save) ──────────────────
-        'nameLower':    nameLower,
-        'nameReversed': nameReversed,
-        'nameWords':    nameWords,
-        'searchTokens': searchTokens,
-        'emailLower':   emailLower,
-        if (numericIdStr != null) 'numericIdStr': numericIdStr,
-        // ────────────────────────────────────────────────────────────────
-        'email': email,
-        'phone': phone,
-        'location': location,
-        'dob': dob,
-        'bio': bio,
-        if (imageUrl != null) 'imageUrl': imageUrl,
-        'updatedAt': Timestamp.fromDate(updatedAt),
-        'isPremium': isPremium,
-        'isAdmin':   isAdmin,
-        if (membershipId != null) 'membershipId': membershipId,
-        'role': role.name,
-        'tournamentsPlayed': tournamentsPlayed,
-        'matchesPlayed':     matchesPlayed,
-        'matchesWon':        matchesWon,
-        'favoriteSports':    favoriteSports,
-        'planTier':           planTier.name,
-        'subscriptionStatus': subscriptionStatus.name,
-        if (billingPeriod != null) 'billingPeriod': billingPeriod!.name,
-        if (storeProductId != null) 'storeProductId': storeProductId,
-        if (trialEndsAt != null)
-          'trialEndsAt': Timestamp.fromDate(trialEndsAt!),
-        'entitlements': entitlements.toList(),
-      };
+    'id': id,
+    if (numericId != null) 'numericId': numericId,
+    'name': name,
+    // ── Search index fields (written on every save) ──────────────────
+    'nameLower': nameLower,
+    'nameReversed': nameReversed,
+    'nameWords': nameWords,
+    'searchTokens': searchTokens,
+    'emailLower': emailLower,
+    if (numericIdStr != null) 'numericIdStr': numericIdStr,
+    // ────────────────────────────────────────────────────────────────
+    'email': email,
+    'phone': phone,
+    'location': location,
+    'dob': dob,
+    'bio': bio,
+    if (imageUrl != null) 'imageUrl': imageUrl,
+    'updatedAt': Timestamp.fromDate(updatedAt),
+    'isPremium': isPremium,
+    'isAdmin': isAdmin,
+    if (membershipId != null) 'membershipId': membershipId,
+    'role': role.name,
+    'tournamentsPlayed': tournamentsPlayed,
+    'matchesPlayed': matchesPlayed,
+    'matchesWon': matchesWon,
+    'favoriteSports': favoriteSports,
+    'sportsIdentityCompleted': sportsIdentityCompleted,
+    'planTier': planTier.name,
+    'subscriptionStatus': subscriptionStatus.name,
+    if (billingPeriod != null) 'billingPeriod': billingPeriod!.name,
+    if (storeProductId != null) 'storeProductId': storeProductId,
+    if (trialEndsAt != null) 'trialEndsAt': Timestamp.fromDate(trialEndsAt!),
+    'entitlements': entitlements.toList(),
+  };
 
   factory UserProfile.fromMap(Map<String, dynamic> map) => UserProfile(
-        id: map['id'] as String? ?? '',
-        numericId: (map['numericId'] as num?)?.toInt(),
-        name: map['name'] as String? ?? '',
-        email: map['email'] as String? ?? '',
-        phone: map['phone'] as String? ?? '',
-        location: map['location'] as String? ?? '',
-        dob: map['dob'] as String? ?? '',
-        bio: map['bio'] as String? ?? '',
-        imageUrl: map['imageUrl'] as String?,
-        updatedAt: map['updatedAt'] != null
-            ? (map['updatedAt'] as Timestamp).toDate()
-            : DateTime.now(),
-        isPremium:    map['isPremium']    as bool?   ?? false,
-        isAdmin:      map['isAdmin']      as bool?   ?? false,
-        membershipId: map['membershipId'] as String?,
-        role: UserRole.values.firstWhere(
-          (r) => r.name == (map['role'] as String? ?? 'player'),
-          orElse: () => UserRole.player,
-        ),
-        tournamentsPlayed: (map['tournamentsPlayed'] as num?)?.toInt() ?? 0,
-        matchesPlayed:     (map['matchesPlayed']     as num?)?.toInt() ?? 0,
-        matchesWon:        (map['matchesWon']        as num?)?.toInt() ?? 0,
-        favoriteSports: (() {
+    id: map['id'] as String? ?? '',
+    numericId: (map['numericId'] as num?)?.toInt(),
+    name: map['name'] as String? ?? '',
+    email: map['email'] as String? ?? '',
+    phone: map['phone'] as String? ?? '',
+    location: map['location'] as String? ?? '',
+    dob: map['dob'] as String? ?? '',
+    bio: map['bio'] as String? ?? '',
+    imageUrl: map['imageUrl'] as String?,
+    updatedAt: map['updatedAt'] != null
+        ? (map['updatedAt'] as Timestamp).toDate()
+        : DateTime.now(),
+    isPremium: map['isPremium'] as bool? ?? false,
+    isAdmin: map['isAdmin'] as bool? ?? false,
+    membershipId: map['membershipId'] as String?,
+    role: UserRole.values.firstWhere(
+      (r) => r.name == (map['role'] as String? ?? 'player'),
+      orElse: () => UserRole.player,
+    ),
+    tournamentsPlayed: (map['tournamentsPlayed'] as num?)?.toInt() ?? 0,
+    matchesPlayed: (map['matchesPlayed'] as num?)?.toInt() ?? 0,
+    matchesWon: (map['matchesWon'] as num?)?.toInt() ?? 0,
+    favoriteSports: (() {
+      final raw = map['favoriteSports'];
+      if (raw == null) return null;
+      if (raw is List) return raw.whereType<String>().toList();
+      return null;
+    })(),
+    sportsIdentityCompleted:
+        map['sportsIdentityCompleted'] as bool? ??
+        ((() {
           final raw = map['favoriteSports'];
-          if (raw == null) return null;
-          if (raw is List) return raw.whereType<String>().toList();
-          return null;
-        })(),
-        planTier: PlanTier.values.firstWhere(
-          (t) => t.name == (map['planTier'] as String? ?? 'free'),
-          orElse: () => PlanTier.free,
-        ),
-        subscriptionStatus: SubscriptionStatus.values.firstWhere(
-          (s) => s.name == (map['subscriptionStatus'] as String? ?? 'none'),
-          orElse: () => SubscriptionStatus.none,
-        ),
-        billingPeriod: map['billingPeriod'] == null ? null :
-          BillingPeriod.values.firstWhere(
+          return raw is List && raw.isNotEmpty;
+        })()),
+    planTier: PlanTier.values.firstWhere(
+      (t) => t.name == (map['planTier'] as String? ?? 'free'),
+      orElse: () => PlanTier.free,
+    ),
+    subscriptionStatus: SubscriptionStatus.values.firstWhere(
+      (s) => s.name == (map['subscriptionStatus'] as String? ?? 'none'),
+      orElse: () => SubscriptionStatus.none,
+    ),
+    billingPeriod: map['billingPeriod'] == null
+        ? null
+        : BillingPeriod.values.firstWhere(
             (b) => b.name == (map['billingPeriod'] as String),
             orElse: () => BillingPeriod.monthly,
           ),
-        storeProductId: map['storeProductId'] as String?,
-        trialEndsAt: map['trialEndsAt'] != null
-            ? (map['trialEndsAt'] as Timestamp).toDate()
-            : null,
-        entitlements: (() {
-          final raw = map['entitlements'];
-          if (raw is List) return raw.whereType<String>().toSet();
-          return <String>{};
-        })(),
-      );
+    storeProductId: map['storeProductId'] as String?,
+    trialEndsAt: map['trialEndsAt'] != null
+        ? (map['trialEndsAt'] as Timestamp).toDate()
+        : null,
+    entitlements: (() {
+      final raw = map['entitlements'];
+      if (raw is List) return raw.whereType<String>().toSet();
+      return <String>{};
+    })(),
+  );
 
   factory UserProfile.fromFirestore(DocumentSnapshot doc) =>
       UserProfile.fromMap(doc.data() as Map<String, dynamic>);
@@ -225,37 +235,39 @@ class UserProfile {
     int? matchesPlayed,
     int? matchesWon,
     List<String>? favoriteSports,
+    bool? sportsIdentityCompleted,
     PlanTier? planTier,
     SubscriptionStatus? subscriptionStatus,
     BillingPeriod? billingPeriod,
     String? storeProductId,
     DateTime? trialEndsAt,
     Set<String>? entitlements,
-  }) =>
-      UserProfile(
-        id: id,
-        numericId: numericId ?? this.numericId,
-        name: name ?? this.name,
-        email: email ?? this.email,
-        phone: phone ?? this.phone,
-        location: location ?? this.location,
-        dob: dob ?? this.dob,
-        bio: bio ?? this.bio,
-        imageUrl: imageUrl ?? this.imageUrl,
-        updatedAt: DateTime.now(),
-        isPremium: isPremium ?? this.isPremium,
-        isAdmin:   isAdmin   ?? this.isAdmin,
-        membershipId: membershipId ?? this.membershipId,
-        role: role ?? this.role,
-        tournamentsPlayed: tournamentsPlayed ?? this.tournamentsPlayed,
-        matchesPlayed:     matchesPlayed     ?? this.matchesPlayed,
-        matchesWon:        matchesWon        ?? this.matchesWon,
-        favoriteSports: favoriteSports ?? this.favoriteSports,
-        planTier: planTier ?? this.planTier,
-        subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
-        billingPeriod: billingPeriod ?? this.billingPeriod,
-        storeProductId: storeProductId ?? this.storeProductId,
-        trialEndsAt: trialEndsAt ?? this.trialEndsAt,
-        entitlements: entitlements ?? this.entitlements,
-      );
+  }) => UserProfile(
+    id: id,
+    numericId: numericId ?? this.numericId,
+    name: name ?? this.name,
+    email: email ?? this.email,
+    phone: phone ?? this.phone,
+    location: location ?? this.location,
+    dob: dob ?? this.dob,
+    bio: bio ?? this.bio,
+    imageUrl: imageUrl ?? this.imageUrl,
+    updatedAt: DateTime.now(),
+    isPremium: isPremium ?? this.isPremium,
+    isAdmin: isAdmin ?? this.isAdmin,
+    membershipId: membershipId ?? this.membershipId,
+    role: role ?? this.role,
+    tournamentsPlayed: tournamentsPlayed ?? this.tournamentsPlayed,
+    matchesPlayed: matchesPlayed ?? this.matchesPlayed,
+    matchesWon: matchesWon ?? this.matchesWon,
+    favoriteSports: favoriteSports ?? this.favoriteSports,
+    sportsIdentityCompleted:
+        sportsIdentityCompleted ?? this.sportsIdentityCompleted,
+    planTier: planTier ?? this.planTier,
+    subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+    billingPeriod: billingPeriod ?? this.billingPeriod,
+    storeProductId: storeProductId ?? this.storeProductId,
+    trialEndsAt: trialEndsAt ?? this.trialEndsAt,
+    entitlements: entitlements ?? this.entitlements,
+  );
 }

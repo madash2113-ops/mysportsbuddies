@@ -32,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen>
   _AuthMode _authMode = _AuthMode.signIn;
   String? _activeMethod; // 'phone' | 'email' | null
   bool _googleLoading = false;
+  bool _appleLoading = false;
   bool _obscurePass = true;
   bool _obscureSignUpPass = true;
   bool _phoneLoading = false;
@@ -99,13 +100,43 @@ class _LoginScreenState extends State<LoginScreen>
     final ok = await AuthService().signInWithGoogle();
     if (!mounted) return;
     if (ok) {
-      await navigateAfterLogin(context);
+      await _routeAfterSocialAuth();
     } else {
       setState(() {
         _googleLoading = false;
         _error = AuthService().error;
       });
     }
+  }
+
+  Future<void> _appleSignIn() async {
+    setState(() {
+      _appleLoading = true;
+      _error = null;
+    });
+    final ok = await AuthService().signInWithApple();
+    if (!mounted) return;
+    if (ok) {
+      await _routeAfterSocialAuth();
+    } else {
+      setState(() {
+        _appleLoading = false;
+        _error = AuthService().error;
+      });
+    }
+  }
+
+  Future<void> _routeAfterSocialAuth() async {
+    final profile = UserService().profile;
+    final needsSignup =
+        AuthService().lastAuthWasNewUser ||
+        profile == null ||
+        profile.name.trim().isEmpty;
+    if (needsSignup) {
+      Navigator.pushReplacementNamed(context, '/complete-profile');
+      return;
+    }
+    await navigateAfterLogin(context);
   }
 
   // ── Phone OTP flow ────────────────────────────────────────────────────────
@@ -120,6 +151,17 @@ class _LoginScreenState extends State<LoginScreen>
       _error = null;
       _lastPhone = phone;
     });
+    final inUse = await UserService().isPhoneInUse(phone);
+    if (!mounted) return;
+    if (!inUse) {
+      setState(() => _phoneLoading = false);
+      Navigator.pushNamed(
+        context,
+        '/register-user',
+        arguments: {'phone': phone},
+      );
+      return;
+    }
     await AuthService().sendOtp(
       phone,
       onCodeSent: () {
@@ -678,14 +720,11 @@ class _LoginScreenState extends State<LoginScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: _SocialTile(
-                  label: 'Facebook',
-                  icon: Icons.facebook,
-                  iconColor: const Color(0xFF1877F2),
-                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Facebook login coming soon!'),
-                    ),
-                  ),
+                  label: 'Apple',
+                  icon: Icons.apple_rounded,
+                  iconColor: Colors.white,
+                  loading: _appleLoading,
+                  onTap: _appleLoading ? null : _appleSignIn,
                 ),
               ),
             ],

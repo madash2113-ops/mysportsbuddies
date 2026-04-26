@@ -8,14 +8,14 @@ import 'sports_interest_screen.dart';
 /// Call this after any successful sign-in to save the pending role
 /// (selected on WelcomeScreen) and navigate to the correct home shell.
 Future<void> navigateAfterLogin(BuildContext context) async {
-  final prefs       = await SharedPreferences.getInstance();
+  final prefs = await SharedPreferences.getInstance();
   final pendingRole = prefs.getString('pending_role') ?? 'player';
   final role = pendingRole == 'organizer'
       ? UserRole.organizer
       : UserRole.player;
 
   // Persist role into the user's Firestore profile
-  final svc      = UserService();
+  final svc = UserService();
   final existing = svc.profile;
   if (existing != null && existing.role != role) {
     await svc.saveProfile(existing.copyWith(role: role));
@@ -30,8 +30,9 @@ Future<void> navigateAfterLogin(BuildContext context) async {
   if (!context.mounted) return;
   {
     final profile = UserService().profile;
-    final isNewUser = (profile?.favoriteSports ?? []).isEmpty;
-    if (isNewUser) {
+    final needsSportsIdentity =
+        profile == null || !profile.sportsIdentityCompleted;
+    if (needsSportsIdentity) {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const SportsInterestScreen()),

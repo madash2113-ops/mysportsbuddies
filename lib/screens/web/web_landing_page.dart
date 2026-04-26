@@ -1,7 +1,13 @@
+import 'dart:math' as math;
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../core/models/game_listing.dart';
+import '../../core/models/tournament.dart';
+import '../../core/models/venue_model.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _bg = Color(0xFF030303);
@@ -280,46 +286,24 @@ const _navLinks = ['About Us'];
 class _Logo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: _red,
-            borderRadius: BorderRadius.circular(9),
-            boxShadow: [
-              BoxShadow(color: _red.withValues(alpha: .35), blurRadius: 14),
-            ],
+    return RichText(
+      text: TextSpan(
+        style: _inter(size: 15, weight: FontWeight.w900, letterSpacing: -.3),
+        children: const [
+          TextSpan(
+            text: 'My',
+            style: TextStyle(color: _tx),
           ),
-          alignment: Alignment.center,
-          child: const Text('🏅', style: TextStyle(fontSize: 16)),
-        ),
-        const SizedBox(width: 10),
-        RichText(
-          text: TextSpan(
-            style: _inter(
-              size: 14,
-              weight: FontWeight.w900,
-              letterSpacing: -.3,
-            ),
-            children: const [
-              TextSpan(
-                text: 'My',
-                style: TextStyle(color: _tx),
-              ),
-              TextSpan(
-                text: 'Sports',
-                style: TextStyle(color: _red),
-              ),
-              TextSpan(
-                text: 'Buddies',
-                style: TextStyle(color: _tx),
-              ),
-            ],
+          TextSpan(
+            text: 'Sports',
+            style: TextStyle(color: _red),
           ),
-        ),
-      ],
+          TextSpan(
+            text: 'Buddies',
+            style: TextStyle(color: _tx),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -474,164 +458,104 @@ class _HeroSection extends StatelessWidget {
     final w = MediaQuery.of(context).size.width;
     final h = (MediaQuery.of(context).size.height - 64).clamp(600.0, 920.0);
 
-    return SizedBox(
-      width: w,
-      height: h,
-      child: Stack(
-        children: [
-          // Grid
-          Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-          // Glows
-          Positioned(
-            top: -80,
-            left: -80,
-            child: _GlowCircle(500, _red.withValues(alpha: .15)),
-          ),
-          Positioned(
-            bottom: -80,
-            right: -80,
-            child: _GlowCircle(420, _red.withValues(alpha: .10)),
-          ),
-
-          // Left cards
-          Positioned(
-            top: h * .10,
-            left: w * .015,
-            child: _GameCard(card: _cards[0]),
-          ),
-          Positioned(
-            top: h * .40,
-            left: w * .010,
-            child: _GameCard(card: _cards[1]),
-          ),
-          Positioned(
-            top: h * .68,
-            left: w * .015,
-            child: _GameCard(card: _cards[2]),
-          ),
-
-          // Right cards
-          Positioned(
-            top: h * .08,
-            right: w * .015,
-            child: _GameCard(card: _cards[3]),
-          ),
-          Positioned(
-            top: h * .38,
-            right: w * .010,
-            child: _GameCard(card: _cards[4]),
-          ),
-          Positioned(
-            top: h * .66,
-            right: w * .015,
-            child: _GameCard(card: _cards[5]),
-          ),
-
-          // Bottom gradient
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: 220,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, _bg],
+    return _LandingRealtimeBuilder(
+      builder: (context, liveData) {
+        return SizedBox(
+          width: w,
+          height: h,
+          child: Stack(
+            children: [
+              Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+              Positioned(
+                top: -80,
+                left: -80,
+                child: _GlowCircle(500, _red.withValues(alpha: .15)),
+              ),
+              Positioned(
+                bottom: -80,
+                right: -80,
+                child: _GlowCircle(420, _red.withValues(alpha: .10)),
+              ),
+              for (final entry in _heroCardPlacements(w, h).entries)
+                if (entry.key < liveData.cards.length)
+                  Positioned(
+                    top: entry.value.top,
+                    left: entry.value.left,
+                    right: entry.value.right,
+                    child: _GameCard(card: liveData.cards[entry.key]),
+                  ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, _bg],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-
-          // Center content
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Badge
-                _Glass(
-                  radius: 99,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 7,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('🇮🇳', style: TextStyle(fontSize: 14)),
-                      const SizedBox(width: 8),
-                      Text(
-                        "India's #1 Sports Social Platform",
-                        style: _inter(
-                          size: 12,
-                          weight: FontWeight.w700,
-                          color: _red,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 30),
-
-                // Heading
-                RichText(
-                  textAlign: TextAlign.center,
-                  text: TextSpan(
-                    style: _inter(
-                      size: 78,
-                      weight: FontWeight.w900,
-                      height: 1.03,
-                      letterSpacing: -2.5,
-                    ),
-                    children: const [
-                      TextSpan(
-                        text: 'Where ',
-                        style: TextStyle(color: _tx),
-                      ),
-                      TextSpan(
-                        text: 'Sports\n',
-                        style: TextStyle(color: _red),
-                      ),
-                      TextSpan(
-                        text: 'Comes Alive',
-                        style: TextStyle(color: _tx),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Subtitle
-                SizedBox(
-                  width: 500,
-                  child: Text(
-                    'Discover games, host tournaments, book venues, track live scores'
-                    ' & connect with your sports community — all in one place.',
-                    textAlign: TextAlign.center,
-                    style: _inter(size: 16, color: _m1, height: 1.75),
-                  ),
-                ),
-                const SizedBox(height: 38),
-
-                // Buttons
-                Row(
+              Center(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _HeroPrimaryBtn(onTap: onGetStarted),
-                    const SizedBox(width: 14),
-                    const _HeroOutlineBtn(),
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: _inter(
+                          size: 78,
+                          weight: FontWeight.w900,
+                          height: 1.03,
+                          letterSpacing: -2.5,
+                        ),
+                        children: const [
+                          TextSpan(
+                            text: 'Where ',
+                            style: TextStyle(color: _tx),
+                          ),
+                          TextSpan(
+                            text: 'Sports\n',
+                            style: TextStyle(color: _red),
+                          ),
+                          TextSpan(
+                            text: 'Comes Alive',
+                            style: TextStyle(color: _tx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: 500,
+                      child: Text(
+                        'Discover games, host tournaments, book venues, track live scores'
+                        ' & connect with your sports community — all in one place.',
+                        textAlign: TextAlign.center,
+                        style: _inter(size: 16, color: _m1, height: 1.75),
+                      ),
+                    ),
+                    const SizedBox(height: 38),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _HeroPrimaryBtn(onTap: onGetStarted),
+                        const SizedBox(width: 14),
+                        const _HeroOutlineBtn(),
+                      ],
+                    ),
+                    const SizedBox(height: 52),
+                    _HeroStats(data: liveData),
                   ],
                 ),
-                const SizedBox(height: 52),
-
-                // Stats
-                _HeroStats(),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -736,13 +660,16 @@ class _HeroOutlineBtnState extends State<_HeroOutlineBtn> {
 }
 
 class _HeroStats extends StatelessWidget {
+  final _LandingRealtimeData data;
+  const _HeroStats({required this.data});
+
   @override
   Widget build(BuildContext context) {
-    const stats = [
-      ('50K+', 'Players'),
-      ('5K+', 'Tournaments'),
-      ('800', 'Venues'),
-      ('22+', 'Sports'),
+    final stats = [
+      (_formatCompactCount(data.playerCount), 'Players'),
+      (_formatCompactCount(data.tournamentCount), 'Tournaments'),
+      (_formatCompactCount(data.venueCount), 'Venues'),
+      (_formatCompactCount(data.sportCount), 'Sports'),
     ];
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -2004,9 +1931,169 @@ class _GridPainter extends CustomPainter {
 }
 
 // ── Game cards ─────────────────────────────────────────────────────────────────
+class _LandingRealtimeData {
+  final List<_CardData> cards;
+  final int playerCount;
+  final int tournamentCount;
+  final int venueCount;
+  final int sportCount;
+
+  const _LandingRealtimeData({
+    required this.cards,
+    required this.playerCount,
+    required this.tournamentCount,
+    required this.venueCount,
+    required this.sportCount,
+  });
+}
+
+class _LandingRealtimeBuilder extends StatelessWidget {
+  final Widget Function(BuildContext context, _LandingRealtimeData data)
+  builder;
+
+  const _LandingRealtimeBuilder({required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('game_listings')
+          .snapshots(),
+      builder: (context, gameSnap) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('tournaments')
+              .snapshots(),
+          builder: (context, tournamentSnap) {
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('venues')
+                  .snapshots(),
+              builder: (context, venueSnap) {
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .snapshots(),
+                  builder: (context, userSnap) {
+                    final games =
+                        (gameSnap.data?.docs ?? const [])
+                            .map(GameListing.fromFirestore)
+                            .where(
+                              (game) =>
+                                  game.status == GameListingStatus.open ||
+                                  game.status == GameListingStatus.full,
+                            )
+                            .toList()
+                          ..sort(
+                            (a, b) => a.scheduledAt.compareTo(b.scheduledAt),
+                          );
+
+                    final tournaments =
+                        (tournamentSnap.data?.docs ?? const [])
+                            .map(Tournament.fromFirestore)
+                            .where(
+                              (t) => t.status != TournamentStatus.cancelled,
+                            )
+                            .toList()
+                          ..sort((a, b) {
+                            final rank = _tournamentStatusRank(
+                              a.status,
+                            ).compareTo(_tournamentStatusRank(b.status));
+                            if (rank != 0) return rank;
+                            return a.startDate.compareTo(b.startDate);
+                          });
+
+                    final venues =
+                        (venueSnap.data?.docs ?? const [])
+                            .map(VenueModel.fromFirestore)
+                            .where(
+                              (venue) => venue.status == VenueStatus.active,
+                            )
+                            .toList()
+                          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+                    final namedUsers = (userSnap.data?.docs ?? const []).where((
+                      doc,
+                    ) {
+                      final name =
+                          (doc.data()['name'] as String?)?.trim() ?? '';
+                      return name.isNotEmpty;
+                    }).length;
+
+                    final sports = <String>{};
+                    for (final game in games) {
+                      if (game.sport.trim().isNotEmpty) {
+                        sports.add(game.sport.trim().toLowerCase());
+                      }
+                    }
+                    for (final tournament in tournaments) {
+                      if (tournament.sport.trim().isNotEmpty) {
+                        sports.add(tournament.sport.trim().toLowerCase());
+                      }
+                    }
+                    for (final venue in venues) {
+                      sports.addAll(
+                        venue.sports
+                            .map((sport) => sport.trim().toLowerCase())
+                            .where((sport) => sport.isNotEmpty),
+                      );
+                    }
+
+                    final cards = <_CardData>[
+                      ...games.map(_cardFromGame),
+                      ...tournaments.map(_cardFromTournament),
+                      ...venues.map(_cardFromVenue),
+                    ].take(6).toList();
+
+                    return builder(
+                      context,
+                      _LandingRealtimeData(
+                        cards: cards,
+                        playerCount: namedUsers,
+                        tournamentCount: tournaments.length,
+                        venueCount: venues.length,
+                        sportCount: sports.length,
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CardPlacement {
+  final double top;
+  final double? left;
+  final double? right;
+
+  const _CardPlacement({required this.top, this.left, this.right});
+}
+
+Map<int, _CardPlacement> _heroCardPlacements(double width, double height) => {
+  0: _CardPlacement(top: height * .10, left: width * .015),
+  1: _CardPlacement(top: height * .40, left: width * .010),
+  2: _CardPlacement(top: height * .68, left: width * .015),
+  3: _CardPlacement(top: height * .08, right: width * .015),
+  4: _CardPlacement(top: height * .38, right: width * .010),
+  5: _CardPlacement(top: height * .66, right: width * .015),
+};
+
 class _CardData {
-  final String sport, emoji, name, location, time, status, extra;
+  final String sport;
+  final String emoji;
+  final String name;
+  final String location;
+  final String time;
+  final String status;
+  final String extra;
+  final double? progress;
   final bool isLive;
+
   const _CardData({
     required this.sport,
     required this.emoji,
@@ -2015,68 +2102,10 @@ class _CardData {
     required this.time,
     required this.status,
     required this.extra,
+    this.progress,
     this.isLive = false,
   });
 }
-
-const _cards = [
-  _CardData(
-    sport: 'FOOTBALL',
-    emoji: '⚽',
-    name: 'Sunday 5-a-Side',
-    location: 'Gachibowli',
-    time: 'Sun 7AM',
-    status: 'Open',
-    extra: '4/10',
-  ),
-  _CardData(
-    sport: 'TENNIS',
-    emoji: '🎾',
-    name: 'Doubles Round Robin',
-    location: 'Banjara Hills',
-    time: 'Sun 8AM',
-    status: 'LIVE',
-    extra: '6-4, 3-2',
-    isLive: true,
-  ),
-  _CardData(
-    sport: 'BADMINTON',
-    emoji: '🏸',
-    name: 'Club Tournament',
-    location: 'Hitex',
-    time: 'Sat 9AM',
-    status: 'Open',
-    extra: '12/16',
-  ),
-  _CardData(
-    sport: 'CRICKET',
-    emoji: '🏏',
-    name: 'T20 League Final',
-    location: 'LB Stadium',
-    time: 'Sat 6PM',
-    status: 'LIVE',
-    extra: '186/4 — 16.2 ov',
-    isLive: true,
-  ),
-  _CardData(
-    sport: 'VOLLEYBALL',
-    emoji: '🏐',
-    name: 'Beach Volleyball',
-    location: 'HICC',
-    time: 'Fri 5PM',
-    status: 'Open',
-    extra: '8/12',
-  ),
-  _CardData(
-    sport: 'BASKETBALL',
-    emoji: '🏀',
-    name: '3×3 Streetball',
-    location: 'Jubilee Hills',
-    time: 'Mon 6PM',
-    status: 'Open',
-    extra: '5/6',
-  ),
-];
 
 class _GameCard extends StatelessWidget {
   final _CardData card;
@@ -2173,7 +2202,7 @@ class _GameCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 3),
                           Text(
-                            'LIVE',
+                            card.status,
                             style: _inter(
                               size: 9,
                               weight: FontWeight.w800,
@@ -2183,34 +2212,16 @@ class _GameCard extends StatelessWidget {
                         ],
                       ),
                     )
-                  : Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _green.withValues(alpha: .15),
-                        border: Border.all(color: _green.withValues(alpha: .3)),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '● Open',
-                        style: _inter(
-                          size: 9,
-                          weight: FontWeight.w800,
-                          color: _green,
-                        ),
-                      ),
-                    ),
+                  : _StatusPill(label: card.status),
               Text(
                 card.extra,
                 style: _inter(size: 10, color: _m1, weight: FontWeight.w700),
               ),
             ],
           ),
-          if (!card.isLive) ...[
+          if (card.progress != null) ...[
             const SizedBox(height: 7),
-            _ProgressBar(text: card.extra),
+            _ProgressBar(progress: card.progress!),
           ],
         ],
       ),
@@ -2218,23 +2229,185 @@ class _GameCard extends StatelessWidget {
   }
 }
 
-class _ProgressBar extends StatelessWidget {
-  final String text;
-  const _ProgressBar({required this.text});
+class _StatusPill extends StatelessWidget {
+  final String label;
+  const _StatusPill({required this.label});
+
   @override
   Widget build(BuildContext context) {
-    final parts = text.split('/');
-    final pct = parts.length == 2
-        ? (int.tryParse(parts[0]) ?? 0) / (int.tryParse(parts[1]) ?? 1)
-        : 0.5;
+    final lower = label.toLowerCase();
+    final color = switch (lower) {
+      'open' => _green,
+      'ongoing' => _red,
+      'venue' => const Color(0xFF70B8FF),
+      _ => _m1,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .15),
+        border: Border.all(color: color.withValues(alpha: .3)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label == 'Open' ? '● $label' : label,
+        style: _inter(size: 9, weight: FontWeight.w800, color: color),
+      ),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final double progress;
+  const _ProgressBar({required this.progress});
+  @override
+  Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: LinearProgressIndicator(
-        value: pct.clamp(0.0, 1.0),
+        value: progress.clamp(0.0, 1.0),
         backgroundColor: _bd2,
         valueColor: const AlwaysStoppedAnimation(_red),
         minHeight: 3,
       ),
     );
+  }
+}
+
+int _tournamentStatusRank(TournamentStatus status) => switch (status) {
+  TournamentStatus.ongoing => 0,
+  TournamentStatus.open => 1,
+  TournamentStatus.completed => 2,
+  TournamentStatus.cancelled => 3,
+};
+
+_CardData _cardFromGame(GameListing game) {
+  final title = game.note?.trim().isNotEmpty == true
+      ? game.note!.trim()
+      : game.venueName.trim().isNotEmpty
+      ? game.venueName.trim()
+      : '${game.sport} Game';
+  final participants = game.playerIds.length;
+  final total = game.maxPlayers <= 0
+      ? math.max(participants, 1)
+      : game.maxPlayers;
+  return _CardData(
+    sport: game.sport.toUpperCase(),
+    emoji: _sportEmoji(game.sport),
+    name: title,
+    location: _shortLocation(
+      game.address.isNotEmpty ? game.address : game.venueName,
+    ),
+    time: _formatShortDate(game.scheduledAt),
+    status: game.isFull ? 'Full' : 'Open',
+    extra: '$participants/$total',
+    progress: total == 0 ? null : participants / total,
+  );
+}
+
+_CardData _cardFromTournament(Tournament tournament) {
+  final teams = tournament.registeredTeams;
+  final total = tournament.maxTeams <= 0
+      ? math.max(teams, 1)
+      : tournament.maxTeams;
+  final isOngoing = tournament.status == TournamentStatus.ongoing;
+  final label = switch (tournament.status) {
+    TournamentStatus.ongoing => 'LIVE',
+    TournamentStatus.completed => 'Completed',
+    TournamentStatus.open => 'Open',
+    TournamentStatus.cancelled => 'Cancelled',
+  };
+  return _CardData(
+    sport: tournament.sport.toUpperCase(),
+    emoji: _sportEmoji(tournament.sport),
+    name: tournament.name,
+    location: _shortLocation(tournament.location),
+    time: _formatShortDate(tournament.startDate),
+    status: label,
+    extra: total == 0 ? '$teams teams' : '$teams/$total',
+    progress: isOngoing || total == 0 ? null : teams / total,
+    isLive: isOngoing,
+  );
+}
+
+_CardData _cardFromVenue(VenueModel venue) {
+  final sportLabel = venue.sports.isEmpty
+      ? 'Listed'
+      : venue.sports.take(2).join(' · ');
+  return _CardData(
+    sport: (venue.sports.isNotEmpty ? venue.sports.first : 'Venue')
+        .toUpperCase(),
+    emoji: _sportEmoji(venue.sports.isNotEmpty ? venue.sports.first : 'Venue'),
+    name: venue.name,
+    location: _shortLocation(venue.address),
+    time: _formatShortDate(venue.createdAt),
+    status: 'Venue',
+    extra: sportLabel,
+  );
+}
+
+String _formatCompactCount(int value) {
+  if (value >= 1000000) {
+    return '${(value / 1000000).toStringAsFixed(value % 1000000 == 0 ? 0 : 1)}M+';
+  }
+  if (value >= 1000) {
+    return '${(value / 1000).toStringAsFixed(value % 1000 == 0 ? 0 : 1)}K+';
+  }
+  return value.toString();
+}
+
+String _shortLocation(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return 'MySportsBuddies';
+  final first = trimmed.split(',').first.trim();
+  return first.isEmpty ? trimmed : first;
+}
+
+String _formatShortDate(DateTime date) {
+  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final weekday = weekdays[(date.weekday - 1).clamp(0, 6)];
+  final month = months[(date.month - 1).clamp(0, 11)];
+  return '$weekday ${date.day} $month';
+}
+
+String _sportEmoji(String sport) {
+  switch (sport.trim().toLowerCase()) {
+    case 'football':
+    case 'soccer':
+      return '⚽';
+    case 'cricket':
+      return '🏏';
+    case 'tennis':
+      return '🎾';
+    case 'badminton':
+      return '🏸';
+    case 'volleyball':
+      return '🏐';
+    case 'basketball':
+      return '🏀';
+    case 'baseball':
+      return '⚾';
+    case 'golf':
+      return '⛳';
+    case 'boxing':
+      return '🥊';
+    case 'hockey':
+      return '🏑';
+    default:
+      return '🏅';
   }
 }

@@ -447,6 +447,8 @@ class TournamentService extends ChangeNotifier {
     int drawPoints = 1,
     int lossPoints = 0,
     String? customScoringLabel,
+    bool sameScoreAllRounds = true,
+    Map<String, dynamic>? roundScoringConfig,
     bool isPrivate = false,
   }) async {
     if (maxTeams > 4 && !UserService().hasFullAccess) {
@@ -486,6 +488,8 @@ class TournamentService extends ChangeNotifier {
       drawPoints: drawPoints,
       lossPoints: lossPoints,
       customScoringLabel: customScoringLabel,
+      sameScoreAllRounds: sameScoreAllRounds,
+      roundScoringConfig: roundScoringConfig,
       isPrivate: isPrivate,
       joinCode: isPrivate ? _generateJoinCode() : null,
     );

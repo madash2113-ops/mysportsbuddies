@@ -124,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    AuthService().addListener(_handleAuthStateChange);
     // Sync Firestore-loaded profile into ProfileController so the drawer
     // shows the user's name immediately on first launch (without re-editing).
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -143,6 +144,21 @@ class _HomeScreenState extends State<HomeScreen> {
       _requestInitialPermissions();
       _checkActiveScoring();
     });
+  }
+
+  @override
+  void dispose() {
+    AuthService().removeListener(_handleAuthStateChange);
+    super.dispose();
+  }
+
+  void _handleAuthStateChange() {
+    if (!mounted || AuthService().isSignedIn) return;
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      kIsWeb ? '/web-landing' : '/login',
+      (_) => false,
+    );
   }
 
   // Checks SharedPreferences for an interrupted scoring session and surfaces

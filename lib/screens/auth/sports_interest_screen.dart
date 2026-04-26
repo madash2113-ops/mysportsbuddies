@@ -41,13 +41,24 @@ class _SportsInterestScreenState extends State<SportsInterestScreen> {
     final profile = UserService().profile;
     if (profile != null) {
       await UserService().saveProfile(
-        profile.copyWith(favoriteSports: _selected.toList()),
+        profile.copyWith(
+          favoriteSports: _selected.toList(),
+          sportsIdentityCompleted: true,
+        ),
       );
     }
     if (mounted) Navigator.pushReplacementNamed(context, '/home');
   }
 
-  void _skip() => Navigator.pushReplacementNamed(context, '/home');
+  Future<void> _skip() async {
+    final profile = UserService().profile;
+    if (profile != null) {
+      await UserService().saveProfile(
+        profile.copyWith(sportsIdentityCompleted: true),
+      );
+    }
+    if (mounted) Navigator.pushReplacementNamed(context, '/home');
+  }
 
   @override
   Widget build(BuildContext context) {
