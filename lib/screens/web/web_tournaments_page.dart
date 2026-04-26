@@ -1,13 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/models/match_score.dart';
 import '../../core/models/player_entry.dart';
 import '../../core/search/player_search_service.dart';
 import '../../core/models/tournament.dart';
+import '../../services/scoreboard_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
+import '../scoreboard/live_scoreboard_screen.dart';
 import '../tournaments/enroll_team_sheet.dart';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -20,6 +27,10 @@ const _m2 = Color(0xFF3A3A3A);
 const _red = Color(0xFFDE313B);
 const _border = Color(0xFF1C1C1C);
 const _orange = Color(0xFFFF9F0A);
+const _kActiveScoringKey = 'active_tournament_scoring';
+const double _kWebBracketCardH = 164;
+const double _kWebBracketGap = 18;
+const double _kWebBracketConnectorW = 44;
 
 TextStyle _t({
   double size = 13,
@@ -32,6 +43,370 @@ TextStyle _t({
   color: color,
   height: height,
 );
+
+int _defaultRallyPts(MatchSport sport) {
+  if (sport == MatchSport.tableTennis) return 11;
+  return 21;
+}
+
+int _normalizeBestOfValue(int value) {
+  if (value <= 0) return 3;
+  if (value.isEven) return value + 1;
+  return value;
+}
+
+int _uiSetsToWinFromStoredBestOf(int value) {
+  final normalized = _normalizeBestOfValue(value);
+  return ((normalized + 1) / 2).floor().clamp(1, 99);
+}
+
+int _storedBestOfFromUiSetsToWin(int value) {
+  final safe = value < 1 ? 1 : value;
+  return _normalizeBestOfValue((safe * 2) - 1);
+}
+
+String? _roundConfigKeyForMatch(Tournament tournament, TournamentMatch match) {
+  if (tournament.sameScoreAllRounds) return null;
+  final rounds =
+      TournamentService()
+          .matchesFor(tournament.id)
+          .map((m) => m.round)
+          .toSet()
+          .toList()
+        ..sort();
+  final roundIndex = rounds.indexOf(match.round);
+  if (roundIndex == -1) return null;
+
+  final fromEnd = rounds.length - roundIndex;
+  switch (fromEnd) {
+    case 3:
+      return 'quarterFinal';
+    case 2:
+      return 'semiFinal';
+    case 1:
+      return 'final';
+    default:
+      return null;
+  }
+}
+
+Map<String, dynamic> _effectiveScoreConfigForMatch(
+  Tournament tournament,
+  TournamentMatch match,
+) {
+  final config = <String, dynamic>{
+    'bestOf': tournament.bestOf,
+    'pointsToWin': tournament.pointsToWin,
+    'scoringType': tournament.scoringType.name,
+  };
+  if (tournament.sameScoreAllRounds) return config;
+
+  final roundKey = _roundConfigKeyForMatch(tournament, match);
+  if (roundKey == null) return config;
+  final override = (tournament.roundScoringConfig?[roundKey] as Map?)
+      ?.cast<String, dynamic>();
+  if (override == null) return config;
+  return {...config, ...override};
+}
+
+int _effectiveBestOfForMatch(Tournament tournament, TournamentMatch match) {
+  final config = _effectiveScoreConfigForMatch(tournament, match);
+  return _normalizeBestOfValue(
+    (config['bestOf'] as num?)?.toInt() ?? tournament.bestOf,
+  );
+}
+
+int _effectivePointsToWinForMatch(
+  Tournament tournament,
+  TournamentMatch match,
+) {
+  final config = _effectiveScoreConfigForMatch(tournament, match);
+  return (config['pointsToWin'] as num?)?.toInt() ?? tournament.pointsToWin;
+}
+
+String _scoringStageLabelForMatch(
+  Tournament tournament,
+  TournamentMatch match,
+) {
+  switch (_roundConfigKeyForMatch(tournament, match)) {
+    case 'quarterFinal':
+      return 'Quarterfinal scoring';
+    case 'semiFinal':
+      return 'Semifinal scoring';
+    case 'final':
+      return 'Final scoring';
+    default:
+      return 'Default scoring';
+  }
+}
+
+LiveMatch _buildLiveMatchFromTournament({
+  required String id,
+  required TournamentMatch match,
+  required Tournament tourn,
+}) {
+  final sport = sportFromName(tourn.sport);
+  final teamA = match.teamAName ?? 'Team A';
+  final teamB = match.teamBName ?? 'Team B';
+  final venue = _resolvedMatchVenueName(tourn, match) ?? tourn.location;
+  final effectiveBestOf = _effectiveBestOfForMatch(tourn, match);
+  final effectivePointsToWin = _effectivePointsToWinForMatch(tourn, match);
+  final bestOf = effectiveBestOf > 0 ? effectiveBestOf : 3;
+  final format = '${tourn.sport} · Best of $bestOf';
+  final myUid = UserService().userId ?? '';
+  final now = DateTime.now();
+
+  switch (engineForSport(sport)) {
+    case SportEngine.rally:
+      final setsToWin = (bestOf / 2).ceil();
+      final pointsToWin = effectivePointsToWin > 0
+          ? effectivePointsToWin
+          : _defaultRallyPts(sport);
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        rally: RallyScore(
+          pointsToWin: pointsToWin,
+          setsToWin: setsToWin,
+          winByTwo: true,
+          maxPointCap: sport == MatchSport.badminton ? 30 : null,
+          isTennis: sport == MatchSport.tennis || sport == MatchSport.padel,
+          lastSetPoints:
+              (sport == MatchSport.volleyball ||
+                  sport == MatchSport.beachVolleyball)
+              ? 15
+              : null,
+        ),
+      );
+    case SportEngine.cricket:
+      final allTeams = TournamentService().teamsFor(tourn.id);
+      final teamAObj = allTeams.where((t) => t.id == match.teamAId).firstOrNull;
+      final teamBObj = allTeams.where((t) => t.id == match.teamBId).firstOrNull;
+      final perSide = tourn.playersPerTeam > 0 ? tourn.playersPerTeam : 11;
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        teamAPlayers: teamAObj?.players ?? [],
+        teamBPlayers: teamBObj?.players ?? [],
+        cricket: CricketScore(
+          format: 'T20',
+          totalOvers: 20,
+          playersPerSide: perSide,
+          teamA: teamA,
+          teamB: teamB,
+          teamABatFirst: true,
+        ),
+      );
+    case SportEngine.football:
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        football: FootballScore(matchDurationMin: 90),
+      );
+    case SportEngine.basketball:
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        basketball: BasketballScore(quarterMinutes: 10),
+      );
+    case SportEngine.hockey:
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        hockey: HockeyScore(),
+      );
+    case SportEngine.combat:
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        combat: CombatScore(
+          totalRounds: tourn.bestOf > 0 ? tourn.bestOf : 3,
+          roundDurationMin: 3,
+        ),
+      );
+    case SportEngine.esports:
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        esports: EsportsScore(
+          roundsToWin: effectiveBestOf > 0 ? effectiveBestOf : 13,
+        ),
+      );
+    case SportEngine.generic:
+      return LiveMatch(
+        id: id,
+        sport: sport,
+        teamA: teamA,
+        teamB: teamB,
+        venue: venue,
+        format: format,
+        createdAt: now,
+        createdByUserId: myUid,
+        isTournamentMatch: true,
+        tournamentId: tourn.id,
+        tournamentMatchId: match.id,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+        genericScore: GenericScore(
+          pointsToWin: effectivePointsToWin > 0 ? effectivePointsToWin : 0,
+        ),
+      );
+  }
+}
+
+Future<void> _launchWebScoring(
+  BuildContext context,
+  String tournamentId,
+  String matchId,
+) async {
+  final tourn = TournamentService().tournaments
+      .where((t) => t.id == tournamentId)
+      .firstOrNull;
+  final match = TournamentService()
+      .matchesFor(tournamentId)
+      .where((m) => m.id == matchId)
+      .firstOrNull;
+  if (tourn == null || match == null) return;
+
+  final scoreboardId = 'tourn_${tournamentId}_$matchId';
+  final svc = context.read<ScoreboardService>();
+  final expectedSport = sportFromName(tourn.sport);
+  final existing = svc.byId(scoreboardId);
+  var needsRecreate = existing == null || existing.sport != expectedSport;
+  final expectedBestOf = _effectiveBestOfForMatch(tourn, match);
+  final expectedSetsToWin = (expectedBestOf / 2).ceil();
+
+  if (!needsRecreate) {
+    final current = existing;
+    if (current.isTournamentMatch &&
+        (current.tournamentId == null || current.teamAId == null)) {
+      needsRecreate = true;
+    }
+    if (!needsRecreate && current.rally != null) {
+      final expectedPts = _effectivePointsToWinForMatch(tourn, match) > 0
+          ? _effectivePointsToWinForMatch(tourn, match)
+          : _defaultRallyPts(expectedSport);
+      if (current.rally!.pointsToWin != expectedPts) needsRecreate = true;
+      if (current.rally!.setsToWin != expectedSetsToWin) needsRecreate = true;
+    }
+    if (!needsRecreate && current.genericScore != null) {
+      final expectedPts = _effectivePointsToWinForMatch(tourn, match) > 0
+          ? _effectivePointsToWinForMatch(tourn, match)
+          : 0;
+      if (current.genericScore!.pointsToWin != expectedPts) {
+        needsRecreate = true;
+      }
+    }
+  }
+
+  if (needsRecreate) {
+    if (existing != null) svc.removeMatch(scoreboardId);
+    svc.addMatch(
+      _buildLiveMatchFromTournament(
+        id: scoreboardId,
+        match: match,
+        tourn: tourn,
+      ),
+    );
+  }
+
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(
+    _kActiveScoringKey,
+    jsonEncode({
+      'tournamentId': tournamentId,
+      'matchId': matchId,
+      'scoreboardId': scoreboardId,
+    }),
+  );
+
+  if (context.mounted) {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            LiveScoreboardScreen(matchId: scoreboardId, isScorer: true),
+      ),
+    );
+  }
+}
 
 IconData _sportIcon(String sport) {
   const m = {
@@ -124,16 +499,37 @@ String _fmtDate(DateTime dt) {
   return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
 }
 
+String? _sanitizeVenueLabel(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) return null;
+  if (!trimmed.contains(r'${')) return trimmed;
+  final base = trimmed.split(r'${').first.trim();
+  if (base.isNotEmpty) return base;
+  return 'Venue';
+}
+
+String? _resolvedMatchVenueName(Tournament tournament, TournamentMatch match) {
+  if ((match.venueId ?? '').isNotEmpty) {
+    final venue = TournamentService()
+        .venuesFor(tournament.id)
+        .where((v) => v.id == match.venueId)
+        .firstOrNull;
+    final byIdName = _sanitizeVenueLabel(venue?.name);
+    if ((byIdName ?? '').isNotEmpty) return byIdName;
+  }
+  return _sanitizeVenueLabel(match.venueName);
+}
+
 String _formatLabel(TournamentFormat format) {
   switch (format) {
     case TournamentFormat.knockout:
-      return 'Knockout';
+      return 'No Groups - Knockout';
     case TournamentFormat.roundRobin:
-      return 'Round Robin';
+      return 'No Groups - Round Robin';
     case TournamentFormat.leagueKnockout:
       return 'Groups + Knockout';
     case TournamentFormat.league:
-      return 'League';
+      return 'No Groups - League';
     case TournamentFormat.custom:
       return 'Custom';
   }
@@ -1221,11 +1617,94 @@ class _WebTournamentDetailDialogState
     extends State<_WebTournamentDetailDialog> {
   int _tab = 0;
   int _tableTab = 0;
+  int _matchTab = 0;
+  bool _generatingSchedule = false;
 
   @override
   void initState() {
     super.initState();
     TournamentService().loadDetail(widget.tournamentId);
+  }
+
+  void _snack(String message, [Color color = Colors.green]) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _generateSchedule() async {
+    setState(() => _generatingSchedule = true);
+    try {
+      await TournamentService().generateSchedule(widget.tournamentId);
+      if (mounted) _snack('Schedule generated!');
+    } catch (e) {
+      if (mounted) _snack(e.toString(), Colors.red);
+    } finally {
+      if (mounted) setState(() => _generatingSchedule = false);
+    }
+  }
+
+  Future<void> _resetMatch(TournamentMatch match) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161616),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text(
+          'Reset Score?',
+          style: _t(size: 18, weight: FontWeight.w900),
+        ),
+        content: Text(
+          'This will reset ${match.teamAName ?? "Team A"} vs '
+          '${match.teamBName ?? "Team B"} and adjust the points table.',
+          style: _t(size: 13, color: _m1),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: _m1)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset', style: TextStyle(color: _red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final scoreboardId = 'tourn_${widget.tournamentId}_${match.id}';
+      ScoreboardService().removeMatch(scoreboardId);
+      await TournamentService().resetMatchResult(
+        tournamentId: widget.tournamentId,
+        matchId: match.id,
+      );
+      if (mounted) _snack('Match reset to 0 - 0');
+    } catch (e) {
+      if (mounted) _snack('Reset failed: $e', Colors.red);
+    }
+  }
+
+  Future<void> _openMatchDialog(TournamentMatch match) async {
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: .8),
+      builder: (_) => _WebMatchDetailDialog(
+        tournament: TournamentService().tournaments.firstWhere(
+          (t) => t.id == widget.tournamentId,
+        ),
+        matchId: match.id,
+      ),
+    );
+    if (mounted) {
+      await TournamentService().loadDetail(widget.tournamentId);
+    }
   }
 
   @override
@@ -1431,7 +1910,19 @@ class _WebTournamentDetailDialogState
                     child: IndexedStack(
                       index: _tab,
                       children: [
-                        _TournamentMatchesPane(matches: matches),
+                        _TournamentMatchesPane(
+                          tournament: tournament,
+                          teams: teams,
+                          matches: matches,
+                          canManage: canManage,
+                          matchTab: _matchTab,
+                          generatingSchedule: _generatingSchedule,
+                          onMatchTabChanged: (value) =>
+                              setState(() => _matchTab = value),
+                          onGenerateSchedule: _generateSchedule,
+                          onResetMatch: _resetMatch,
+                          onOpenMatch: _openMatchDialog,
+                        ),
                         _TournamentTablePane(
                           tournament: tournament,
                           teams: teams,
@@ -1977,55 +2468,1298 @@ class _DialogTab extends StatelessWidget {
 }
 
 class _TournamentMatchesPane extends StatelessWidget {
+  final Tournament tournament;
+  final List<TournamentTeam> teams;
   final List<TournamentMatch> matches;
-  const _TournamentMatchesPane({required this.matches});
+  final bool canManage;
+  final int matchTab;
+  final bool generatingSchedule;
+  final ValueChanged<int> onMatchTabChanged;
+  final Future<void> Function() onGenerateSchedule;
+  final ValueChanged<TournamentMatch> onResetMatch;
+  final ValueChanged<TournamentMatch> onOpenMatch;
+
+  const _TournamentMatchesPane({
+    required this.tournament,
+    required this.teams,
+    required this.matches,
+    required this.canManage,
+    required this.matchTab,
+    required this.generatingSchedule,
+    required this.onMatchTabChanged,
+    required this.onGenerateSchedule,
+    required this.onResetMatch,
+    required this.onOpenMatch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!tournament.bracketGenerated) {
+      return _WebNoScheduleState(
+        tournament: tournament,
+        teamCount: teams.length,
+        canManage: canManage,
+        generating: generatingSchedule,
+        onGenerate: onGenerateSchedule,
+      );
+    }
+
+    final upcoming = matches.where((match) => !match.isPlayed).toList();
+    final recent = matches.where((match) => match.isPlayed).toList().reversed;
+    final championMatch = [...matches]
+      ..sort((a, b) {
+        final roundCompare = b.round.compareTo(a.round);
+        if (roundCompare != 0) return roundCompare;
+        return b.matchIndex.compareTo(a.matchIndex);
+      });
+    final finalMatch = championMatch
+        .where((match) => match.isPlayed && (match.winnerId ?? '').isNotEmpty)
+        .firstOrNull;
+    final championTeam = finalMatch == null
+        ? null
+        : teams.where((team) => team.id == finalMatch.winnerId).firstOrNull;
+    final visible = switch (matchTab) {
+      0 => upcoming,
+      1 => recent.toList(),
+      _ => matches,
+    };
+
+    if (matchTab == 0 &&
+        upcoming.isEmpty &&
+        tournament.status == TournamentStatus.completed &&
+        championTeam != null &&
+        finalMatch != null) {
+      return _WebChampionPane(
+        tournament: tournament,
+        championTeam: championTeam,
+        finalMatch: finalMatch,
+      );
+    }
+
+    return Column(
+      children: [
+        _SubTabBar(
+          tabs: const ['Upcoming', 'Recent', 'All'],
+          selected: matchTab,
+          onSelect: onMatchTabChanged,
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: _WebMatchList(
+            tournament: tournament,
+            teams: teams,
+            matches: visible,
+            canManage: canManage,
+            onResetMatch: onResetMatch,
+            onOpenMatch: onOpenMatch,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WebChampionPane extends StatelessWidget {
+  final Tournament tournament;
+  final TournamentTeam championTeam;
+  final TournamentMatch finalMatch;
+
+  const _WebChampionPane({
+    required this.tournament,
+    required this.championTeam,
+    required this.finalMatch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _sportAccent(tournament.sport);
+    final squad = TournamentService().squadFor(tournament.id, championTeam.id);
+    final players = squad.isNotEmpty
+        ? squad.map((player) => player.playerName).toList()
+        : championTeam.players;
+    final finalLabel = finalMatch.note?.isNotEmpty == true
+        ? finalMatch.note!
+        : 'Champion';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Badge(label: finalLabel, color: accent),
+                const SizedBox(height: 18),
+                Text(
+                  championTeam.teamName,
+                  style: _t(size: 32, weight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${finalMatch.winnerName ?? championTeam.teamName} lifted the trophy.',
+                  style: _t(size: 14, color: _m1),
+                ),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    _InlineMeta(
+                      icon: Icons.emoji_events_outlined,
+                      text: 'Tournament Winner',
+                      color: accent,
+                    ),
+                    if (finalMatch.scheduledAt != null)
+                      _InlineMeta(
+                        icon: Icons.schedule_rounded,
+                        text: _fmtDate(finalMatch.scheduledAt!),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 24),
+          SizedBox(
+            width: 220,
+            child: Column(
+              children: [
+                Container(
+                  width: 168,
+                  height: 168,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        accent.withValues(alpha: .26),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.emoji_events_rounded,
+                    size: 88,
+                    color: Color(0xFFFFD54F),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('Champions', style: _t(size: 18, weight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text(
+                  tournament.name,
+                  textAlign: TextAlign.center,
+                  style: _t(size: 12, color: _m1),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Players', style: _t(size: 16, weight: FontWeight.w900)),
+                const SizedBox(height: 14),
+                if (players.isEmpty)
+                  Text(
+                    'No player list available.',
+                    style: _t(size: 13, color: _m1),
+                  )
+                else
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final player in players)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .035),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .08),
+                            ),
+                          ),
+                          child: Text(
+                            player,
+                            style: _t(size: 13, weight: FontWeight.w700),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WebNoScheduleState extends StatelessWidget {
+  final Tournament tournament;
+  final int teamCount;
+  final bool canManage;
+  final bool generating;
+  final Future<void> Function() onGenerate;
+
+  const _WebNoScheduleState({
+    required this.tournament,
+    required this.teamCount,
+    required this.canManage,
+    required this.generating,
+    required this.onGenerate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final recommendation = teamCount >= 2
+        ? TournamentService.scheduleRecommendation(
+            teamCount,
+            tournament.sport,
+            tournament.format,
+          )
+        : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: _red.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_outlined,
+                  color: _red,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Schedule not generated',
+                      style: _t(size: 22, weight: FontWeight.w900),
+                    ),
+                    Text(
+                      teamCount < 2
+                          ? 'Need at least 2 registered teams to generate matches.'
+                          : 'Generate fixtures from registered teams to unlock match cards.',
+                      style: _t(size: 13, color: _m1),
+                    ),
+                  ],
+                ),
+              ),
+              if (canManage && teamCount >= 2)
+                _RedBtn(
+                  label: generating ? 'Generating...' : 'Generate Schedule',
+                  icon: Icons.auto_fix_high_rounded,
+                  onTap: generating ? null : onGenerate,
+                ),
+            ],
+          ),
+          if (recommendation != null) ...[
+            const SizedBox(height: 24),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .035),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: .08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Schedule Preview',
+                    style: _t(size: 12, color: _m1, weight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(recommendation, style: _t(size: 14)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WebMatchList extends StatelessWidget {
+  final Tournament tournament;
+  final List<TournamentTeam> teams;
+  final List<TournamentMatch> matches;
+  final bool canManage;
+  final ValueChanged<TournamentMatch> onResetMatch;
+  final ValueChanged<TournamentMatch> onOpenMatch;
+
+  const _WebMatchList({
+    required this.tournament,
+    required this.teams,
+    required this.matches,
+    required this.canManage,
+    required this.onResetMatch,
+    required this.onOpenMatch,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (matches.isEmpty) {
-      return const _EmptyPane(label: 'No matches scheduled yet');
+      return const _EmptyPane(label: 'No matches here yet');
     }
-    return ListView.separated(
-      itemCount: matches.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, i) {
-        final m = matches[i];
-        return _InfoPanel(
-          title: 'Match ${i + 1}',
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    m.teamAName ?? 'Team A',
-                    style: _t(size: 14, weight: FontWeight.w800),
+
+    final grouped = <String, List<TournamentMatch>>{};
+    for (final match in matches) {
+      final key = match.note?.isNotEmpty == true
+          ? match.note!
+          : 'Round ${match.round}';
+      grouped.putIfAbsent(key, () => []).add(match);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 18),
+      children: [
+        for (final entry in grouped.entries) ...[
+          _WebMatchGroupHeader(label: entry.key, matches: entry.value),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: entry.value.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 430,
+              mainAxisExtent: 214,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+            ),
+            itemBuilder: (context, index) {
+              final match = entry.value[index];
+              final displayA = match.teamAName ?? 'TBD';
+              final displayB = match.teamBName ?? 'TBD';
+
+              return _WebMatchCard(
+                tournament: tournament,
+                match: match,
+                displayNameA: displayA,
+                displayNameB: displayB,
+                canManage: canManage,
+                onReset: () => onResetMatch(match),
+                onTap: () => onOpenMatch(match),
+              );
+            },
+          ),
+          const SizedBox(height: 18),
+        ],
+      ],
+    );
+  }
+}
+
+class _WebMatchGroupHeader extends StatelessWidget {
+  final String label;
+  final List<TournamentMatch> matches;
+
+  const _WebMatchGroupHeader({required this.label, required this.matches});
+
+  @override
+  Widget build(BuildContext context) {
+    final played = matches.where((match) => match.isPlayed).length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          _Badge(label: label, color: _red),
+          const SizedBox(width: 10),
+          Text(
+            '$played/${matches.length} played',
+            style: _t(size: 12, color: _m1, weight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WebMatchCard extends StatelessWidget {
+  final Tournament tournament;
+  final TournamentMatch match;
+  final String displayNameA;
+  final String displayNameB;
+  final bool canManage;
+  final VoidCallback onReset;
+  final VoidCallback onTap;
+
+  const _WebMatchCard({
+    required this.tournament,
+    required this.match,
+    required this.displayNameA,
+    required this.displayNameB,
+    required this.canManage,
+    required this.onReset,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = match.isLive
+        ? Colors.greenAccent
+        : match.isPlayed
+        ? _red
+        : _m1;
+    final resultLabel = _matchResultLabel(
+      match,
+      teamAName: displayNameA,
+      teamBName: displayNameB,
+    );
+    final statusLabel = match.isLive
+        ? 'LIVE'
+        : match.isPlayed
+        ? resultLabel
+        : 'Upcoming';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: .08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _Badge(label: 'Round ${match.round}', color: _m1),
+                  const Spacer(),
+                  Text(
+                    statusLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _t(
+                      size: 11,
+                      color: statusColor,
+                      weight: FontWeight.w900,
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _WebMatchTeamLine(
+                name: displayNameA,
+                score: match.scoreA,
+                winner: match.result == TournamentMatchResult.teamAWin,
+                played: match.isPlayed,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text('vs', style: _t(size: 11, color: _m1)),
+              ),
+              _WebMatchTeamLine(
+                name: displayNameB,
+                score: match.scoreB,
+                winner: match.result == TournamentMatchResult.teamBWin,
+                played: match.isPlayed,
+              ),
+              const Spacer(),
+              Text(
+                _matchFooter(
+                  tournament,
+                  match,
+                  teamAName: displayNameA,
+                  teamBName: displayNameB,
                 ),
-                Text(
-                  'vs',
-                  style: _t(size: 12, color: _m1, weight: FontWeight.w800),
-                ),
-                Expanded(
-                  child: Text(
-                    m.teamBName ?? 'Team B',
-                    textAlign: TextAlign.end,
-                    style: _t(size: 14, weight: FontWeight.w800),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: _t(size: 12, color: _m1),
+              ),
+              if (canManage && match.isPlayed && !match.isBye) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: onReset,
+                    icon: const Icon(Icons.restart_alt_rounded, size: 15),
+                    label: const Text('Reset'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WebMatchTeamLine extends StatelessWidget {
+  final String name;
+  final int? score;
+  final bool winner;
+  final bool played;
+
+  const _WebMatchTeamLine({
+    required this.name,
+    required this.score,
+    required this.winner,
+    required this.played,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _t(
+              size: 15,
+              weight: winner ? FontWeight.w900 : FontWeight.w700,
+              color: winner ? _tx : Colors.white70,
             ),
-            const SizedBox(height: 8),
-            Text(
-              m.scheduledAt == null
-                  ? 'Yet to be scheduled'
-                  : '${_fmtDate(m.scheduledAt!)} - ${m.venueName ?? 'Venue TBD'}',
-              style: _t(size: 12, color: _m1),
+          ),
+        ),
+        if (played && score != null) ...[
+          const SizedBox(width: 10),
+          Text('$score', style: _t(size: 18, weight: FontWeight.w900)),
+        ],
+        if (winner) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.check_circle_rounded, color: _red, size: 16),
+        ],
+      ],
+    );
+  }
+}
+
+class _WebMatchDetailDialog extends StatefulWidget {
+  final Tournament tournament;
+  final String matchId;
+
+  const _WebMatchDetailDialog({
+    required this.tournament,
+    required this.matchId,
+  });
+
+  @override
+  State<_WebMatchDetailDialog> createState() => _WebMatchDetailDialogState();
+}
+
+class _WebMatchDetailDialogState extends State<_WebMatchDetailDialog> {
+  int _tab = 0;
+  bool _saving = false;
+  final _streamCtrl = TextEditingController();
+
+  TournamentMatch? get _match => TournamentService()
+      .matchesFor(widget.tournament.id)
+      .where((m) => m.id == widget.matchId)
+      .firstOrNull;
+
+  bool get _canManage =>
+      TournamentService().isHost(widget.tournament.id) ||
+      TournamentService().canDo(
+        widget.tournament.id,
+        AdminPermission.updateScores,
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    final match = _match;
+    if (match?.teamAId != null) {
+      TournamentService().loadSquad(widget.tournament.id, match!.teamAId!);
+    }
+    if (match?.teamBId != null) {
+      TournamentService().loadSquad(widget.tournament.id, match!.teamBId!);
+    }
+    _streamCtrl.text = match?.liveStreamUrl ?? '';
+  }
+
+  @override
+  void dispose() {
+    _streamCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveLiveState({required bool live}) async {
+    final match = _match;
+    if (match == null) return;
+    setState(() => _saving = true);
+    try {
+      if (live) {
+        await TournamentService().setMatchLive(
+          widget.tournament.id,
+          match.id,
+          streamUrl: _streamCtrl.text.trim().isEmpty
+              ? null
+              : _streamCtrl.text.trim(),
+        );
+      } else {
+        await TournamentService().endMatchLive(widget.tournament.id, match.id);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: TournamentService(),
+      builder: (context, _) {
+        final match = _match;
+        if (match == null) {
+          return const Dialog(
+            backgroundColor: _card,
+            child: SizedBox(
+              width: 420,
+              height: 220,
+              child: Center(child: CircularProgressIndicator(color: _red)),
             ),
-          ],
+          );
+        }
+
+        final squadsA = match.teamAId != null
+            ? TournamentService().squadFor(widget.tournament.id, match.teamAId!)
+            : <TournamentSquadPlayer>[];
+        final squadsB = match.teamBId != null
+            ? TournamentService().squadFor(widget.tournament.id, match.teamBId!)
+            : <TournamentSquadPlayer>[];
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1080, maxHeight: 760),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _card,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: .08)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: _panel,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                match.note ?? 'Match Detail',
+                                style: _t(size: 22, weight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      match.teamAName ?? 'Team A',
+                                      style: _t(
+                                        size: 18,
+                                        weight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${match.scoreA ?? 0} - ${match.scoreB ?? 0}',
+                                    style: _t(
+                                      size: 24,
+                                      weight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      match.teamBName ?? 'Team B',
+                                      textAlign: TextAlign.end,
+                                      style: _t(
+                                        size: 18,
+                                        weight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
+                                children: [
+                                  _InlineMeta(
+                                    icon: Icons.schedule_rounded,
+                                    text: match.scheduledAt == null
+                                        ? 'Yet to be scheduled'
+                                        : _fmtDate(match.scheduledAt!),
+                                  ),
+                                  _InlineMeta(
+                                    icon: Icons.stadium_outlined,
+                                    text:
+                                        _resolvedMatchVenueName(
+                                          widget.tournament,
+                                          match,
+                                        ) ??
+                                        widget.tournament.location,
+                                  ),
+                                  _InlineMeta(
+                                    icon: Icons.flag_outlined,
+                                    text: match.isLive
+                                        ? 'Live'
+                                        : match.isPlayed
+                                        ? _matchResultLabel(match)
+                                        : 'Upcoming',
+                                    color: match.isLive
+                                        ? Colors.greenAccent
+                                        : _m1,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded, color: _m1),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    child: Row(
+                      children: [
+                        for (final entry in [
+                          (0, 'Info'),
+                          (1, 'Scorecard'),
+                          (2, 'Squads'),
+                          (3, 'Watch Live'),
+                        ]) ...[
+                          _DialogTab(
+                            label: entry.$2,
+                            active: _tab == entry.$1,
+                            onTap: () => setState(() => _tab = entry.$1),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(22),
+                      child: IndexedStack(
+                        index: _tab,
+                        children: [
+                          _WebMatchInfoTab(
+                            tournament: widget.tournament,
+                            match: match,
+                          ),
+                          _WebMatchScorecardTab(
+                            tournament: widget.tournament,
+                            match: match,
+                            canManage: _canManage,
+                          ),
+                          _WebMatchSquadsTab(
+                            match: match,
+                            squadsA: squadsA,
+                            squadsB: squadsB,
+                          ),
+                          _WebMatchLiveTab(
+                            match: match,
+                            canManage: _canManage,
+                            streamCtrl: _streamCtrl,
+                            saving: _saving,
+                            onStartLive: () => _saveLiveState(live: true),
+                            onEndLive: () => _saveLiveState(live: false),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
   }
+}
+
+class _WebMatchInfoTab extends StatelessWidget {
+  final Tournament tournament;
+  final TournamentMatch match;
+
+  const _WebMatchInfoTab({required this.tournament, required this.match});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        _InfoPanel(
+          title: 'Match Information',
+          children: [
+            _InfoLine('Tournament', tournament.name),
+            _InfoLine('Format', _formatLabel(tournament.format)),
+            _InfoLine('Stage', match.note ?? 'Round ${match.round}'),
+            _InfoLine(
+              'Schedule',
+              match.scheduledAt == null
+                  ? 'Not set'
+                  : _fmtDate(match.scheduledAt!),
+            ),
+            _InfoLine(
+              'Venue',
+              _resolvedMatchVenueName(tournament, match) ?? tournament.location,
+            ),
+            _InfoLine(
+              'Status',
+              match.isLive
+                  ? 'Live'
+                  : match.isPlayed
+                  ? _matchResultLabel(match)
+                  : 'Upcoming',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _WebMatchScorecardTab extends StatefulWidget {
+  final Tournament tournament;
+  final TournamentMatch match;
+  final bool canManage;
+
+  const _WebMatchScorecardTab({
+    required this.tournament,
+    required this.match,
+    required this.canManage,
+  });
+
+  @override
+  State<_WebMatchScorecardTab> createState() => _WebMatchScorecardTabState();
+}
+
+class _WebMatchScorecardTabState extends State<_WebMatchScorecardTab> {
+  bool _saving = false;
+
+  bool get _canScore {
+    if (widget.canManage) return true;
+    final uid = UserService().userId ?? '';
+    if (uid.isEmpty) return false;
+    final match = widget.match;
+    final teams = TournamentService().teamsFor(widget.tournament.id);
+    return teams.any(
+      (t) =>
+          t.captainUserId == uid &&
+          (t.id == match.teamAId || t.id == match.teamBId),
+    );
+  }
+
+  Future<void> _showEditScoreDialog(BuildContext context) async {
+    final m = widget.match;
+    final ctrlA = TextEditingController(text: '${m.scoreA ?? 0}');
+    final ctrlB = TextEditingController(text: '${m.scoreB ?? 0}');
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        title: Text('Edit Score', style: _t(size: 17, weight: FontWeight.w900)),
+        content: Row(
+          children: [
+            Expanded(child: _scoreInput(m.teamAName ?? 'Team A', ctrlA)),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('-', style: TextStyle(color: _tx, fontSize: 28)),
+            ),
+            Expanded(child: _scoreInput(m.teamBName ?? 'Team B', ctrlB)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: _m1)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final sA = int.tryParse(ctrlA.text.trim()) ?? (m.scoreA ?? 0);
+              final sB = int.tryParse(ctrlB.text.trim()) ?? (m.scoreB ?? 0);
+              Navigator.pop(ctx);
+              if (_saving) return;
+              setState(() => _saving = true);
+              try {
+                await TournamentService().updateMatchResult(
+                  tournamentId: widget.tournament.id,
+                  matchId: widget.match.id,
+                  scoreA: sA,
+                  scoreB: sB,
+                  winnerId: sA > sB
+                      ? (m.teamAId ?? '')
+                      : sB > sA
+                      ? (m.teamBId ?? '')
+                      : '',
+                  winnerName: sA > sB
+                      ? (m.teamAName ?? '')
+                      : sB > sA
+                      ? (m.teamBName ?? '')
+                      : '',
+                );
+              } finally {
+                if (mounted) setState(() => _saving = false);
+              }
+            },
+            child: const Text('Save', style: TextStyle(color: _red)),
+          ),
+        ],
+      ),
+    );
+
+    ctrlA.dispose();
+    ctrlB.dispose();
+  }
+
+  Widget _scoreInput(String label, TextEditingController ctrl) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+          style: _t(size: 13, weight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          style: _t(size: 28, weight: FontWeight.w900),
+          decoration: _webInputDecoration('0'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final match = widget.match;
+    final appliedBestOf = _effectiveBestOfForMatch(widget.tournament, match);
+    final appliedPointsToWin = _effectivePointsToWinForMatch(
+      widget.tournament,
+      match,
+    );
+    final scoringStage = _scoringStageLabelForMatch(widget.tournament, match);
+    final board = ListView(
+      children: [
+        _InfoPanel(
+          title: 'Score Summary',
+          children: [
+            _InfoLine(match.teamAName ?? 'Team A', '${match.scoreA ?? 0}'),
+            _InfoLine(match.teamBName ?? 'Team B', '${match.scoreB ?? 0}'),
+            _InfoLine('Result', _matchResultLabel(match)),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _InfoPanel(
+          title: scoringStage,
+          children: [
+            _InfoLine(
+              'Scoring Type',
+              _scoringTypeLabel(widget.tournament.scoringType),
+            ),
+            _InfoLine('Best Of', '$appliedBestOf'),
+            _InfoLine('Points To Win', '$appliedPointsToWin'),
+          ],
+        ),
+        if (match.scorecardData != null && match.scorecardData!.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _InfoPanel(
+            title: 'Live Data',
+            children: [
+              SelectableText(
+                match.scorecardData.toString(),
+                style: _t(size: 12, color: _m1),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+
+    if (_canScore && !match.isPlayed) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _RedBtn(
+                label: 'Open Scoring',
+                icon: Icons.edit_note_rounded,
+                onTap: () =>
+                    _launchWebScoring(context, widget.tournament.id, match.id),
+              ),
+            ),
+          ),
+          Expanded(child: board),
+        ],
+      );
+    }
+
+    if (widget.canManage && match.isPlayed) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _OutlineBtn(
+                label: _saving ? 'Saving...' : 'Edit Score',
+                icon: Icons.edit_rounded,
+                onTap: _saving ? null : () => _showEditScoreDialog(context),
+              ),
+            ),
+          ),
+          Expanded(child: board),
+        ],
+      );
+    }
+
+    return board;
+  }
+}
+
+class _WebMatchSquadsTab extends StatelessWidget {
+  final TournamentMatch match;
+  final List<TournamentSquadPlayer> squadsA;
+  final List<TournamentSquadPlayer> squadsB;
+
+  const _WebMatchSquadsTab({
+    required this.match,
+    required this.squadsA,
+    required this.squadsB,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (squadsA.isEmpty && squadsB.isEmpty) {
+      return const _EmptyPane(label: 'No squad data available');
+    }
+
+    Widget squadColumn(String title, List<TournamentSquadPlayer> squad) {
+      return _InfoPanel(
+        title: title,
+        children: squad.isEmpty
+            ? [Text('No squad uploaded', style: _t(size: 13, color: _m1))]
+            : squad
+                  .map(
+                    (player) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: .06),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              player.jerseyNumber > 0
+                                  ? '${player.jerseyNumber}'
+                                  : player.playerName[0].toUpperCase(),
+                              style: _t(
+                                size: 11,
+                                color: _m1,
+                                weight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              player.playerName,
+                              style: _t(size: 13, weight: FontWeight.w700),
+                            ),
+                          ),
+                          if (player.role.isNotEmpty)
+                            Text(player.role, style: _t(size: 11, color: _m1)),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: squadColumn(match.teamAName ?? 'Team A', squadsA)),
+        const SizedBox(width: 14),
+        Expanded(child: squadColumn(match.teamBName ?? 'Team B', squadsB)),
+      ],
+    );
+  }
+}
+
+class _WebMatchLiveTab extends StatelessWidget {
+  final TournamentMatch match;
+  final bool canManage;
+  final TextEditingController streamCtrl;
+  final bool saving;
+  final VoidCallback onStartLive;
+  final VoidCallback onEndLive;
+
+  const _WebMatchLiveTab({
+    required this.match,
+    required this.canManage,
+    required this.streamCtrl,
+    required this.saving,
+    required this.onStartLive,
+    required this.onEndLive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        _InfoPanel(
+          title: 'Watch Live',
+          children: [
+            if (match.isLive)
+              Text(
+                'This match is currently live.',
+                style: _t(size: 13, color: Colors.greenAccent),
+              )
+            else
+              Text(
+                'No active livestream right now.',
+                style: _t(size: 13, color: _m1),
+              ),
+            const SizedBox(height: 12),
+            if ((match.liveStreamUrl ?? '').isNotEmpty)
+              SelectableText(
+                match.liveStreamUrl!,
+                style: _t(size: 13, color: _red),
+              ),
+            if (canManage) ...[
+              const SizedBox(height: 18),
+              TextField(
+                controller: streamCtrl,
+                style: _t(size: 13),
+                decoration: _webInputDecoration('Livestream URL'),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _RedBtn(
+                    label: saving ? 'Working...' : 'Start Live',
+                    onTap: saving ? null : onStartLive,
+                  ),
+                  _OutlineBtn(
+                    label: 'End Live',
+                    icon: Icons.stop_circle_outlined,
+                    onTap: saving ? null : onEndLive,
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+String _matchResultLabel(
+  TournamentMatch match, {
+  String? teamAName,
+  String? teamBName,
+}) {
+  if (match.result == TournamentMatchResult.draw) return 'Draw';
+  final storedWinner = match.winnerName?.trim();
+  final genericWinners = {'Winner', 'Team A', 'Team B'};
+  String? resolvedWinner;
+  if (storedWinner != null &&
+      storedWinner.isNotEmpty &&
+      !genericWinners.contains(storedWinner)) {
+    resolvedWinner = storedWinner;
+  } else if (match.result == TournamentMatchResult.teamAWin) {
+    resolvedWinner = teamAName ?? match.teamAName;
+  } else if (match.result == TournamentMatchResult.teamBWin) {
+    resolvedWinner = teamBName ?? match.teamBName;
+  }
+  return '${resolvedWinner ?? 'Winner'} won';
+}
+
+String _matchFooter(
+  Tournament tournament,
+  TournamentMatch match, {
+  String? teamAName,
+  String? teamBName,
+}) {
+  if (match.isBye) return '${match.teamAName ?? "Team"} advances by bye';
+  if (match.isPlayed) {
+    return _matchResultLabel(match, teamAName: teamAName, teamBName: teamBName);
+  }
+  final venueName = _resolvedMatchVenueName(tournament, match);
+  if ((venueName ?? '').isNotEmpty) return venueName!;
+  if (match.scheduledAt != null) return _fmtDate(match.scheduledAt!);
+  return 'Yet to be played';
 }
 
 class _TournamentTablePane extends StatelessWidget {
@@ -2055,7 +3789,11 @@ class _TournamentTablePane extends StatelessWidget {
         const SizedBox(height: 14),
         Expanded(
           child: tableTab == 0
-              ? _PointsTable(teams: teams)
+              ? _PointsTable(
+                  tournament: tournament,
+                  teams: teams,
+                  matches: matches,
+                )
               : _TournamentBracketPane(
                   tournament: tournament,
                   matches: matches,
@@ -2282,21 +4020,154 @@ class _TournamentForecastPane extends StatelessWidget {
   }
 }
 
+class _WebTableStat {
+  final String teamId;
+  final String name;
+  int played = 0;
+  int won = 0;
+  int lost = 0;
+  int drawn = 0;
+  int scoreFor = 0;
+  int scoreAgainst = 0;
+  final int wPts;
+  final int dPts;
+  final int lPts;
+
+  _WebTableStat(
+    this.teamId,
+    this.name, {
+    required this.wPts,
+    required this.dPts,
+    required this.lPts,
+  });
+
+  int get pts => (won * wPts) + (drawn * dPts) + (lost * lPts);
+  double get diff => played == 0 ? 0 : (scoreFor - scoreAgainst).toDouble();
+}
+
 class _PointsTable extends StatelessWidget {
+  final Tournament tournament;
   final List<TournamentTeam> teams;
-  const _PointsTable({required this.teams});
+  final List<TournamentMatch> matches;
+  const _PointsTable({
+    required this.tournament,
+    required this.teams,
+    required this.matches,
+  });
+
+  List<_WebTableStat> _buildStats() {
+    final stats = {
+      for (final team in teams)
+        team.id: _WebTableStat(
+          team.id,
+          team.teamName,
+          wPts: tournament.winPoints,
+          dPts: tournament.drawPoints,
+          lPts: tournament.lossPoints,
+        ),
+    };
+
+    for (final match in matches) {
+      if (!match.isPlayed || match.isBye) continue;
+      _accumulate(
+        stats,
+        match.teamAId,
+        match.scoreA,
+        match.scoreB,
+        match.result,
+        true,
+      );
+      _accumulate(
+        stats,
+        match.teamBId,
+        match.scoreB,
+        match.scoreA,
+        match.result,
+        false,
+      );
+    }
+
+    final rows = stats.values.toList()
+      ..sort((a, b) {
+        final ptsCompare = b.pts.compareTo(a.pts);
+        if (ptsCompare != 0) return ptsCompare;
+        final winsCompare = b.won.compareTo(a.won);
+        if (winsCompare != 0) return winsCompare;
+        return b.diff.compareTo(a.diff);
+      });
+    return rows;
+  }
+
+  void _accumulate(
+    Map<String, _WebTableStat> stats,
+    String? teamId,
+    int? scoreFor,
+    int? scoreAgainst,
+    TournamentMatchResult result,
+    bool isTeamA,
+  ) {
+    if (teamId == null || !stats.containsKey(teamId)) return;
+    final row = stats[teamId]!;
+    row.played++;
+    row.scoreFor += scoreFor ?? 0;
+    row.scoreAgainst += scoreAgainst ?? 0;
+    switch (result) {
+      case TournamentMatchResult.teamAWin:
+        if (isTeamA) {
+          row.won++;
+        } else {
+          row.lost++;
+        }
+      case TournamentMatchResult.teamBWin:
+        if (isTeamA) {
+          row.lost++;
+        } else {
+          row.won++;
+        }
+      case TournamentMatchResult.draw:
+        row.drawn++;
+      case TournamentMatchResult.pending:
+      case TournamentMatchResult.bye:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     if (teams.isEmpty) return const _EmptyPane(label: 'No teams in table yet');
-    final sorted = [...teams]..sort((a, b) => b.points.compareTo(a.points));
-    return _InfoPanel(
-      title: 'Points Table',
-      children: [
-        _TableHeader(),
-        for (int i = 0; i < sorted.length; i++)
-          _TeamTableRow(index: i + 1, team: sorted[i]),
-      ],
+    final sorted = _buildStats();
+    return Container(
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: .08)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Points Table',
+                style: _t(size: 16, weight: FontWeight.w900),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: _TableHeader(),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+              itemCount: sorted.length,
+              itemBuilder: (context, i) =>
+                  _TeamTableRow(index: i + 1, stat: sorted[i]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2336,8 +4207,8 @@ class _TableHeader extends StatelessWidget {
 
 class _TeamTableRow extends StatelessWidget {
   final int index;
-  final TournamentTeam team;
-  const _TeamTableRow({required this.index, required this.team});
+  final _WebTableStat stat;
+  const _TeamTableRow({required this.index, required this.stat});
 
   @override
   Widget build(BuildContext context) {
@@ -2356,16 +4227,16 @@ class _TeamTableRow extends StatelessWidget {
           ),
           Expanded(
             child: Text(
-              team.teamName,
+              stat.name,
               style: _t(size: 13, weight: FontWeight.w700),
             ),
           ),
           for (final value in [
-            team.played,
-            team.wins,
-            team.losses,
-            team.draws,
-            team.points,
+            stat.played,
+            stat.won,
+            stat.lost,
+            stat.drawn,
+            stat.pts,
           ])
             SizedBox(
               width: 46,
@@ -2374,7 +4245,7 @@ class _TeamTableRow extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: _t(
                   size: 12,
-                  color: value == team.points ? _red : _m1,
+                  color: value == stat.pts ? _red : _m1,
                   weight: FontWeight.w700,
                 ),
               ),
@@ -2414,6 +4285,7 @@ class _TournamentBracketPane extends StatelessWidget {
     }
     final rounds = byRound.keys.toList()..sort();
     final bracket = _BracketRoundsView(
+      tournament: tournament,
       rounds: rounds,
       byRound: byRound,
       fullscreen: fullscreen,
@@ -2444,11 +4316,13 @@ class _TournamentBracketPane extends StatelessWidget {
 }
 
 class _BracketRoundsView extends StatelessWidget {
+  final Tournament tournament;
   final List<int> rounds;
   final Map<int, List<TournamentMatch>> byRound;
   final bool fullscreen;
 
   const _BracketRoundsView({
+    required this.tournament,
     required this.rounds,
     required this.byRound,
     required this.fullscreen,
@@ -2456,14 +4330,19 @@ class _BracketRoundsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (fullscreen) {
+      return _BracketFullscreenCanvas(
+        tournament: tournament,
+        rounds: rounds,
+        byRound: byRound,
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
-        final viewportHeight = constraints.maxHeight.isFinite
-            ? constraints.maxHeight
-            : MediaQuery.sizeOf(context).height - 120;
         final spacing = fullscreen ? 24.0 : 18.0;
         final sidePadding = fullscreen ? 28.0 : 0.0;
         final availableWidth =
@@ -2480,7 +4359,9 @@ class _BracketRoundsView extends StatelessWidget {
         final canvasWidth = requiredWidth > viewportWidth
             ? requiredWidth
             : viewportWidth;
-        final canvasHeight = viewportHeight > 560 ? viewportHeight : 560.0;
+        final firstRoundMatches = byRound[rounds.first]?.length ?? 1;
+        final slotHeight = _kWebBracketCardH + _kWebBracketGap;
+        final canvasHeight = math.max(560.0, firstRoundMatches * slotHeight);
 
         return InteractiveViewer(
           minScale: fullscreen ? .45 : .65,
@@ -2490,27 +4371,145 @@ class _BracketRoundsView extends StatelessWidget {
           child: SizedBox(
             width: canvasWidth,
             height: canvasHeight,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.all(sidePadding),
-                child: Row(
-                  mainAxisAlignment: rounds.length == 1
-                      ? MainAxisAlignment.center
-                      : MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < rounds.length; i++) ...[
+            child: Padding(
+              padding: EdgeInsets.all(sidePadding),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < rounds.length; i++) ...[
+                    SizedBox(
+                      width: roundWidth,
+                      height: canvasHeight - (sidePadding * 2),
+                      child: _BracketRoundColumn(
+                        tournament: tournament,
+                        round: rounds[i],
+                        matches: byRound[rounds[i]]!,
+                        fullscreen: fullscreen,
+                        totalHeight: canvasHeight - (sidePadding * 2),
+                      ),
+                    ),
+                    if (i != rounds.length - 1)
                       SizedBox(
-                        width: roundWidth,
-                        child: _BracketRoundColumn(
-                          round: rounds[i],
-                          matches: byRound[rounds[i]]!,
-                          fullscreen: fullscreen,
+                        width: _kWebBracketConnectorW,
+                        height: canvasHeight - (sidePadding * 2),
+                        child: CustomPaint(
+                          painter: _WebBracketConnectorPainter(
+                            matchCount: byRound[rounds[i]]!.length,
+                            totalHeight: canvasHeight - (sidePadding * 2),
+                            cardHeight: _kWebBracketCardH,
+                          ),
                         ),
                       ),
-                      if (i != rounds.length - 1) SizedBox(width: spacing),
-                    ],
+                    if (i != rounds.length - 1) SizedBox(width: spacing),
                   ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BracketFullscreenCanvas extends StatefulWidget {
+  final Tournament tournament;
+  final List<int> rounds;
+  final Map<int, List<TournamentMatch>> byRound;
+
+  const _BracketFullscreenCanvas({
+    required this.tournament,
+    required this.rounds,
+    required this.byRound,
+  });
+
+  @override
+  State<_BracketFullscreenCanvas> createState() =>
+      _BracketFullscreenCanvasState();
+}
+
+class _BracketFullscreenCanvasState extends State<_BracketFullscreenCanvas> {
+  final _horizontal = ScrollController();
+  final _vertical = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    _vertical.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        const spacing = 24.0;
+        const sidePadding = 28.0;
+        final firstRoundMatches =
+            widget.byRound[widget.rounds.first]?.length ?? 1;
+        final slotHeight = _kWebBracketCardH + _kWebBracketGap;
+        final canvasHeight = math.max(560.0, firstRoundMatches * slotHeight);
+        final availableWidth =
+            viewportWidth -
+            (sidePadding * 2) -
+            (spacing * (widget.rounds.length - 1));
+        var roundWidth = availableWidth / widget.rounds.length.clamp(1, 99);
+        if (roundWidth < 360) roundWidth = 360;
+        if (roundWidth > 560) roundWidth = 560;
+
+        return Scrollbar(
+          controller: _vertical,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _vertical,
+            padding: const EdgeInsets.only(right: 12, bottom: 12),
+            child: Scrollbar(
+              controller: _horizontal,
+              thumbVisibility: true,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _horizontal,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
+                child: SizedBox(
+                  height: canvasHeight,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < widget.rounds.length; i++) ...[
+                        SizedBox(
+                          width: roundWidth,
+                          height: canvasHeight,
+                          child: _BracketRoundColumn(
+                            tournament: widget.tournament,
+                            round: widget.rounds[i],
+                            matches: widget.byRound[widget.rounds[i]]!,
+                            fullscreen: true,
+                            totalHeight: canvasHeight,
+                          ),
+                        ),
+                        if (i != widget.rounds.length - 1)
+                          SizedBox(
+                            width: _kWebBracketConnectorW,
+                            height: canvasHeight,
+                            child: CustomPaint(
+                              painter: _WebBracketConnectorPainter(
+                                matchCount:
+                                    widget.byRound[widget.rounds[i]]!.length,
+                                totalHeight: canvasHeight,
+                                cardHeight: _kWebBracketCardH,
+                              ),
+                            ),
+                          ),
+                        if (i != widget.rounds.length - 1)
+                          const SizedBox(width: spacing),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -2522,19 +4521,23 @@ class _BracketRoundsView extends StatelessWidget {
 }
 
 class _BracketRoundColumn extends StatelessWidget {
+  final Tournament tournament;
   final int round;
   final List<TournamentMatch> matches;
   final bool fullscreen;
+  final double totalHeight;
 
   const _BracketRoundColumn({
+    required this.tournament,
     required this.round,
     required this.matches,
     required this.fullscreen,
+    required this.totalHeight,
   });
 
   @override
   Widget build(BuildContext context) {
-    final gap = fullscreen ? 16.0 : 10.0;
+    final roundSlotHeight = totalHeight / matches.length.clamp(1, 999);
     return Container(
       padding: EdgeInsets.all(fullscreen ? 20 : 14),
       decoration: BoxDecoration(
@@ -2550,10 +4553,28 @@ class _BracketRoundColumn extends StatelessWidget {
             style: _t(size: fullscreen ? 20 : 15, weight: FontWeight.w900),
           ),
           const SizedBox(height: 14),
-          for (final match in matches) ...[
-            _BracketMatchCard(match: match, fullscreen: fullscreen),
-            SizedBox(height: gap),
-          ],
+          Expanded(
+            child: Stack(
+              children: [
+                for (var i = 0; i < matches.length; i++)
+                  Positioned(
+                    top:
+                        i * roundSlotHeight +
+                        (roundSlotHeight - _kWebBracketCardH) / 2,
+                    left: 0,
+                    right: 0,
+                    child: SizedBox(
+                      height: _kWebBracketCardH,
+                      child: _BracketMatchCard(
+                        tournament: tournament,
+                        match: matches[i],
+                        fullscreen: fullscreen,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2561,15 +4582,31 @@ class _BracketRoundColumn extends StatelessWidget {
 }
 
 class _BracketMatchCard extends StatelessWidget {
+  final Tournament tournament;
   final TournamentMatch match;
   final bool fullscreen;
 
-  const _BracketMatchCard({required this.match, required this.fullscreen});
+  const _BracketMatchCard({
+    required this.tournament,
+    required this.match,
+    required this.fullscreen,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final teamAWinner = _isWinningSide(
+      match,
+      isTeamA: true,
+      displayName: match.teamAName,
+    );
+    final teamBWinner = _isWinningSide(
+      match,
+      isTeamA: false,
+      displayName: match.teamBName,
+    );
     return Container(
       width: double.infinity,
+      height: _kWebBracketCardH,
       padding: EdgeInsets.all(fullscreen ? 18 : 12),
       decoration: BoxDecoration(
         color: _panel,
@@ -2581,7 +4618,7 @@ class _BracketMatchCard extends StatelessWidget {
         children: [
           _BracketTeamLine(
             name: match.teamAName ?? 'TBD',
-            winner: match.winnerId != null && match.winnerId == match.teamAId,
+            winner: teamAWinner,
             fullscreen: fullscreen,
           ),
           Padding(
@@ -2593,11 +4630,12 @@ class _BracketMatchCard extends StatelessWidget {
           ),
           _BracketTeamLine(
             name: match.teamBName ?? 'TBD',
-            winner: match.winnerId != null && match.winnerId == match.teamBId,
+            winner: teamBWinner,
             fullscreen: fullscreen,
           ),
           if (match.scheduledAt != null ||
-              (match.venueName ?? '').isNotEmpty) ...[
+              (_resolvedMatchVenueName(tournament, match) ?? '')
+                  .isNotEmpty) ...[
             const SizedBox(height: 12),
             Wrap(
               spacing: 10,
@@ -2608,14 +4646,91 @@ class _BracketMatchCard extends StatelessWidget {
                     Icons.schedule_rounded,
                     '${match.scheduledAt!.day} ${_monthShort(match.scheduledAt!.month)} ${match.scheduledAt!.year}',
                   ),
-                if ((match.venueName ?? '').isNotEmpty)
-                  _miniMeta(Icons.stadium_rounded, match.venueName!),
+                if ((_resolvedMatchVenueName(tournament, match) ?? '')
+                    .isNotEmpty)
+                  _miniMeta(
+                    Icons.stadium_rounded,
+                    _resolvedMatchVenueName(tournament, match)!,
+                  ),
               ],
             ),
           ],
         ],
       ),
     );
+  }
+}
+
+bool _isWinningSide(
+  TournamentMatch match, {
+  required bool isTeamA,
+  String? displayName,
+}) {
+  if (match.result == TournamentMatchResult.teamAWin) return isTeamA;
+  if (match.result == TournamentMatchResult.teamBWin) return !isTeamA;
+
+  final winnerId = match.winnerId?.trim();
+  if (winnerId != null && winnerId.isNotEmpty) {
+    if (isTeamA && winnerId == match.teamAId) return true;
+    if (!isTeamA && winnerId == match.teamBId) return true;
+  }
+
+  final winnerName = match.winnerName?.trim().toLowerCase();
+  final sideName = (displayName ?? '').trim().toLowerCase();
+  if (winnerName != null &&
+      winnerName.isNotEmpty &&
+      sideName.isNotEmpty &&
+      winnerName == sideName) {
+    return true;
+  }
+
+  return false;
+}
+
+class _WebBracketConnectorPainter extends CustomPainter {
+  final int matchCount;
+  final double totalHeight;
+  final double cardHeight;
+
+  const _WebBracketConnectorPainter({
+    required this.matchCount,
+    required this.totalHeight,
+    required this.cardHeight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _red.withValues(alpha: .24)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final slotHeight = totalHeight / matchCount.clamp(1, 999);
+    for (var i = 0; i < matchCount; i += 2) {
+      final topY =
+          i * slotHeight + (slotHeight - cardHeight) / 2 + (cardHeight / 2);
+      final bottomY = (i + 1) < matchCount
+          ? (i + 1) * slotHeight +
+                (slotHeight - cardHeight) / 2 +
+                (cardHeight / 2)
+          : topY;
+      final midY = (topY + bottomY) / 2;
+      final midX = size.width / 2;
+
+      canvas.drawLine(Offset(0, topY), Offset(midX, topY), paint);
+      if ((i + 1) < matchCount) {
+        canvas.drawLine(Offset(0, bottomY), Offset(midX, bottomY), paint);
+      }
+      canvas.drawLine(Offset(midX, topY), Offset(midX, bottomY), paint);
+      canvas.drawLine(Offset(midX, midY), Offset(size.width, midY), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WebBracketConnectorPainter oldDelegate) {
+    return oldDelegate.matchCount != matchCount ||
+        oldDelegate.totalHeight != totalHeight ||
+        oldDelegate.cardHeight != cardHeight;
   }
 }
 
@@ -3028,18 +5143,6 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
                       )
                     : null,
               ),
-              _ManageActionCard(
-                title: 'Enter Results',
-                subtitle: 'Update match scores',
-                icon: Icons.scoreboard_outlined,
-                color: Colors.green,
-                onTap: () => _openWebManager(
-                  title: 'Enter Results',
-                  icon: Icons.scoreboard_outlined,
-                  color: Colors.green,
-                  child: _WebResultsPanel(tournament: widget.tournament),
-                ),
-              ),
             ],
           ),
           if (widget.isHost) ...[
@@ -3180,6 +5283,15 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
   late DateTime _start;
   DateTime? _end;
   late TournamentFormat _format;
+  late ScoringType _scoringType;
+  late bool _sameScoreAllRounds;
+  late int _bestOf;
+  late int _pointsToWin;
+  late int _winPoints;
+  late int _drawPoints;
+  late int _lossPoints;
+  late final TextEditingController _customScoringLabel;
+  late Map<String, dynamic> _roundScoringConfig;
   bool _saving = false;
 
   @override
@@ -3194,9 +5306,22 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
     _serviceFee = TextEditingController(text: '${t.serviceFee}');
     _prize = TextEditingController(text: t.prizePool ?? '');
     _rules = TextEditingController(text: t.rules ?? '');
+    _customScoringLabel = TextEditingController(
+      text: t.customScoringLabel ?? '',
+    );
     _start = t.startDate;
     _end = t.endDate;
     _format = t.format;
+    _scoringType = t.scoringType;
+    _sameScoreAllRounds = t.sameScoreAllRounds;
+    _bestOf = _uiSetsToWinFromStoredBestOf(t.bestOf);
+    _pointsToWin = t.pointsToWin;
+    _winPoints = t.winPoints;
+    _drawPoints = t.drawPoints;
+    _lossPoints = t.lossPoints;
+    _roundScoringConfig = Map<String, dynamic>.from(
+      t.roundScoringConfig ?? const {},
+    );
   }
 
   @override
@@ -3209,6 +5334,7 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
     _serviceFee.dispose();
     _prize.dispose();
     _rules.dispose();
+    _customScoringLabel.dispose();
     super.dispose();
   }
 
@@ -3247,13 +5373,17 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
         endDate: _end,
         prizePool: _prize.text.trim().isEmpty ? null : _prize.text.trim(),
         rules: _rules.text.trim().isEmpty ? null : _rules.text.trim(),
-        scoringType: widget.tournament.scoringType,
-        bestOf: widget.tournament.bestOf,
-        pointsToWin: widget.tournament.pointsToWin,
-        winPoints: widget.tournament.winPoints,
-        drawPoints: widget.tournament.drawPoints,
-        lossPoints: widget.tournament.lossPoints,
-        customScoringLabel: widget.tournament.customScoringLabel,
+        scoringType: _scoringType,
+        bestOf: _storedBestOfFromUiSetsToWin(_bestOf),
+        pointsToWin: _pointsToWin,
+        winPoints: _winPoints,
+        drawPoints: _drawPoints,
+        lossPoints: _lossPoints,
+        customScoringLabel: _customScoringLabel.text.trim().isEmpty
+            ? null
+            : _customScoringLabel.text.trim(),
+        sameScoreAllRounds: _sameScoreAllRounds,
+        roundScoringConfig: _sameScoreAllRounds ? null : _roundScoringConfig,
       );
       if (mounted) Navigator.pop(context);
     } finally {
@@ -3369,6 +5499,107 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
           decoration: _webInputDecoration('Rules and notes'),
         ),
         const SizedBox(height: 18),
+        _InfoPanel(
+          title: 'Scoring',
+          children: [
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: DropdownButtonFormField<ScoringType>(
+                    initialValue: _scoringType,
+                    dropdownColor: _card,
+                    decoration: _webInputDecoration('Scoring Type'),
+                    style: _t(size: 13),
+                    items: ScoringType.values
+                        .map(
+                          (type) => DropdownMenuItem(
+                            value: type,
+                            child: Text(_scoringTypeLabel(type)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _scoringType = value ?? _scoringType),
+                  ),
+                ),
+                SizedBox(
+                  width: 160,
+                  child: _stepperField(
+                    label: 'Sets To Win',
+                    value: _bestOf,
+                    onChanged: (value) =>
+                        setState(() => _bestOf = value < 1 ? 1 : value),
+                  ),
+                ),
+                SizedBox(
+                  width: 180,
+                  child: _stepperField(
+                    label: 'Points To Win',
+                    value: _pointsToWin,
+                    onChanged: (value) => setState(() => _pointsToWin = value),
+                  ),
+                ),
+                SizedBox(
+                  width: 150,
+                  child: _stepperField(
+                    label: 'Win Points',
+                    value: _winPoints,
+                    onChanged: (value) => setState(() => _winPoints = value),
+                  ),
+                ),
+                SizedBox(
+                  width: 150,
+                  child: _stepperField(
+                    label: 'Draw Points',
+                    value: _drawPoints,
+                    onChanged: (value) => setState(() => _drawPoints = value),
+                  ),
+                ),
+                SizedBox(
+                  width: 150,
+                  child: _stepperField(
+                    label: 'Loss Points',
+                    value: _lossPoints,
+                    onChanged: (value) => setState(() => _lossPoints = value),
+                  ),
+                ),
+                if (_scoringType == ScoringType.custom)
+                  SizedBox(
+                    width: 260,
+                    child: _labeled(
+                      'Custom Score Label',
+                      _customScoringLabel,
+                      Icons.label_outline,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _ToggleRow(
+              title: 'Same Scoring For All Rounds',
+              subtitle:
+                  'Turn this off to set different scoring for quarterfinals, semifinals, and finals.',
+              value: _sameScoreAllRounds,
+              onChanged: (value) => setState(() => _sameScoreAllRounds = value),
+            ),
+            if (!_sameScoreAllRounds) ...[
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _roundScoreCard('quarterFinal', 'Quarterfinals'),
+                  _roundScoreCard('semiFinal', 'Semifinals'),
+                  _roundScoreCard('final', 'Final'),
+                ],
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 18),
         Align(
           alignment: Alignment.centerRight,
           child: _RedBtn(
@@ -3402,6 +5633,107 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
         ),
       ],
     );
+  }
+
+  Widget _stepperField({
+    required String label,
+    required int value,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: _t(size: 12, color: _m1, weight: FontWeight.w800),
+        ),
+        const SizedBox(height: 7),
+        Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .035),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: .08)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => onChanged((value > 0 ? value - 1 : 0)),
+                icon: const Icon(Icons.remove_rounded, color: _m1),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    '$value',
+                    style: _t(size: 14, weight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => onChanged(value + 1),
+                icon: const Icon(Icons.add_rounded, color: _m1),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _roundScoreCard(String key, String title) {
+    final config = Map<String, dynamic>.from(
+      (_roundScoringConfig[key] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final bestOf = _uiSetsToWinFromStoredBestOf(
+      (config['bestOf'] as num?)?.toInt() ??
+          _storedBestOfFromUiSetsToWin(_bestOf),
+    );
+    final pointsToWin =
+        (config['pointsToWin'] as num?)?.toInt() ?? _pointsToWin;
+
+    void setValue(String field, int value) {
+      final updated = Map<String, dynamic>.from(config);
+      updated[field] = field == 'bestOf'
+          ? _storedBestOfFromUiSetsToWin(value)
+          : value;
+      setState(() => _roundScoringConfig[key] = updated);
+    }
+
+    return SizedBox(
+      width: 280,
+      child: _MiniPanel(
+        title: title,
+        subtitle: 'Override default scoring for this stage',
+        child: Column(
+          children: [
+            _stepperField(
+              label: 'Sets To Win',
+              value: bestOf,
+              onChanged: (value) => setValue('bestOf', value),
+            ),
+            const SizedBox(height: 12),
+            _stepperField(
+              label: 'Points To Win',
+              value: pointsToWin,
+              onChanged: (value) => setValue('pointsToWin', value),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _scoringTypeLabel(ScoringType type) {
+  switch (type) {
+    case ScoringType.standard:
+      return 'Standard';
+    case ScoringType.bestOfSets:
+      return 'Best Of Sets';
+    case ScoringType.points:
+      return 'Points Table';
+    case ScoringType.custom:
+      return 'Custom';
   }
 }
 
@@ -3444,8 +5776,16 @@ class _WebGroupsPanel extends StatefulWidget {
 }
 
 class _WebGroupsPanelState extends State<_WebGroupsPanel> {
-  int _count = 2;
+  late int _count;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _count = widget.tournament.groupCount > 0
+        ? widget.tournament.groupCount
+        : 0;
+  }
 
   Future<void> _run(Future<void> Function() fn) async {
     setState(() => _busy = true);
@@ -3480,24 +5820,34 @@ class _WebGroupsPanelState extends State<_WebGroupsPanel> {
                     dropdownColor: _card,
                     decoration: _webInputDecoration('Groups'),
                     style: _t(size: 13),
-                    items: List.generate(7, (i) => i + 2)
-                        .map(
-                          (v) => DropdownMenuItem(
-                            value: v,
-                            child: Text('$v groups'),
-                          ),
-                        )
-                        .toList(),
+                    items: [
+                      const DropdownMenuItem(
+                        value: 0,
+                        child: Text('No groups'),
+                      ),
+                      ...List.generate(7, (i) => i + 2).map(
+                        (v) => DropdownMenuItem(
+                          value: v,
+                          child: Text('$v groups'),
+                        ),
+                      ),
+                    ],
                     onChanged: (v) => setState(() => _count = v ?? 2),
                   ),
                 ),
                 const SizedBox(width: 10),
                 _RedBtn(
-                  label: _busy ? 'Working...' : 'Create / Reconfigure',
+                  label: _busy
+                      ? 'Working...'
+                      : _count == 0
+                      ? 'Remove Groups'
+                      : 'Create / Reconfigure',
                   onTap: _busy
                       ? null
                       : () => _run(
-                          () => svc.createGroups(widget.tournament.id, _count),
+                          () => _count == 0
+                              ? svc.deleteAllGroups(widget.tournament.id)
+                              : svc.createGroups(widget.tournament.id, _count),
                         ),
                 ),
                 const Spacer(),
@@ -3971,8 +6321,11 @@ class _WebScheduleMatchRow extends StatelessWidget {
                   runSpacing: 4,
                   children: [
                     _miniMeta(Icons.schedule_rounded, dateText),
-                    if ((match.venueName ?? '').isNotEmpty)
-                      _miniMeta(Icons.stadium_rounded, match.venueName!),
+                    if ((_sanitizeVenueLabel(match.venueName) ?? '').isNotEmpty)
+                      _miniMeta(
+                        Icons.stadium_rounded,
+                        _sanitizeVenueLabel(match.venueName)!,
+                      ),
                     if ((match.note ?? '').isNotEmpty)
                       _miniMeta(Icons.label_rounded, match.note!),
                   ],
@@ -4574,89 +6927,6 @@ class _ScheduleFullscreenDialog extends StatelessWidget {
       ),
     );
   }
-}
-
-class _WebResultsPanel extends StatelessWidget {
-  final Tournament tournament;
-  const _WebResultsPanel({required this.tournament});
-
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: TournamentService(),
-    builder: (context, _) {
-      final matches = TournamentService().matchesFor(tournament.id);
-      return Column(
-        children: matches.isEmpty
-            ? [_emptyText('No matches scheduled yet.')]
-            : matches.map((m) => _matchRow(m, allowScore: true)).toList(),
-      );
-    },
-  );
-}
-
-Widget _matchRow(TournamentMatch m, {required bool allowScore}) {
-  final a = TextEditingController(text: '${m.scoreA ?? ''}');
-  final b = TextEditingController(text: '${m.scoreB ?? ''}');
-  return Builder(
-    builder: (context) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: _webBox(),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${m.teamAName ?? 'TBD'} vs ${m.teamBName ?? 'TBD'}',
-                style: _t(size: 14, weight: FontWeight.w800),
-              ),
-            ),
-            Text('Round ${m.round}', style: _t(size: 12, color: _m1)),
-            if (allowScore && !m.isTBD) ...[
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 62,
-                child: TextField(
-                  controller: a,
-                  keyboardType: TextInputType.number,
-                  style: _t(size: 13),
-                  decoration: _webInputDecoration('A'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 62,
-                child: TextField(
-                  controller: b,
-                  keyboardType: TextInputType.number,
-                  style: _t(size: 13),
-                  decoration: _webInputDecoration('B'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _RedBtn(
-                label: 'Save',
-                onTap: () {
-                  final sa = int.tryParse(a.text) ?? 0;
-                  final sb = int.tryParse(b.text) ?? 0;
-                  TournamentService().updateMatchResult(
-                    tournamentId: m.tournamentId,
-                    matchId: m.id,
-                    scoreA: sa,
-                    scoreB: sb,
-                    winnerId: sa >= sb ? (m.teamAId ?? '') : (m.teamBId ?? ''),
-                    winnerName: sa >= sb
-                        ? (m.teamAName ?? '')
-                        : (m.teamBName ?? ''),
-                  );
-                },
-              ),
-            ],
-          ],
-        ),
-      );
-    },
-  );
 }
 
 class _WebSquadsPanel extends StatelessWidget {

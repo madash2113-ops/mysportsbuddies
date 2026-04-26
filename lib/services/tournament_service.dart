@@ -280,72 +280,141 @@ class TournamentService extends ChangeNotifier {
   /// that winner appears in the correct slot of the next-round match.
   /// Reads entirely from Firestore (not in-memory) and uses a single batch.
   Future<void> _repairAdvancements(String tournamentId) async {
-    // Read ALL match docs directly from Firestore — single source of truth
     final matchesRef = _db
         .collection(_col)
         .doc(tournamentId)
         .collection('matches');
-    final allSnap = await matchesRef.get();
-    if (allSnap.docs.isEmpty) return;
+    for (var pass = 0; pass < 4; pass++) {
+      final allSnap = await matchesRef.get();
+      if (allSnap.docs.isEmpty) return;
 
-    // Build map: "round_matchIndex" → (docRef, data)
-    final docMap =
-        <String, ({DocumentReference ref, Map<String, dynamic> data})>{};
-    for (final d in allSnap.docs) {
-      final data = d.data();
-      final r = (data['round'] as num?)?.toInt();
-      final mi = (data['matchIndex'] as num?)?.toInt();
-      if (r != null && mi != null) {
-        docMap['${r}_$mi'] = (ref: d.reference, data: data);
+      final docMap =
+          <String, ({DocumentReference ref, Map<String, dynamic> data})>{};
+      for (final d in allSnap.docs) {
+        final data = d.data();
+        final r = (data['round'] as num?)?.toInt();
+        final mi = (data['matchIndex'] as num?)?.toInt();
+        if (r != null && mi != null) {
+          docMap['${r}_$mi'] = (ref: d.reference, data: data);
+        }
       }
-    }
 
-    final batch = _db.batch();
-    int fixes = 0;
+      final batch = _db.batch();
+      var fixes = 0;
+      final knockoutRounds =
+          docMap.values
+              .where((entry) {
+                final note = entry.data['note'] as String? ?? '';
+                return !note.startsWith('Group');
+              })
+              .map((entry) => (entry.data['round'] as num?)?.toInt())
+              .whereType<int>()
+              .toSet()
+              .toList()
+            ..sort();
 
-    for (final entry in docMap.entries) {
-      final data = entry.value.data;
-      final winnerId = data['winnerId'] as String?;
-      if (winnerId == null || winnerId.isEmpty) continue;
+      for (var i = 1; i < knockoutRounds.length; i++) {
+        final previousRound = knockoutRounds[i - 1];
+        final currentRound = knockoutRounds[i];
+        final previousEntries =
+            docMap.values
+                .where(
+                  (entry) =>
+                      (entry.data['round'] as num?)?.toInt() == previousRound,
+                )
+                .toList()
+              ..sort((a, b) {
+                final aIndex = (a.data['matchIndex'] as num?)?.toInt() ?? 0;
+                final bIndex = (b.data['matchIndex'] as num?)?.toInt() ?? 0;
+                return aIndex.compareTo(bIndex);
+              });
+        final currentEntries =
+            docMap.values
+                .where(
+                  (entry) =>
+                      (entry.data['round'] as num?)?.toInt() == currentRound,
+                )
+                .toList()
+              ..sort((a, b) {
+                final aIndex = (a.data['matchIndex'] as num?)?.toInt() ?? 0;
+                final bIndex = (b.data['matchIndex'] as num?)?.toInt() ?? 0;
+                return aIndex.compareTo(bIndex);
+              });
 
-      // Skip group-stage matches — they don't advance in a knockout tree
-      final note = data['note'] as String? ?? '';
-      if (note.startsWith('Group')) continue;
+        for (var j = 0; j < currentEntries.length; j++) {
+          final current = currentEntries[j];
+          final sourceA = (j * 2) < previousEntries.length
+              ? previousEntries[j * 2]
+              : null;
+          final sourceB = (j * 2 + 1) < previousEntries.length
+              ? previousEntries[j * 2 + 1]
+              : null;
 
-      final round = (data['round'] as num).toInt();
-      final matchIndex = (data['matchIndex'] as num).toInt();
-      final winnerName = data['winnerName'] as String? ?? '';
+          final expectedAId = sourceA == null
+              ? null
+              : ((sourceA.data['winnerId'] as String?)?.trim().isEmpty ?? true)
+              ? null
+              : sourceA.data['winnerId'] as String?;
+          final expectedAName = expectedAId == null
+              ? null
+              : sourceA!.data['winnerName'] as String?;
+          final expectedBId = sourceB == null
+              ? null
+              : ((sourceB.data['winnerId'] as String?)?.trim().isEmpty ?? true)
+              ? null
+              : sourceB.data['winnerId'] as String?;
+          final expectedBName = expectedBId == null
+              ? null
+              : sourceB!.data['winnerName'] as String?;
 
-      final nextRound = round + 1;
-      final nextMatchIndex = matchIndex ~/ 2;
-      final isSlotA = matchIndex.isEven;
-      final nextKey = '${nextRound}_$nextMatchIndex';
+          final update = <String, dynamic>{};
+          if ((current.data['teamAId'] as String?) != expectedAId) {
+            update['teamAId'] = expectedAId;
+          }
+          if ((current.data['teamAName'] as String?) != expectedAName) {
+            update['teamAName'] = expectedAName;
+          }
+          if ((current.data['teamBId'] as String?) != expectedBId) {
+            update['teamBId'] = expectedBId;
+          }
+          if ((current.data['teamBName'] as String?) != expectedBName) {
+            update['teamBName'] = expectedBName;
+          }
 
-      final next = docMap[nextKey];
-      if (next == null) continue; // final round — nowhere to advance
+          if (update.isEmpty) continue;
+          batch.update(current.ref, update);
+          fixes++;
+        }
+      }
 
-      // Check if already correct
-      final slotField = isSlotA ? 'teamAId' : 'teamBId';
-      final currentSlot = next.data[slotField] as String?;
-      if (currentSlot == winnerId) continue;
+      for (final entry in docMap.entries) {
+        final data = entry.value.data;
+        final winnerId = data['winnerId'] as String?;
+        if (winnerId == null || winnerId.isEmpty) continue;
 
-      final update = isSlotA
-          ? {'teamAId': winnerId, 'teamAName': winnerName}
-          : {'teamBId': winnerId, 'teamBName': winnerName};
-      batch.update(next.ref, update);
-      fixes++;
-    }
+        final note = data['note'] as String? ?? '';
+        if (note.startsWith('Group')) continue;
+      }
 
-    if (fixes > 0) {
+      if (fixes == 0) {
+        _matches[tournamentId] =
+            (allSnap.docs.map(TournamentMatch.fromFirestore).toList())
+              ..sort((a, b) {
+                final r = a.round.compareTo(b.round);
+                return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
+              });
+        return;
+      }
+
       await batch.commit();
-      // Re-read into in-memory cache
-      final snap = await matchesRef.get();
-      _matches[tournamentId] =
-          (snap.docs.map(TournamentMatch.fromFirestore).toList())..sort((a, b) {
-            final r = a.round.compareTo(b.round);
-            return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
-          });
-    } else {}
+    }
+
+    final snap = await matchesRef.get();
+    _matches[tournamentId] =
+        (snap.docs.map(TournamentMatch.fromFirestore).toList())..sort((a, b) {
+          final r = a.round.compareTo(b.round);
+          return r != 0 ? r : a.matchIndex.compareTo(b.matchIndex);
+        });
   }
 
   // ── Create tournament ───────────────────────────────────────────────────
@@ -912,6 +981,8 @@ class TournamentService extends ChangeNotifier {
     int drawPoints = 1,
     int lossPoints = 0,
     String? customScoringLabel,
+    bool sameScoreAllRounds = true,
+    Map<String, dynamic>? roundScoringConfig,
   }) async {
     await _db.collection(_col).doc(tournamentId).update({
       'name': name,
@@ -933,6 +1004,8 @@ class TournamentService extends ChangeNotifier {
       'drawPoints': drawPoints,
       'lossPoints': lossPoints,
       'customScoringLabel': customScoringLabel,
+      'sameScoreAllRounds': sameScoreAllRounds,
+      'roundScoringConfig': roundScoringConfig,
     });
     await loadTournaments();
   }
@@ -1315,42 +1388,13 @@ class TournamentService extends ChangeNotifier {
       return;
     }
 
-    final round = (mData['round'] as num).toInt();
-    final matchIndex = (mData['matchIndex'] as num).toInt();
     final matchNote = mData['note'] as String? ?? '';
     final isGroupMatch = matchNote.startsWith('Group');
 
     // 3. Advance winner directly — but ONLY for knockout matches.
     //    Group-stage (RR) matches must NOT trigger knockout advancement.
     if (winnerId.isNotEmpty && !isGroupMatch) {
-      final nextRound = round + 1;
-      final nextMatchIndex = matchIndex ~/ 2;
-      final isSlotA = matchIndex.isEven;
-
-      // Fetch ALL match docs to find the next-round match
-      final allSnap = await matchesRef.get();
-
-      // Build a round→matchIndex→docId map for diagnostics
-      final docMap = <String, String>{};
-      for (final d in allSnap.docs) {
-        final dd = d.data();
-        final r = (dd['round'] as num?)?.toInt();
-        final mi = (dd['matchIndex'] as num?)?.toInt();
-        if (r != null && mi != null) docMap['R${r}M$mi'] = d.id;
-      }
-
-      final nextDoc = allSnap.docs.where((d) {
-        final dd = d.data();
-        return (dd['round'] as num?)?.toInt() == nextRound &&
-            (dd['matchIndex'] as num?)?.toInt() == nextMatchIndex;
-      }).firstOrNull;
-
-      if (nextDoc != null) {
-        final update = isSlotA
-            ? {'teamAId': winnerId, 'teamAName': winnerName}
-            : {'teamBId': winnerId, 'teamBName': winnerName};
-        await matchesRef.doc(nextDoc.id).update(update);
-      } else {}
+      await _repairAdvancements(tournamentId);
     }
 
     // 4. Update RR stats if applicable
