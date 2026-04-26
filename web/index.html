@@ -17,14 +17,82 @@
       min-height: 100vh;
     }
 
-    /* Flutter canvas — hidden behind splash initially */
+    /* Flutter canvas */
     flt-glass-pane, flutter-view {
       position: fixed !important;
       inset: 0 !important;
     }
+
+    /* Loading splash — hidden once Flutter renders */
+    #loading-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #030303;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      transition: opacity 0.4s ease;
+    }
+    #loading-splash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .splash-logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #CC1F1F, #8B0000);
+      box-shadow: 0 0 40px 8px rgba(204,31,31,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .splash-logo svg { width: 44px; height: 44px; fill: #fff; }
+    .splash-title {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .splash-title span:first-child { color: #f2f2f2; }
+    .splash-title span:last-child  { color: #FF2B2B; }
+    .splash-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255,255,255,0.12);
+      border-top-color: #FF2B2B;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
+  <!-- Visible while Flutter initialises -->
+  <div id="loading-splash">
+    <div class="splash-logo">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15H11v-2h2zm0-4H11V7h2z"/>
+      </svg>
+    </div>
+    <div class="splash-title">
+      <span>MySports</span><span>Buddies</span>
+    </div>
+    <div class="splash-spinner"></div>
+  </div>
+
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Hide the splash once Flutter signals its first frame
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('loading-splash');
+      if (splash) {
+        splash.classList.add('hidden');
+        setTimeout(function () { splash.remove(); }, 450);
+      }
+    });
+  </script>
 </body>
 </html>

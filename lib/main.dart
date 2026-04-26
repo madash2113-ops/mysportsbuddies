@@ -40,7 +40,42 @@ void main() async {
   imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100 MB
   imageCache.maximumSize = 300;
 
+  // ── Web startup optimization ──────────────────────────────────────────────
+  // On web, render the app immediately and initialize Firebase in the
+  // background so users see content without waiting for network initialization.
+  if (kIsWeb) {
+    runApp(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsService>(create: (_) => AnalyticsService()),
+          ChangeNotifierProvider(create: (_) => AuthService()),
+          ChangeNotifierProvider(create: (_) => ThemeService()),
+          ChangeNotifierProvider(create: (_) => ProfileController()),
+          ChangeNotifierProvider(create: (_) => ScoreboardService()),
+          ChangeNotifierProvider(create: (_) => GameService()),
+          ChangeNotifierProvider(create: (_) => UserService()),
+          ChangeNotifierProvider(create: (_) => FeedService()),
+          ChangeNotifierProvider(create: (_) => FollowService()),
+          ChangeNotifierProvider(create: (_) => MessageService()),
+          ChangeNotifierProvider(create: (_) => NotificationService()),
+          ChangeNotifierProvider(create: (_) => TournamentService()),
+          ChangeNotifierProvider(create: (_) => VenueService()),
+          ChangeNotifierProvider(create: (_) => GameListingService()),
+          ChangeNotifierProvider(create: (_) => StatsService()),
+          ChangeNotifierProvider(create: (_) => AdminService()),
+          ChangeNotifierProvider(create: (_) => LocationService()),
+          ChangeNotifierProvider(create: (_) => SearchService()),
+        ],
+        child: const MySportsApp(),
+      ),
+    );
+
+    unawaited(_initializeFirebaseForWeb());
+    return;
+  }
+
   // ── Firebase ──────────────────────────────────────────────────────────────
+  // Mobile / desktop still waits for Firebase before mounting the app.
   bool firebaseInitialized = false;
   String? firebaseError;
 
@@ -50,15 +85,77 @@ void main() async {
     );
     firebaseInitialized = true;
 
-    if (!kIsWeb) {
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
-      PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-        return true;
-      };
-    }
+    FlutterError.onError =
+        FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  } catch (e) {
+    firebaseError = e.toString();
+  }
 
+  if (firebaseInitialized) {
+    runApp(
+      MultiProvider(
+        providers: [
+          Provider<AnalyticsService>(create: (_) => AnalyticsService()),
+          ChangeNotifierProvider(create: (_) => AuthService()),
+          ChangeNotifierProvider(create: (_) => ThemeService()),
+          ChangeNotifierProvider(create: (_) => ProfileController()),
+          ChangeNotifierProvider(create: (_) => ScoreboardService()),
+          ChangeNotifierProvider(create: (_) => GameService()),
+          ChangeNotifierProvider(create: (_) => UserService()),
+          ChangeNotifierProvider(create: (_) => FeedService()),
+          ChangeNotifierProvider(create: (_) => FollowService()),
+          ChangeNotifierProvider(create: (_) => MessageService()),
+          ChangeNotifierProvider(create: (_) => NotificationService()),
+          ChangeNotifierProvider(create: (_) => TournamentService()),
+          ChangeNotifierProvider(create: (_) => VenueService()),
+          ChangeNotifierProvider(create: (_) => GameListingService()),
+          ChangeNotifierProvider(create: (_) => StatsService()),
+          ChangeNotifierProvider(create: (_) => AdminService()),
+          ChangeNotifierProvider(create: (_) => LocationService()),
+          ChangeNotifierProvider(create: (_) => SearchService()),
+        ],
+        child: const MySportsApp(),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_bootstrapServices());
+    });
+  } else {
+    runApp(FirebaseSetupApp(error: firebaseError));
+  }
+}
+
+Future<void> _initializeFirebaseForWeb() async {
+  bool firebaseInitialized = false;
+  String? firebaseError;
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    firebaseInitialized = true;
+  } catch (e) {
+    firebaseError = e.toString();
+    debugPrint('Firebase web initialization failed: $firebaseError');
+  }
+
+  if (firebaseInitialized) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_bootstrapServices());
+    });
+  }
+}
+
+/// Loads non-critical Firestore data and starts all real-time listeners in
+/// the background.  Runs after the first frame so the UI is interactive
+/// immediately on app open.
+Future<void> _bootstrapServices() async {
+  try {
     AnalyticsService().logEvent(AnalyticsEvents.appOpen);
 
     // Disable reCAPTCHA browser popup during development (debug builds only)
@@ -69,10 +166,11 @@ void main() async {
     }
 
     await UserService().init();
-
     _precacheUserImages();
 
-    await Future.wait([
+    // One-shot loads — fire all in parallel, don't block on them.
+    unawaited(
+      Future.wait([
       GameService().loadFromFirestore(),
       ScoreboardService().loadFromFirestore(),
       FollowService().init(),
