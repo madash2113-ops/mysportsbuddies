@@ -1906,7 +1906,7 @@ class TournamentService extends ChangeNotifier {
           'capacity': capacity,
           'pitchType': pitchType,
           'hasFloodlights': hasFloodlights,
-          'imageUrl': ?imageUrl,
+          'imageUrl': imageUrl,
         });
     await loadDetail(tournamentId);
   }
@@ -2096,7 +2096,7 @@ class TournamentService extends ChangeNotifier {
         .doc(tournamentId)
         .collection('matches')
         .doc(matchId)
-        .update({'isLive': true, 'liveStreamUrl': ?streamUrl});
+        .update({'isLive': true, 'liveStreamUrl': streamUrl});
     await loadDetail(tournamentId);
   }
 

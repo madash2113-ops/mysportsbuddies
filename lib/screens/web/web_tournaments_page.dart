@@ -16,6 +16,7 @@ import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../tournaments/enroll_team_sheet.dart';
+import 'web_multi_game_view.dart';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const _bg = Color(0xFF080808);
@@ -2961,10 +2962,33 @@ class _TournamentMatchesPane extends StatelessWidget {
 
     return Column(
       children: [
-        _SubTabBar(
-          tabs: const ['Upcoming', 'Recent', 'All'],
-          selected: matchTab,
-          onSelect: onMatchTabChanged,
+        Row(
+          children: [
+            Expanded(
+              child: _SubTabBar(
+                tabs: const ['Upcoming', 'Recent', 'All'],
+                selected: matchTab,
+                onSelect: onMatchTabChanged,
+              ),
+            ),
+            if (canManage && matches.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              Builder(
+                builder: (ctx) => _OutlineBtn(
+                  label: 'Live Match Center',
+                  icon: Icons.sports_score_rounded,
+                  onTap: () => Navigator.push(
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) => WebMultiGameView(
+                        tournamentId: tournament.id,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 14),
         Expanded(
