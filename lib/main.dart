@@ -45,6 +45,9 @@ void main() async {
   // On web, render the app immediately and initialize Firebase in the
   // background so users see content without waiting for network initialization.
   if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     _launchAppForWeb();
     return;
   }
@@ -169,10 +172,6 @@ void _launchAppForWeb() {
 /// Initialize Firebase on the web in the background.
 Future<void> _initializeFirebaseForWeb() async {
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-
     AnalyticsService().logEvent(AnalyticsEvents.appOpen);
 
     // Disable reCAPTCHA browser popup during development (debug builds only)
