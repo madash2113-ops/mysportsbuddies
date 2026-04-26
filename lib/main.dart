@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'dart:async' show unawaited;
@@ -36,6 +37,7 @@ import 'services/search_service.dart';
 // ======================================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy();
 
   // ── Image Cache Configuration ─────────────────────────────────────────────
   imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100 MB

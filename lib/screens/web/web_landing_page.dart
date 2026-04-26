@@ -266,14 +266,18 @@ class _NavBar extends StatelessWidget {
       child: Row(
         children: [
           _Logo(),
-          const SizedBox(width: 32),
-          ..._navLinks.map((l) => _NavLink(label: l)),
+          if (MediaQuery.of(context).size.width > 800) ...[
+            const SizedBox(width: 32),
+            ..._navLinks.map((l) => _NavLink(label: l)),
+          ],
           const Spacer(),
-          _OutlineBtn(
-            label: 'Log In',
-            onTap: () => Navigator.pushNamed(context, '/login'),
-          ),
-          const SizedBox(width: 10),
+          if (MediaQuery.of(context).size.width > 400) ...[
+            _OutlineBtn(
+              label: 'Log In',
+              onTap: () => Navigator.pushNamed(context, '/login'),
+            ),
+            const SizedBox(width: 10),
+          ],
           _RedBtn(label: 'Get Started', onTap: onGetStarted),
         ],
       ),
@@ -529,8 +533,9 @@ class _HeroSection extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    SizedBox(
-                      width: 500,
+                    Container(
+                      constraints: const BoxConstraints(maxWidth: 500),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
                         'Discover games, host tournaments, book venues, track live scores'
                         ' & connect with your sports community — all in one place.',
@@ -751,23 +756,41 @@ class _HowItWorksSection extends StatelessWidget {
                 'We made it ridiculously simple. No calls, no confusion — just show up and play.',
           ),
           const SizedBox(height: 56),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: steps
-                .map(
-                  (s) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: _StepCard(
-                        emoji: s.$1,
-                        step: s.$2,
-                        title: s.$3,
-                        body: s.$4,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 800) {
+                return Column(
+                  children: steps
+                      .map((s) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _StepCard(
+                                emoji: s.$1,
+                                step: s.$2,
+                                title: s.$3,
+                                body: s.$4),
+                          ))
+                      .toList(),
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: steps
+                    .map(
+                      (s) => Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: _StepCard(
+                            emoji: s.$1,
+                            step: s.$2,
+                            title: s.$3,
+                            body: s.$4,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                )
-                .toList(),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),

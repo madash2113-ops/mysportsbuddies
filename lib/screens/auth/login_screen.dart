@@ -496,7 +496,7 @@ class _LoginScreenState extends State<LoginScreen>
                         GestureDetector(
                           onTap: () => Navigator.pushReplacementNamed(
                             context,
-                            '/web-landing',
+                            '/',
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,

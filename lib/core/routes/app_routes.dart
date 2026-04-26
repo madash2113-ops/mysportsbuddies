@@ -52,8 +52,7 @@ class AppRoutes {
     '/otp': (context) => const OtpScreen(),
     '/complete-profile': (context) => const CompleteProfileScreen(),
 
-    // Web landing (unauthenticated entry point on web)
-    '/web-landing': (context) => const WebLandingPage(),
+    // Web landing is handled by '/' on the web
 
     // Player Home
     '/home': (context) => const HomeScreen(),

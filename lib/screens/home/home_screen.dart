@@ -156,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted || AuthService().isSignedIn) return;
     Navigator.pushNamedAndRemoveUntil(
       context,
-      kIsWeb ? '/web-landing' : '/login',
+      kIsWeb ? '/' : '/login',
       (_) => false,
     );
   }
@@ -269,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (!mounted) return;
         Navigator.pushNamedAndRemoveUntil(
           context,
-          '/web-landing',
+          '/',
           (_) => false,
         );
       });

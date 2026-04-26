@@ -543,7 +543,7 @@ class _RightPanel extends StatelessWidget {
                     final nav = Navigator.of(context, rootNavigator: true);
                     final confirmed = await showDialog<bool>(
                       context: context,
-                      builder: (_) => AlertDialog(
+                      builder: (dialogContext) => AlertDialog(
                         backgroundColor: _kSurface,
                         title: const Text(
                           'Sign Out',
@@ -555,14 +555,14 @@ class _RightPanel extends StatelessWidget {
                         ),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(context, false),
+                            onPressed: () => Navigator.pop(dialogContext, false),
                             child: const Text(
                               'Cancel',
                               style: TextStyle(color: _kMuted),
                             ),
                           ),
                           TextButton(
-                            onPressed: () => Navigator.pop(context, true),
+                            onPressed: () => Navigator.pop(dialogContext, true),
                             child: const Text(
                               'Sign Out',
                               style: TextStyle(color: _kRed),
@@ -572,9 +572,11 @@ class _RightPanel extends StatelessWidget {
                       ),
                     );
                     if (confirmed == true) {
+                      final nav = Navigator.of(context, rootNavigator: true);
                       await AuthService().signOut();
-                      if (!nav.mounted) return;
-                      nav.pushNamedAndRemoveUntil('/web-landing', (_) => false);
+                      if (context.mounted) {
+                        nav.pushNamedAndRemoveUntil('/', (_) => false);
+                      }
                     }
                   },
                 ),
