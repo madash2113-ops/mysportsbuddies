@@ -457,6 +457,10 @@ class _StatusCardState extends State<_StatusCard> {
     final daysUntil   = startOnly.difference(todayOnly).inDays;
     final dateArrived = isToday || isPast; // start date has come
 
+    final end          = t.endDate;
+    final endOnly      = end != null ? DateTime(end.year, end.month, end.day) : null;
+    final endDatePassed = endOnly != null && endOnly.isBefore(todayOnly);
+
     // Date changed to future while status is ongoing → prompt to reset
     final shouldSuggestReset =
         isFuture && status == TournamentStatus.ongoing;
@@ -544,7 +548,30 @@ class _StatusCardState extends State<_StatusCard> {
           const SizedBox(height: 10),
         ],
 
-        if (status == TournamentStatus.open && dateArrived && teams.isNotEmpty) ...[
+        // End date expired warning
+        if (endDatePassed && status == TournamentStatus.open) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.event_busy_outlined, color: Colors.red, size: 16),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Tournament end date has passed. Cannot start.',
+                  style: TextStyle(color: Colors.red, fontSize: 12, height: 1.4),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        if (status == TournamentStatus.open && dateArrived && teams.isNotEmpty && !endDatePassed) ...[
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -585,8 +612,8 @@ class _StatusCardState extends State<_StatusCard> {
                 onTap: () => _setStatus(TournamentStatus.open),
               ),
 
-            // Start Tournament: show when open + date arrived + has teams
-            if (status == TournamentStatus.open && dateArrived && teams.length >= 2)
+            // Start Tournament: blocked if end date has already passed
+            if (status == TournamentStatus.open && dateArrived && teams.length >= 2 && !endDatePassed)
               _ActionBtn(
                 label: 'Start Tournament',
                 color: Colors.green,
@@ -863,7 +890,11 @@ class _TeamsSheetState extends State<_TeamsSheet> {
   @override
   Widget build(BuildContext context) {
     final teams  = TournamentService().teamsFor(widget.tournament.id);
-    final canRem = widget.isHost && widget.tournament.status == TournamentStatus.open;
+    // Admins can add/remove teams while open or ongoing; block once completed/cancelled
+    final canModifyTeams = widget.isHost &&
+        widget.tournament.status != TournamentStatus.completed &&
+        widget.tournament.status != TournamentStatus.cancelled;
+    final canRem = canModifyTeams;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -878,7 +909,7 @@ class _TeamsSheetState extends State<_TeamsSheet> {
                 style: const TextStyle(color: Colors.white,
                     fontSize: 16, fontWeight: FontWeight.w700)),
             const Spacer(),
-            if (widget.isHost)
+            if (canModifyTeams)
               TextButton.icon(
                 onPressed: () {
                   Navigator.pop(context); // close teams sheet

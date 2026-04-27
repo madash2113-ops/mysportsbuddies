@@ -2568,7 +2568,7 @@ class _TournamentCardState extends State<_TournamentCard> {
   (Color, String) _statusStyle(TournamentStatus s) {
     switch (s) {
       case TournamentStatus.open:      return (Colors.green,  'OPEN');
-      case TournamentStatus.ongoing:   return (AppColors.primary, 'LIVE');
+      case TournamentStatus.ongoing:   return (AppColors.primary, 'ONGOING');
       case TournamentStatus.completed: return (const Color(0xFF42A5F5), 'ENDED');
       case TournamentStatus.cancelled: return (Colors.red,    'CANCELLED');
     }

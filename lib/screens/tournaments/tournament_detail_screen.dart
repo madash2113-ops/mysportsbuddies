@@ -203,6 +203,29 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
   // ── Generate schedule ─────────────────────────────────────────────────────
 
   Future<void> _generateSchedule() async {
+    final teamCount = TournamentService().teamsFor(widget.tournamentId).length;
+    if (teamCount == 0) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text('No Teams',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          content: const Text(
+              'Add teams to this tournament before generating a schedule.',
+              style: TextStyle(color: Colors.white60, fontSize: 14)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('OK', style: TextStyle(color: AppColors.primary)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     setState(() => _generatingSchedule = true);
     try {
       await TournamentService().generateSchedule(widget.tournamentId);
@@ -210,7 +233,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       _snack('Schedule generated!');
     } catch (e) {
       if (!mounted) return;
-      _snack(e.toString(), Colors.red);
+      _snack(e.toString().replaceFirst('Exception: ', ''), Colors.red);
     } finally {
       if (mounted) setState(() => _generatingSchedule = false);
     }
@@ -581,15 +604,34 @@ class _MatchesTab extends StatelessWidget {
     final myTeam  = svc.myTeamIn(tournamentId);
     final uid     = UserService().userId ?? '';
 
-    // If no schedule yet
+    // Enroll / private-locked banner — shown regardless of schedule state
+    Widget? enrollBanner;
+    if (tournament.status == TournamentStatus.open &&
+        !svc.myEnrolledIds.contains(tournamentId) && uid.isNotEmpty) {
+      if (tournament.isPrivate &&
+          !TournamentService().isHost(tournamentId) &&
+          joinCode != tournament.joinCode) {
+        enrollBanner = const _PrivateLockedBanner();
+      } else {
+        enrollBanner = _EnrollBanner(tournamentId: tournamentId, tournament: tournament);
+      }
+    }
+
+    // If no schedule yet, still show enroll banner above the empty-state
     if (!tournament.bracketGenerated) {
-      return _NoScheduleState(
-        canManage: canManage,
-        format:    tournament.format,
-        teamCount: svc.teamsFor(tournamentId).length,
-        sport:     tournament.sport,
-        onGenerate: onGenerate,
-        generating: generating,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ?enrollBanner,
+          Expanded(child: _NoScheduleState(
+            canManage: canManage,
+            format:    tournament.format,
+            teamCount: svc.teamsFor(tournamentId).length,
+            sport:     tournament.sport,
+            onGenerate: onGenerate,
+            generating: generating,
+          )),
+        ],
       );
     }
 
@@ -599,15 +641,7 @@ class _MatchesTab extends StatelessWidget {
     return DefaultTabController(
       length: 3,
       child: Column(children: [
-        // Enroll / private-locked banner
-        if (tournament.status == TournamentStatus.open &&
-            !svc.myEnrolledIds.contains(tournamentId) && uid.isNotEmpty)
-          if (tournament.isPrivate &&
-              !TournamentService().isHost(tournamentId) &&
-              joinCode != tournament.joinCode)
-            _PrivateLockedBanner()
-          else
-            _EnrollBanner(tournamentId: tournamentId, tournament: tournament),
+        ?enrollBanner,
 
         Container(
           color: const Color(0xFF121212),

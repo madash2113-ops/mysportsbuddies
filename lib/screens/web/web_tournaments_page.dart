@@ -2087,6 +2087,21 @@ class _WebTournamentDetailDialogState
   }
 
   Future<void> _generateSchedule() async {
+    final teamCount = TournamentService().teamsFor(widget.tournamentId).length;
+    if (teamCount == 0) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF111111),
+            title: Text('No Teams', style: _t(size: 16, weight: FontWeight.w900)),
+            content: Text('Add teams to this tournament before generating a schedule.', style: _t(size: 13, color: _m1)),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('OK', style: _t(size: 13, color: _red)))],
+          ),
+        );
+      }
+      return;
+    }
     setState(() => _generatingSchedule = true);
     try {
       await TournamentService().generateSchedule(widget.tournamentId);
@@ -5413,22 +5428,60 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
     }
   }
 
-  Future<void> _startTournament() => _confirm(
-    title: 'Start Tournament?',
-    message: 'This marks the tournament as ongoing.',
-    action: 'Start',
-    run: () => TournamentService().updateTournamentStatus(
-      widget.tournament.id,
-      TournamentStatus.ongoing,
-    ),
-  );
+  Future<void> _startTournament() async {
+    final end = widget.tournament.endDate;
+    if (end != null) {
+      final now       = DateTime.now();
+      final todayOnly = DateTime(now.year, now.month, now.day);
+      final endOnly   = DateTime(end.year, end.month, end.day);
+      if (endOnly.isBefore(todayOnly)) {
+        if (mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (_) => AlertDialog(
+              backgroundColor: const Color(0xFF111111),
+              title: Text('Cannot Start', style: _t(size: 16, weight: FontWeight.w900)),
+              content: Text('Tournament end date has passed.', style: _t(size: 13, color: _m1)),
+              actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('OK', style: _t(size: 13, color: _red)))],
+            ),
+          );
+        }
+        return;
+      }
+    }
+    return _confirm(
+      title: 'Start Tournament?',
+      message: 'This marks the tournament as ongoing.',
+      action: 'Start',
+      run: () => TournamentService().updateTournamentStatus(
+        widget.tournament.id,
+        TournamentStatus.ongoing,
+      ),
+    );
+  }
 
-  Future<void> _generateSchedule() => _confirm(
-    title: 'Generate Schedule?',
-    message: 'This will generate tournament matches based on registered teams.',
-    action: 'Generate',
-    run: () => TournamentService().generateSchedule(widget.tournament.id),
-  );
+  Future<void> _generateSchedule() async {
+    if (widget.teams.isEmpty) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF111111),
+            title: Text('No Teams', style: _t(size: 16, weight: FontWeight.w900)),
+            content: Text('Add teams to this tournament before generating a schedule.', style: _t(size: 13, color: _m1)),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('OK', style: _t(size: 13, color: _red)))],
+          ),
+        );
+      }
+      return;
+    }
+    return _confirm(
+      title: 'Generate Schedule?',
+      message: 'This will generate tournament matches based on registered teams.',
+      action: 'Generate',
+      run: () => TournamentService().generateSchedule(widget.tournament.id),
+    );
+  }
 
   Future<void> _resetTeams() => _confirm(
     title: 'Reset Teams & Matches?',
@@ -5514,10 +5567,11 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _RedBtn(
-                    label: _busy ? 'Working...' : 'Start Tournament',
-                    onTap: _busy ? null : _startTournament,
-                  ),
+                  if (widget.tournament.status == TournamentStatus.open)
+                    _RedBtn(
+                      label: _busy ? 'Working...' : 'Start Tournament',
+                      onTap: _busy ? null : _startTournament,
+                    ),
                   _OutlineBtn(
                     label: 'Generate Schedule',
                     icon: Icons.auto_awesome_rounded,
@@ -8043,6 +8097,9 @@ class _WebTeamsManagerDialog extends StatelessWidget {
             listenable: TournamentService(),
             builder: (context, _) {
               final teams = TournamentService().teamsFor(tournament.id);
+              final canModifyTeams =
+                  tournament.status != TournamentStatus.completed &&
+                  tournament.status != TournamentStatus.cancelled;
               return Column(
                 children: [
                   Padding(
@@ -8078,10 +8135,11 @@ class _WebTeamsManagerDialog extends StatelessWidget {
                             ],
                           ),
                         ),
-                        _RedBtn(
-                          label: '+ Add Team',
-                          onTap: () => _addTeam(context),
-                        ),
+                        if (canModifyTeams)
+                          _RedBtn(
+                            label: '+ Add Team',
+                            onTap: () => _addTeam(context),
+                          ),
                         const SizedBox(width: 10),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
@@ -8151,11 +8209,12 @@ class _WebTeamsManagerDialog extends StatelessWidget {
                                         ],
                                       ),
                                     ),
-                                    _OutlineBtn(
-                                      label: 'Remove',
-                                      icon: Icons.delete_outline_rounded,
-                                      onTap: () => _removeTeam(context, team),
-                                    ),
+                                    if (canModifyTeams)
+                                      _OutlineBtn(
+                                        label: 'Remove',
+                                        icon: Icons.delete_outline_rounded,
+                                        onTap: () => _removeTeam(context, team),
+                                      ),
                                   ],
                                 ),
                               );
