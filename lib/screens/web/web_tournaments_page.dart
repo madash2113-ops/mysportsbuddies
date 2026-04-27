@@ -2052,22 +2052,51 @@ class _WebTournamentDetailDialogState
 
   void _snack(String message, [Color color = Colors.green]) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: color,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      // Fallback: show an inline alert when inside a dialog context
+      showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFF111111),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Text(
+            color == Colors.green ? 'Done' : 'Error',
+            style: _t(size: 16, weight: FontWeight.w900),
+          ),
+          content: Text(message, style: _t(size: 13, color: _m1)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('OK', style: _t(size: 13, color: _red)),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _generateSchedule() async {
     setState(() => _generatingSchedule = true);
     try {
       await TournamentService().generateSchedule(widget.tournamentId);
+      // Force a reload so bracketGenerated + matches are in-memory
+      // immediately rather than waiting only for the Firestore listener.
+      await TournamentService().loadDetail(widget.tournamentId);
+      await TournamentService().loadTournaments();
       if (mounted) _snack('Schedule generated!');
     } catch (e) {
-      if (mounted) _snack(e.toString(), Colors.red);
+      if (mounted) _snack(e.toString().replaceFirst('Exception: ', ''), Colors.red);
     } finally {
       if (mounted) setState(() => _generatingSchedule = false);
     }
@@ -5353,6 +5382,32 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
     try {
       await run();
       if (closesDialog && mounted) widget.onCloseDialog();
+    } catch (e) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF111111),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: Text(
+              'Error',
+              style: _t(size: 16, weight: FontWeight.w900),
+            ),
+            content: Text(
+              e.toString().replaceFirst('Exception: ', ''),
+              style: _t(size: 13, color: _m1),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK', style: _t(size: 13, color: _red)),
+              ),
+            ],
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
