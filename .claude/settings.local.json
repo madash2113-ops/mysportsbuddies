@@ -26,7 +26,9 @@
       "Bash(grep -A6 \"name: cloud_firestore$\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/pubspec.lock)",
       "Bash(grep -A6 \"name: firebase_core$\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/pubspec.lock)",
       "Bash(grep -A6 \"name: firebase_core_web$\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/pubspec.lock)",
-      "Bash(grep -A6 \"name: cloud_firestore_web$\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/pubspec.lock)"
+      "Bash(grep -A6 \"name: cloud_firestore_web$\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/pubspec.lock)",
+      "Bash(pod install *)",
+      "Bash(wait)"
     ]
   },
   "enableAllProjectMcpServers": true,
