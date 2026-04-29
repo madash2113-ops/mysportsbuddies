@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,20 +71,6 @@ class UserService extends ChangeNotifier {
 
   // ── Numeric ID generation ─────────────────────────────────────────────────
 
-  static const _counterDoc = 'config/numericIdCounter';
-
-  /// Atomically claims the next sequential 5-digit player ID (10000–99999).
-  /// ID 1 is reserved for the owner via [kReservedNumericIds].
-  Future<int> _generateUniqueNumericId() async {
-    final counterRef = _db.doc(_counterDoc);
-    return _db.runTransaction<int>((tx) async {
-      final snap = await tx.get(counterRef);
-      final next = (snap.data()?['next'] as int?) ?? 10000; // 5-digit start
-      tx.set(counterRef, {'next': next + 1}, SetOptions(merge: true));
-      return next;
-    });
-  }
-
   // ── Init ─────────────────────────────────────────────────────────────────
 
   /// Call once after Firebase.initializeApp().
@@ -110,16 +97,20 @@ class UserService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// If the current user has no numericId yet, generate a unique one and
-  /// persist it to Firestore. If a reserved ID is configured in
-  /// [kReservedNumericIds] for this UID, that ID is used (and enforced even
-  /// if a different ID was previously assigned).
+  /// Ensures the current user has a numeric app ID.
+  ///
+  /// For reserved owners the ID is forced via a direct Firestore write (no
+  /// function call needed).  For everyone else the `ensureNumericId` Cloud
+  /// Function is called — it runs with admin privileges so Firestore rules
+  /// never block it, and it is idempotent (returns the existing ID if one is
+  /// already assigned).  Errors are logged instead of silently swallowed.
   Future<void> _ensureNumericId() async {
     if (_userId == null) return;
-    try {
-      final reserved = kReservedNumericIds[_userId];
-      // If a reserved ID is configured and current ID doesn't match, force it
-      if (reserved != null && _profile?.numericId != reserved) {
+
+    // ── Reserved owner IDs ───────────────────────────────────────────────────
+    final reserved = kReservedNumericIds[_userId];
+    if (reserved != null && _profile?.numericId != reserved) {
+      try {
         await _db.collection(_col).doc(_userId).set({
           'numericId': reserved,
           'numericIdStr': reserved.toString(),
@@ -127,20 +118,27 @@ class UserService extends ChangeNotifier {
         final base =
             _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
         _profile = base.copyWith(numericId: reserved);
-        return;
+      } catch (e) {
+        debugPrint('UserService: failed to write reserved numericId — $e');
       }
-      // Otherwise generate a new ID only if one isn't already assigned
-      if (_profile?.numericId != null) return;
-      final newId = await _generateUniqueNumericId();
-      await _db.collection(_col).doc(_userId).set({
-        'numericId': newId,
-        'numericIdStr': newId.toString(),
-      }, SetOptions(merge: true));
+      return;
+    }
+
+    // Already has an ID — nothing to do
+    if (_profile?.numericId != null) return;
+
+    // ── Call Cloud Function (works on iOS, Android, Web) ────────────────────
+    try {
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('ensureNumericId');
+      final result = await callable.call<Map<String, dynamic>>();
+      final newId = (result.data['numericId'] as num).toInt();
       final base =
           _profile ?? UserProfile(id: _userId!, updatedAt: DateTime.now());
       _profile = base.copyWith(numericId: newId);
+      notifyListeners();
     } catch (e) {
-      /* ignored */
+      debugPrint('UserService: ensureNumericId function failed — $e');
     }
   }
 

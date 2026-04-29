@@ -2196,15 +2196,17 @@ class _StatsTab extends StatelessWidget {
         stats.putIfAbsent(m.teamAId!, () => _TeamStat(m.teamAName!));
         stats[m.teamAId!]!.goalsFor += m.scoreA ?? 0;
         stats[m.teamAId!]!.goalsAgainst += m.scoreB ?? 0;
-        if (m.result == TournamentMatchResult.teamAWin)
+        if (m.result == TournamentMatchResult.teamAWin) {
           stats[m.teamAId!]!.wins++;
+        }
       }
       if (m.teamBId != null && m.teamBName != null) {
         stats.putIfAbsent(m.teamBId!, () => _TeamStat(m.teamBName!));
         stats[m.teamBId!]!.goalsFor += m.scoreB ?? 0;
         stats[m.teamBId!]!.goalsAgainst += m.scoreA ?? 0;
-        if (m.result == TournamentMatchResult.teamBWin)
+        if (m.result == TournamentMatchResult.teamBWin) {
           stats[m.teamBId!]!.wins++;
+        }
       }
     }
 

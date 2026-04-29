@@ -23,6 +23,7 @@ dependencies:
   firebase_auth: ^6.0.0
   cloud_firestore: ^6.0.0
   firebase_storage: ^13.0.0
+  cloud_functions: ^6.2.0
 
   # HTTP for address autocomplete (Nominatim / OpenStreetMap — free, no API key)
   http: ^1.2.2
