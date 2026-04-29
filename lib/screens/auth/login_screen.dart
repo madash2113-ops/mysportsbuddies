@@ -1151,37 +1151,6 @@ class _LeftPanel extends StatelessWidget {
                         ),
                       ),
 
-                      SizedBox(height: sectionGap),
-
-                      // Made-in-India badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: .04),
-                          borderRadius: BorderRadius.circular(99),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: .08),
-                          ),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('🇮🇳', style: TextStyle(fontSize: 13)),
-                            SizedBox(width: 8),
-                            Text(
-                              'Made in India',
-                              style: TextStyle(
-                                color: _m1,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 );

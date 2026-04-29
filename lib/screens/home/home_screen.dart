@@ -33,6 +33,8 @@ import '../tournaments/tournaments_list_screen.dart';
 import '../common/app_drawer.dart';
 import '../games/game_detail_screen.dart';
 import '../settings/settings_screen.dart';
+import '../admin/admin_panel_screen.dart';
+import '../../services/admin_service.dart';
 
 import '../../core/models/tournament.dart';
 import '../../layout/responsive_layout.dart';
@@ -846,6 +848,35 @@ class _ProfileTabState extends State<_ProfileTab> {
           ),
 
           const SizedBox(height: 16),
+
+          // ── Admin Panel (owner only) ──────────────────────────────
+          if (AdminService().isCurrentUserAdmin) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                icon: Icon(Icons.admin_panel_settings_rounded,
+                    color: primary, size: 18),
+                label: Text(
+                  'Admin Panel',
+                  style:
+                      TextStyle(color: primary, fontWeight: FontWeight.w700),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AdminPanelScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // ── Sign Out button ───────────────────────────────────────
           SizedBox(
