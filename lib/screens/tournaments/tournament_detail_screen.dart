@@ -33,12 +33,18 @@ class TournamentDetailScreen extends StatefulWidget {
   /// Deep-link join code — when present and correct, grants access to a
   /// private tournament and auto-opens the enroll sheet.
   final String? joinCode;
+
+  /// When true, automatically opens the registration sheet after the screen
+  /// loads (used when arriving via a share link).
+  final bool autoEnroll;
+
   const TournamentDetailScreen({
     super.key,
     required this.tournamentId,
     this.openMatchId,
     this.openMatchTabIndex = 0,
     this.joinCode,
+    this.autoEnroll = false,
   });
 
   @override
@@ -56,14 +62,20 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
     super.initState();
     TournamentService().loadDetail(widget.tournamentId).then((_) {
       if (!mounted) return;
-      // Auto-open enroll sheet when arriving via valid private invite link.
       final t = TournamentService().tournaments
           .where((t) => t.id == widget.tournamentId)
           .firstOrNull;
-      if (t != null &&
-          t.isPrivate &&
+      if (t == null) return;
+
+      // Auto-open enroll sheet when arriving via valid private invite link.
+      final isValidPrivateInvite = t.isPrivate &&
           widget.joinCode != null &&
-          widget.joinCode == t.joinCode) {
+          widget.joinCode == t.joinCode;
+
+      // Auto-open register sheet when arriving via any share link.
+      final shouldAutoEnroll = widget.autoEnroll || isValidPrivateInvite;
+
+      if (shouldAutoEnroll) {
         final uid = UserService().userId ?? '';
         final alreadyEnrolled = TournamentService().isRegisteredForTournament(
           widget.tournamentId,
@@ -71,18 +83,7 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
         if (uid.isNotEmpty && !alreadyEnrolled) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => EnrollTeamSheet(
-                tournamentId: t.id,
-                entryFee: t.entryFee,
-                serviceFee: t.serviceFee,
-                playersPerTeam: t.playersPerTeam,
-                sport: t.sport,
-              ),
-            );
+            _showRegisterChoice(t);
           });
         }
       }
@@ -111,6 +112,101 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       tournamentId: t.id,
       tournamentName: t.name,
       joinCode: t.isPrivate ? t.joinCode : null,
+    );
+  }
+
+  void _showRegisterChoice(Tournament t) {
+    if (!t.allowSoloRegistration) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => EnrollTeamSheet(
+          tournamentId: t.id,
+          entryFee: t.entryFee,
+          serviceFee: t.serviceFee,
+          playersPerTeam: t.playersPerTeam,
+          sport: t.sport,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141414),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Register',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              t.name,
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _ChoiceBtn(
+                    label: 'Enroll Team',
+                    icon: Icons.groups_rounded,
+                    color: AppColors.primary,
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => EnrollTeamSheet(
+                          tournamentId: t.id,
+                          entryFee: t.entryFee,
+                          serviceFee: t.serviceFee,
+                          playersPerTeam: t.playersPerTeam,
+                          sport: t.sport,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _ChoiceBtn(
+                    label: 'Join Solo',
+                    icon: Icons.person_add_rounded,
+                    color: const Color(0xFF6366F1),
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      SoloRegisterSheet.show(
+                        context,
+                        tournamentId: t.id,
+                        tournamentName: t.name,
+                        sport: t.sport,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -707,31 +803,11 @@ class _MatchesTab extends StatelessWidget {
     final svc = TournamentService();
     final matches = svc.matchesFor(tournamentId);
     final myTeam = svc.myTeamIn(tournamentId);
-    final uid = UserService().userId ?? '';
 
-    // Enroll / private-locked banner — shown regardless of schedule state
-    Widget? enrollBanner;
-    if (tournament.status == TournamentStatus.open &&
-        !svc.myEnrolledIds.contains(tournamentId) &&
-        uid.isNotEmpty) {
-      if (tournament.isPrivate &&
-          !TournamentService().isHost(tournamentId) &&
-          joinCode != tournament.joinCode) {
-        enrollBanner = const _PrivateLockedBanner();
-      } else {
-        enrollBanner = _EnrollBanner(
-          tournamentId: tournamentId,
-          tournament: tournament,
-        );
-      }
-    }
-
-    // If no schedule yet, still show enroll banner above the empty-state
     if (!tournament.bracketGenerated) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ?enrollBanner,
           Expanded(
             child: _NoScheduleState(
               canManage: canManage,
@@ -753,8 +829,6 @@ class _MatchesTab extends StatelessWidget {
       length: 3,
       child: Column(
         children: [
-          ?enrollBanner,
-
           Container(
             color: const Color(0xFF121212),
             child: const TabBar(
@@ -804,264 +878,6 @@ class _MatchesTab extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PrivateLockedBanner extends StatelessWidget {
-  // ignore: unused_element
-  const _PrivateLockedBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(8),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.lock_rounded, color: Colors.white38, size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'This is a private tournament. Ask the host for an invite link.',
-              style: TextStyle(color: Colors.white54, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EnrollBanner extends StatelessWidget {
-  final String tournamentId;
-  final Tournament tournament;
-  const _EnrollBanner({required this.tournamentId, required this.tournament});
-
-  void _openEnroll(BuildContext context) => showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => EnrollTeamSheet(
-      tournamentId: tournament.id,
-      entryFee: tournament.entryFee,
-      serviceFee: tournament.serviceFee,
-      playersPerTeam: tournament.playersPerTeam,
-      sport: tournament.sport,
-    ),
-  );
-
-  void _openSolo(BuildContext context) => SoloRegisterSheet.show(
-    context,
-    tournamentId: tournament.id,
-    tournamentName: tournament.name,
-    sport: tournament.sport,
-  );
-
-  void _showRegisterChoice(BuildContext context) {
-    final svc = TournamentService();
-    if (svc.isRegisteredForTournament(tournament.id)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You are already registered for this tournament.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    if (!tournament.allowSoloRegistration) {
-      _openEnroll(context);
-      return;
-    }
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141414),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Register',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              tournament.name,
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _BannerBtn(
-                    label: 'Enroll Team',
-                    icon: Icons.groups_rounded,
-                    color: AppColors.primary,
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _openEnroll(context);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _BannerBtn(
-                    label: 'Join Solo',
-                    icon: Icons.person_add_rounded,
-                    color: const Color(0xFF6366F1),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _openSolo(context);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isSolo = TournamentService().isSoloRegistered(tournamentId);
-
-    // ── Already solo-registered status banner ─────────────────────────────
-    if (isSolo) {
-      return Container(
-        width: double.infinity,
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF6366F1).withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFF6366F1).withValues(alpha: .35),
-          ),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.how_to_reg_rounded, color: Color(0xFF6366F1), size: 20),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'You\'re registered as a solo player. The host will assign you to a team.',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ── Register banner ───────────────────────────────────────────────────
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withValues(alpha: .12),
-            AppColors.primary.withValues(alpha: .04),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: .3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.sports_outlined, color: AppColors.primary, size: 20),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Register your team to compete!',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-            onPressed: () => _showRegisterChoice(context),
-            child: const Text(
-              'Register',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BannerBtn extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  const _BannerBtn({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 9),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: .4)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 15),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _NoScheduleState extends StatelessWidget {
@@ -5211,6 +5027,48 @@ class _StatBox extends StatelessWidget {
           ),
         ),
       ],
+    ),
+  );
+}
+
+class _ChoiceBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ChoiceBtn({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: .4)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 15),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

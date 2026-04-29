@@ -8,8 +8,13 @@ import '../screens/tournaments/tournament_detail_screen.dart';
 class PendingTournamentLink {
   final String tournamentId;
   final String? joinCode;
+  final bool autoEnroll;
 
-  const PendingTournamentLink({required this.tournamentId, this.joinCode});
+  const PendingTournamentLink({
+    required this.tournamentId,
+    this.joinCode,
+    this.autoEnroll = true,
+  });
 }
 
 class TournamentLinkService {
@@ -85,6 +90,7 @@ class TournamentLinkService {
         builder: (_) => TournamentDetailScreen(
           tournamentId: link.tournamentId,
           joinCode: link.joinCode,
+          autoEnroll: link.autoEnroll,
         ),
       ),
       (route) => route.settings.name == '/home',
@@ -100,6 +106,7 @@ class TournamentLinkService {
         builder: (_) => TournamentDetailScreen(
           tournamentId: pending.tournamentId,
           joinCode: pending.joinCode,
+          autoEnroll: pending.autoEnroll,
         ),
       ),
       (_) => false,
