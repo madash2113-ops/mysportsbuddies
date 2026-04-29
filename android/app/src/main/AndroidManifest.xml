@@ -39,6 +39,15 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="msb" android:host="tournament"/>
             </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="mysportsbuddies-4d077.web.app"
+                    android:pathPrefix="/tournament"/>
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>

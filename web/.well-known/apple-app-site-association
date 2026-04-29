@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "46NZV68QBA.com.mysportsbuddies.app",
+        "paths": ["/tournament/*"]
+      }
+    ]
+  }
+}

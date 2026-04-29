@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/game_listing.dart';
 import '../../core/models/tournament.dart';
 import '../../core/models/venue_model.dart';
+import '../../services/tournament_link_service.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _bg = Color(0xFF030303);
@@ -41,11 +42,7 @@ class _Glass extends StatelessWidget {
   final Widget child;
   final double radius;
   final EdgeInsets? padding;
-  const _Glass({
-    required this.child,
-    this.radius = 16,
-    this.padding,
-  });
+  const _Glass({required this.child, this.radius = 16, this.padding});
 
   @override
   Widget build(BuildContext context) {
@@ -166,6 +163,12 @@ class _WebLandingPageState extends State<WebLandingPage> {
   @override
   void initState() {
     super.initState();
+    final link = TournamentLinkService.parse(Uri.base);
+    if (link != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) TournamentLinkService.openFromLink(context, link);
+      });
+    }
     _scroll.addListener(() {
       final op = (_scroll.offset / 60).clamp(0.0, 1.0);
       if ((op - _navOpacity).abs() > 0.01) setState(() => _navOpacity = op);

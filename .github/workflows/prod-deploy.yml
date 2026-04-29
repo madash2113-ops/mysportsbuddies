@@ -85,12 +85,77 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS (no codesign)
+      # ── Signed IPA (requires secrets to be configured in GitHub) ──────────
+      # Required secrets:
+      #   IOS_CERTIFICATE_P12     — base64-encoded Distribution .p12 file
+      #   IOS_CERTIFICATE_PASSWORD — password for the .p12
+      #   IOS_PROVISIONING_PROFILE — base64-encoded App Store .mobileprovision
+      #   APP_STORE_CONNECT_KEY_ID        — App Store Connect API key ID
+      #   APP_STORE_CONNECT_ISSUER_ID     — App Store Connect issuer ID
+      #   APP_STORE_CONNECT_PRIVATE_KEY   — App Store Connect API private key (.p8 contents)
+      - name: Import signing certificate
+        if: ${{ env.IOS_CERTIFICATE_P12 != '' }}
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          security create-keychain -p "" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "" $KEYCHAIN_PATH
+          echo "$IOS_CERTIFICATE_P12" | base64 --decode > $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -P "$IOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Install provisioning profile
+        if: ${{ env.IOS_PROVISIONING_PROFILE != '' }}
+        env:
+          IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          PP_PATH=$RUNNER_TEMP/profile.mobileprovision
+          echo "$IOS_PROVISIONING_PROFILE" | base64 --decode > $PP_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Build IPA
+        if: ${{ env.IOS_CERTIFICATE_P12 != '' }}
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+        run: |
+          flutter build ipa --release \
+            --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload IPA to App Store Connect
+        if: ${{ env.APP_STORE_CONNECT_KEY_ID != '' }}
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" > $RUNNER_TEMP/AuthKey.p8
+          xcrun altool --upload-app \
+            --type ios \
+            --file "build/ios/ipa/mysportsbuddies.ipa" \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+            --privateKey "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Build iOS (no codesign — fallback when secrets not configured)
+        if: ${{ env.IOS_CERTIFICATE_P12 == '' }}
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
         run: flutter build ios --no-codesign
 
-      # TODO: When signing is configured, use:
-      # - name: Build iOS IPA
-      #   run: flutter build ipa --release
+      - name: Upload IPA artifact
+        if: ${{ env.IOS_CERTIFICATE_P12 != '' }}
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-ipa-${{ needs.build-production-android.outputs.version }}
+          path: build/ios/ipa/*.ipa
+          retention-days: 90
 
   create-release:
     name: Create GitHub Release

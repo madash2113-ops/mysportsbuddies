@@ -81,6 +81,10 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
   // ── Privacy ────────────────────────────────────────────────────────────────
   bool _isPrivate = false;
 
+  // ── Solo Registration ──────────────────────────────────────────────────────
+  bool _allowSoloRegistration = false;
+  int  _soloRegistrantsPerTeam = 5;
+
   // ── Banner ─────────────────────────────────────────────────────────────────
   File?   _bannerImage;
   String? _existingBannerUrl;
@@ -117,7 +121,11 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
       _noTeamLimit       = t.maxTeams == 0;
       _playersPerTeam    = t.playersPerTeam == 0 ? _sportDefaultPlayers(t.sport) : t.playersPerTeam;
       _noPlayerLimit     = t.playersPerTeam == 0;
-      _freeEntry         = t.entryFee == 0;
+      _freeEntry                = t.entryFee == 0;
+      _allowSoloRegistration    = t.allowSoloRegistration;
+      _soloRegistrantsPerTeam   = t.soloRegistrantsPerTeam > 0
+          ? t.soloRegistrantsPerTeam
+          : (t.playersPerTeam > 0 ? t.playersPerTeam : 5);
       if (t.entryFee > 0) _entryFeeCtrl.text = t.entryFee.toStringAsFixed(0);
       _prizeCtrl.text    = t.prizePool ?? '';
       _rulesCtrl.text    = t.rules ?? '';
@@ -339,6 +347,8 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
           lossPoints:     _lossPoints,
           customScoringLabel: _customScoringCtrl.text.trim().isEmpty
               ? null : _customScoringCtrl.text.trim(),
+          allowSoloRegistration:  _allowSoloRegistration,
+          soloRegistrantsPerTeam: _allowSoloRegistration ? _soloRegistrantsPerTeam : 0,
         );
         // Upload new banner if host picked one
         if (_bannerImage != null) {
@@ -376,7 +386,9 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
         lossPoints:     _lossPoints,
         customScoringLabel: _customScoringCtrl.text.trim().isEmpty
             ? null : _customScoringCtrl.text.trim(),
-        isPrivate:      _isPrivate,
+        isPrivate:               _isPrivate,
+        allowSoloRegistration:   _allowSoloRegistration,
+        soloRegistrantsPerTeam:  _allowSoloRegistration ? _soloRegistrantsPerTeam : 0,
       );
 
       // Upload banner if selected
@@ -552,6 +564,78 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                     const Text(
                       'A join code will be generated — only you can see it.',
                       style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── Solo Registration ─────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF2D2D4A)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Solo Registration',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'Players without a team can register solo — you auto-group them into teams.',
+                              style: TextStyle(
+                                  color: Colors.white38, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _allowSoloRegistration,
+                        onChanged: (v) =>
+                            setState(() => _allowSoloRegistration = v),
+                        activeThumbColor: const Color(0xFF6366F1),
+                        activeTrackColor:
+                            const Color(0xFF6366F1).withValues(alpha: .35),
+                      ),
+                    ],
+                  ),
+                  if (_allowSoloRegistration) ...[
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Players per auto-formed team',
+                      style: TextStyle(
+                          color: Color(0xFF9CA3AF),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    _stepper(
+                      value: _soloRegistrantsPerTeam,
+                      min: 2,
+                      max: 30,
+                      onDecrement: () => setState(() {
+                        if (_soloRegistrantsPerTeam > 2) _soloRegistrantsPerTeam--;
+                      }),
+                      onIncrement: () => setState(() {
+                        if (_soloRegistrantsPerTeam < 30) _soloRegistrantsPerTeam++;
+                      }),
+                      label: '$_soloRegistrantsPerTeam players',
                     ),
                   ],
                 ],

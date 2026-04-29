@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/user_profile.dart';
+import '../../services/tournament_link_service.dart';
 import '../../services/user_service.dart';
 import 'sports_interest_screen.dart';
 
@@ -39,6 +40,7 @@ Future<void> navigateAfterLogin(BuildContext context) async {
         (_) => false,
       );
     } else {
+      if (TournamentLinkService.openPendingIfAny(context)) return;
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
     }
   }

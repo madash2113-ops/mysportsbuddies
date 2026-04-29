@@ -129,6 +129,7 @@ class TournamentService extends ChangeNotifier {
         ref.collection('venues').get(),
         ref.collection('admins').get(),
         ref.collection('groups').get(),
+        ref.collection('solo_registrants').get(),
       ]);
 
       _teams[tournamentId] = (results[0] as QuerySnapshot).docs
@@ -177,6 +178,12 @@ class TournamentService extends ChangeNotifier {
                 .map(TournamentGroup.fromFirestore)
                 .toList())
             ..sort((a, b) => a.name.compareTo(b.name));
+
+      _soloRegistrants[tournamentId] =
+          ((results[5] as QuerySnapshot).docs
+                .map(SoloRegistrant.fromFirestore)
+                .toList())
+            ..sort((a, b) => a.registeredAt.compareTo(b.registeredAt));
 
       // ── Pre-fetch captain photos with fallback chain ─────────────────
       // Fallback: captain → vice captain (from squad) → any squad player with photo
@@ -450,6 +457,8 @@ class TournamentService extends ChangeNotifier {
     bool sameScoreAllRounds = true,
     Map<String, dynamic>? roundScoringConfig,
     bool isPrivate = false,
+    bool allowSoloRegistration = false,
+    int soloRegistrantsPerTeam = 0,
   }) async {
     if (maxTeams > 4 && !UserService().hasFullAccess) {
       throw PremiumRequiredException();
@@ -492,6 +501,8 @@ class TournamentService extends ChangeNotifier {
       roundScoringConfig: roundScoringConfig,
       isPrivate: isPrivate,
       joinCode: isPrivate ? _generateJoinCode() : null,
+      allowSoloRegistration: allowSoloRegistration,
+      soloRegistrantsPerTeam: soloRegistrantsPerTeam,
     );
 
     await ref.set(tournament.toMap());
@@ -600,11 +611,32 @@ class TournamentService extends ChangeNotifier {
     final isHostUser = tourn.createdBy == userId;
     if (!isHostUser) {
       final alreadyEnrolled = existing.docs.any(
-        (d) => (d.data()['enrolledBy'] as String? ?? '') == userId,
+        (d) {
+          final data = d.data();
+          if ((data['enrolledBy'] as String? ?? '') == userId) return true;
+          if ((data['captainUserId'] as String? ?? '') == userId) return true;
+          if ((data['viceCaptainUserId'] as String? ?? '') == userId) {
+            return true;
+          }
+          final playerIds = List<String>.from(
+            data['playerUserIds'] as List<dynamic>? ?? const [],
+          );
+          return playerIds.contains(userId);
+        },
       );
       if (alreadyEnrolled) {
-        throw Exception('You have already enrolled a team in this tournament.');
+        throw Exception('You are already registered for this tournament.');
       }
+    }
+
+    final soloDoc = await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('solo_registrants')
+        .doc(userId)
+        .get();
+    if (soloDoc.exists) {
+      throw Exception('You are already registered for this tournament.');
     }
 
     final seed = existing.docs.length + 1;
@@ -714,6 +746,221 @@ class TournamentService extends ChangeNotifier {
         targetId: tournamentId,
       );
     }
+  }
+
+  // ── Solo registration ────────────────────────────────────────────────────
+
+  final Map<String, List<SoloRegistrant>> _soloRegistrants = {};
+
+  List<SoloRegistrant> soloRegistrantsFor(String tournamentId) =>
+      List.unmodifiable(_soloRegistrants[tournamentId] ?? []);
+
+  bool isSoloRegistered(String tournamentId) {
+    final uid = UserService().userId ?? '';
+    if (uid.isEmpty) return false;
+    return (_soloRegistrants[tournamentId] ?? []).any((r) => r.userId == uid);
+  }
+
+  bool isRegisteredForTournament(String tournamentId) {
+    return _myEnrolledIds.contains(tournamentId) ||
+        isSoloRegistered(tournamentId);
+  }
+
+  Future<void> loadSoloRegistrants(String tournamentId) async {
+    try {
+      final snap = await _db
+          .collection(_col)
+          .doc(tournamentId)
+          .collection('solo_registrants')
+          .get();
+      _soloRegistrants[tournamentId] =
+          snap.docs.map((d) => SoloRegistrant.fromFirestore(d)).toList()
+            ..sort((a, b) => a.registeredAt.compareTo(b.registeredAt));
+      notifyListeners();
+    } catch (e) {
+      /* ignored */
+    }
+  }
+
+  Future<void> registerSolo({
+    required String tournamentId,
+    required String phone,
+  }) async {
+    final userId = UserService().userId ?? '';
+    if (userId.isEmpty) throw Exception('Sign in to register.');
+
+    final tourn = _tournaments.firstWhere(
+      (t) => t.id == tournamentId,
+      orElse: () => throw Exception('Tournament not found'),
+    );
+    if (!tourn.allowSoloRegistration) {
+      throw Exception('Solo registration is not enabled for this tournament.');
+    }
+
+    // Already solo-registered?
+    final existing = await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('solo_registrants')
+        .doc(userId)
+        .get();
+    if (existing.exists) {
+      throw Exception('You are already registered for this tournament.');
+    }
+
+    // Already enrolled on a team?
+    final teamsSnap = await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('teams')
+        .get();
+    final alreadyOnTeam = teamsSnap.docs.any((d) {
+      final data = d.data();
+      if ((data['enrolledBy'] as String? ?? '') == userId) return true;
+      if ((data['captainUserId'] as String? ?? '') == userId) return true;
+      if ((data['viceCaptainUserId'] as String? ?? '') == userId) return true;
+      final playerIds = List<String>.from(
+        data['playerUserIds'] as List<dynamic>? ?? const [],
+      );
+      return playerIds.contains(userId);
+    });
+    if (alreadyOnTeam || myEnrolledIds.contains(tournamentId)) {
+      throw Exception('You are already registered for this tournament.');
+    }
+
+    final userName = UserService().profile?.name ?? 'Player';
+    final registrant = SoloRegistrant(
+      userId: userId,
+      userName: userName,
+      phone: phone,
+      registeredAt: DateTime.now(),
+    );
+
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('solo_registrants')
+        .doc(userId)
+        .set(registrant.toMap());
+
+    await loadSoloRegistrants(tournamentId);
+
+    await NotificationService.send(
+      toUserId: tourn.createdBy,
+      type: NotifType.tournamentUpdate,
+      title: '${tourn.name} — Solo Registration',
+      body: '$userName registered as a solo player',
+      targetId: tournamentId,
+    );
+  }
+
+  Future<void> unregisterSolo(String tournamentId) async {
+    final userId = UserService().userId ?? '';
+    if (userId.isEmpty) return;
+    await _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('solo_registrants')
+        .doc(userId)
+        .delete();
+    await loadSoloRegistrants(tournamentId);
+  }
+
+  /// Admin-only: adds any user directly to the solo registrants list without
+  /// requiring the player to self-register.
+  Future<void> addSoloRegistrantByAdmin({
+    required String tournamentId,
+    required String userId,
+    required String userName,
+    required String phone,
+  }) async {
+    final ref = _db
+        .collection(_col)
+        .doc(tournamentId)
+        .collection('solo_registrants')
+        .doc(userId);
+
+    final existing = await ref.get();
+    if (existing.exists) {
+      throw Exception('$userName is already in the solo list.');
+    }
+
+    await ref.set(SoloRegistrant(
+      userId: userId,
+      userName: userName,
+      phone: phone,
+      registeredAt: DateTime.now(),
+    ).toMap());
+
+    await loadSoloRegistrants(tournamentId);
+  }
+
+  /// Groups solo registrants into teams of [soloRegistrantsPerTeam] (or
+  /// [Tournament.playersPerTeam] if soloRegistrantsPerTeam is 0).
+  /// Returns the number of teams formed.
+  Future<int> autoFormTeams(String tournamentId) async {
+    final tourn = _tournaments.firstWhere(
+      (t) => t.id == tournamentId,
+      orElse: () => throw Exception('Tournament not found'),
+    );
+
+    await loadSoloRegistrants(tournamentId);
+    final registrants = List<SoloRegistrant>.from(
+      _soloRegistrants[tournamentId] ?? [],
+    );
+    if (registrants.isEmpty) throw Exception('No solo registrants to form teams from.');
+
+    final teamSize = tourn.soloRegistrantsPerTeam > 0
+        ? tourn.soloRegistrantsPerTeam
+        : (tourn.playersPerTeam > 0 ? tourn.playersPerTeam : 5);
+
+    // Shuffle for fairness
+    registrants.shuffle();
+
+    final chunks = <List<SoloRegistrant>>[];
+    for (var i = 0; i < registrants.length; i += teamSize) {
+      chunks.add(registrants.sublist(
+        i,
+        (i + teamSize) < registrants.length ? i + teamSize : registrants.length,
+      ));
+    }
+
+    int teamsFormed = 0;
+    for (final chunk in chunks) {
+      final captain = chunk.first;
+      final others = chunk.skip(1).toList();
+      final teamNumber = (teamsFor(tournamentId).length) + teamsFormed + 1;
+      final teamName = 'Team $teamNumber';
+
+      await enrollTeam(
+        tournamentId: tournamentId,
+        teamName: teamName,
+        captainName: captain.userName,
+        captainPhone: captain.phone,
+        captainUserId: captain.userId,
+        players: chunk.map((r) => r.userName).toList(),
+        playerUserIds: chunk.map((r) => r.userId).toList(),
+        viceCaptainName: others.isNotEmpty ? others.first.userName : '',
+        viceCaptainUserId: others.isNotEmpty ? others.first.userId : '',
+      );
+      teamsFormed++;
+    }
+
+    // Remove solo registrants that were assigned to teams
+    final batch = _db.batch();
+    for (final r in registrants) {
+      batch.delete(
+        _db
+            .collection(_col)
+            .doc(tournamentId)
+            .collection('solo_registrants')
+            .doc(r.userId),
+      );
+    }
+    await batch.commit();
+    await loadSoloRegistrants(tournamentId);
+
+    return teamsFormed;
   }
 
   // ── Generate schedule (auto) ────────────────────────────────────────────
@@ -1027,6 +1274,8 @@ class TournamentService extends ChangeNotifier {
     String? customScoringLabel,
     bool sameScoreAllRounds = true,
     Map<String, dynamic>? roundScoringConfig,
+    bool allowSoloRegistration = false,
+    int soloRegistrantsPerTeam = 0,
   }) async {
     await _db.collection(_col).doc(tournamentId).update({
       'name': name,
@@ -1050,6 +1299,8 @@ class TournamentService extends ChangeNotifier {
       'customScoringLabel': customScoringLabel,
       'sameScoreAllRounds': sameScoreAllRounds,
       'roundScoringConfig': roundScoringConfig,
+      'allowSoloRegistration':  allowSoloRegistration,
+      'soloRegistrantsPerTeam': soloRegistrantsPerTeam,
     });
     await loadTournaments();
   }

@@ -35,6 +35,7 @@ import '../../screens/profile/edit_profile_screen.dart';
 
 // Tournaments
 import '../../screens/tournaments/tournaments_list_screen.dart';
+import '../../screens/tournaments/tournament_link_gate.dart';
 
 class AppRoutes {
   static final Map<String, WidgetBuilder> routes = {
@@ -42,6 +43,7 @@ class AppRoutes {
     '/': (context) => kIsWeb ? const WebLandingPage() : const SplashScreen(),
     '/onboarding': (context) => const OnboardingScreen(),
     '/welcome': (context) => const WebLandingPage(),
+    '/web-landing': (context) => const WebLandingPage(),
     '/role-picker': (context) => const WelcomeScreen(),
 
     // Authentication
@@ -69,4 +71,33 @@ class AppRoutes {
     // Tournaments
     '/tournaments': (context) => const TournamentsListScreen(),
   };
+
+  static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+    final uri = Uri.tryParse(settings.name ?? '');
+    if (uri == null) return null;
+
+    if (uri.pathSegments.length == 2 &&
+        uri.pathSegments.first == 'tournament') {
+      return MaterialPageRoute(
+        settings: settings,
+        builder: (_) => TournamentLinkGate(
+          tournamentId: uri.pathSegments[1],
+          joinCode: uri.queryParameters['code'],
+        ),
+      );
+    }
+
+    final legacyId = uri.queryParameters['t'];
+    if ((legacyId ?? '').isNotEmpty) {
+      return MaterialPageRoute(
+        settings: settings,
+        builder: (_) => TournamentLinkGate(
+          tournamentId: legacyId!,
+          joinCode: uri.queryParameters['code'],
+        ),
+      );
+    }
+
+    return null;
+  }
 }

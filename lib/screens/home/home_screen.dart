@@ -204,8 +204,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _dismissResumeBanner() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('active_tournament_scoring');
     if (mounted) setState(() => _activeScoring = null);
   }
 
@@ -3501,63 +3499,8 @@ class _ContextBannersState extends State<_ContextBanners> {
             return const SizedBox.shrink();
           },
         ),
-        // Next game banner
-        ListenableBuilder(
-          listenable: GameListingService(),
-          builder: (context, _) {
-            final my = GameListingService().myGames;
-            if (my.isEmpty) return const SizedBox.shrink();
-            final g = my.first;
-            final dt = g.scheduledAt;
-            final h = dt.hour;
-            final am = h < 12 ? 'AM' : 'PM';
-            final hr = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-            final months = [
-              'Jan',
-              'Feb',
-              'Mar',
-              'Apr',
-              'May',
-              'Jun',
-              'Jul',
-              'Aug',
-              'Sep',
-              'Oct',
-              'Nov',
-              'Dec',
-            ];
-            final timeStr = '${dt.day} ${months[dt.month - 1]} · $hr$am';
-            return _BannerRow(
-              color: Colors.orange,
-              leading: Text(
-                _sportEmoji(g.sport),
-                style: const TextStyle(fontSize: 14),
-              ),
-              label: g.sport,
-              detail: timeStr,
-              actionLabel: 'View',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => GameDetailScreen(listing: g)),
-              ),
-            );
-          },
-        ),
       ],
     );
-  }
-
-  static String _sportEmoji(String sport) {
-    const map = {
-      'cricket': '🏏',
-      'football': '⚽',
-      'basketball': '🏀',
-      'badminton': '🏸',
-      'tennis': '🎾',
-      'volleyball': '🏐',
-      'boxing': '🥊',
-    };
-    return map[sport.toLowerCase()] ?? '🏅';
   }
 }
 
@@ -3625,16 +3568,17 @@ class _ResumeBannerBar extends StatelessWidget {
             ),
           ),
           if (onDismiss != null) ...[
-            GestureDetector(
+            InkWell(
               onTap: onDismiss,
+              borderRadius: BorderRadius.circular(20),
               child: Container(
-                width: 26,
-                height: 26,
+                width: 40,
+                height: 40,
                 alignment: Alignment.center,
-                child: const Icon(Icons.close, color: Colors.white70, size: 16),
+                child: const Icon(Icons.close, color: Colors.white70, size: 22),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
           ],
           GestureDetector(
             onTap: onResume,
@@ -3659,77 +3603,6 @@ class _ResumeBannerBar extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// Single-line banner row
-class _BannerRow extends StatelessWidget {
-  final Color color;
-  final Widget leading;
-  final String label;
-  final String detail;
-  final String actionLabel;
-  final VoidCallback onTap;
-
-  const _BannerRow({
-    required this.color,
-    required this.leading,
-    required this.label,
-    required this.detail,
-    required this.actionLabel,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = AppC.isDark(context);
-    final contentInset = _mainContentInset(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: EdgeInsets.fromLTRB(contentInset, 6, contentInset, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: isDark ? 0.12 : 0.08),
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '$label  ·  $detail',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppC.text(context),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-              ),
-              child: Text(
-                actionLabel,
-                style: TextStyle(
-                  color: AppC.onPrimary(context),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

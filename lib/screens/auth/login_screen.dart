@@ -921,246 +921,271 @@ class _LeftPanel extends StatelessWidget {
 
           // Main content
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(56, 36, 40, 36),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Logo row
-                  Row(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxHeight < 820;
+                final tight = constraints.maxHeight < 720;
+                final horizontalPad = compact ? 44.0 : 56.0;
+                final verticalPad = tight ? 20.0 : (compact ? 28.0 : 36.0);
+                final headlineSize = tight ? 44.0 : (compact ? 52.0 : 60.0);
+                final introFontSize = compact ? 13.0 : 15.0;
+                final heroGap = tight ? 24.0 : (compact ? 34.0 : 72.0);
+                final sectionGap = tight ? 16.0 : (compact ? 22.0 : 36.0);
+
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPad,
+                    verticalPad,
+                    40,
+                    verticalPad,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          gradient: const LinearGradient(
-                            colors: [_red, _redDeep],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _red.withValues(alpha: .38),
-                              blurRadius: 14,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.emoji_events_rounded,
-                          color: Colors.white,
-                          size: 19,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'My',
-                              style: TextStyle(
-                                color: _tx,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
+                      // Logo row
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              gradient: const LinearGradient(
+                                colors: [_red, _redDeep],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ),
-                            TextSpan(
-                              text: 'Sports',
-                              style: TextStyle(
-                                color: _red,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'Buddies',
-                              style: TextStyle(
-                                color: _tx,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const Spacer(),
-
-                  // Hero headline
-                  const Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Where\n',
-                          style: TextStyle(
-                            color: _tx,
-                            fontSize: 60,
-                            fontWeight: FontWeight.w900,
-                            height: 1.0,
-                            letterSpacing: -2.5,
-                          ),
-                        ),
-                        TextSpan(
-                          text: 'Sports\n',
-                          style: TextStyle(
-                            color: _red,
-                            fontSize: 60,
-                            fontWeight: FontWeight.w900,
-                            height: 1.05,
-                            letterSpacing: -2.5,
-                          ),
-                        ),
-                        TextSpan(
-                          text: 'Comes Alive',
-                          style: TextStyle(
-                            color: _tx,
-                            fontSize: 60,
-                            fontWeight: FontWeight.w900,
-                            height: 1.05,
-                            letterSpacing: -2.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  const SizedBox(
-                    width: 420,
-                    child: Text(
-                      "India's #1 Sports Social Platform — discover games, host tournaments, book venues & connect with your sports community.",
-                      style: TextStyle(color: _m1, fontSize: 15, height: 1.65),
-                    ),
-                  ),
-
-                  const SizedBox(height: 36),
-
-                  // Stats
-                  Row(
-                    children: [
-                      _StatChip('50K+', 'Players'),
-                      const SizedBox(width: 12),
-                      _StatChip('5K+', 'Tournaments'),
-                      const SizedBox(width: 12),
-                      _StatChip('22+', 'Sports'),
-                    ],
-                  ),
-
-                  const SizedBox(height: 36),
-
-                  // Testimonial card
-                  Container(
-                    width: 420,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .04),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .08),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '⭐⭐⭐⭐⭐',
-                          style: TextStyle(fontSize: 13, height: 1.2),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          '"Found my cricket team in under 20 minutes. The app is incredible!"',
-                          style: TextStyle(
-                            color: _tx,
-                            fontSize: 14,
-                            height: 1.55,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [
-                                    _red.withValues(alpha: .8),
-                                    _redDeep,
-                                  ],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _red.withValues(alpha: .38),
+                                  blurRadius: 14,
                                 ),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text(
-                                'R',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14,
-                                ),
-                              ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: const Icon(
+                              Icons.emoji_events_rounded,
+                              color: Colors.white,
+                              size: 19,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text.rich(
+                            TextSpan(
                               children: [
-                                Text(
-                                  'Rahul Kumar',
+                                TextSpan(
+                                  text: 'My',
                                   style: TextStyle(
                                     color: _tx,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                                Text(
-                                  'Cricketer · Mumbai',
-                                  style: TextStyle(color: _m1, fontSize: 11),
+                                TextSpan(
+                                  text: 'Sports',
+                                  style: TextStyle(
+                                    color: _red,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'Buddies',
+                                  style: TextStyle(
+                                    color: _tx,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: heroGap),
+
+                      // Hero headline
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Where\n',
+                              style: TextStyle(
+                                color: _tx,
+                                fontSize: headlineSize,
+                                fontWeight: FontWeight.w900,
+                                height: 1.0,
+                                letterSpacing: -2.5,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Sports\n',
+                              style: TextStyle(
+                                color: _red,
+                                fontSize: headlineSize,
+                                fontWeight: FontWeight.w900,
+                                height: 1.05,
+                                letterSpacing: -2.5,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Comes Alive',
+                              style: TextStyle(
+                                color: _tx,
+                                fontSize: headlineSize,
+                                fontWeight: FontWeight.w900,
+                                height: 1.05,
+                                letterSpacing: -2.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: compact ? 16 : 20),
+
+                      SizedBox(
+                        width: 420,
+                        child: Text(
+                          "India's #1 Sports Social Platform — discover games, host tournaments, book venues & connect with your sports community.",
+                          style: TextStyle(
+                            color: _m1,
+                            fontSize: introFontSize,
+                            height: compact ? 1.5 : 1.65,
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(height: sectionGap),
+
+                      // Stats
+                      const Row(
+                        children: [
+                          _StatChip('50K+', 'Players'),
+                          SizedBox(width: 12),
+                          _StatChip('5K+', 'Tournaments'),
+                          SizedBox(width: 12),
+                          _StatChip('22+', 'Sports'),
+                        ],
+                      ),
+
+                      SizedBox(height: sectionGap),
+
+                      // Testimonial card
+                      Container(
+                        width: 420,
+                        padding: EdgeInsets.all(compact ? 16 : 20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: .04),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: .08),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '⭐⭐⭐⭐⭐',
+                              style: TextStyle(fontSize: 13, height: 1.2),
+                            ),
+                            SizedBox(height: compact ? 8 : 10),
+                            const Text(
+                              '"Found my cricket team in under 20 minutes. The app is incredible!"',
+                              style: TextStyle(
+                                color: _tx,
+                                fontSize: 14,
+                                height: 1.55,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                            SizedBox(height: compact ? 10 : 14),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        _red.withValues(alpha: .8),
+                                        _redDeep,
+                                      ],
+                                    ),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'R',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                const Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Rahul Kumar',
+                                      style: TextStyle(
+                                        color: _tx,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Cricketer · Mumbai',
+                                      style: TextStyle(
+                                        color: _m1,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  // Made-in-India badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .04),
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .08),
                       ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('🇮🇳', style: TextStyle(fontSize: 13)),
-                        SizedBox(width: 8),
-                        Text(
-                          'Made in India',
-                          style: TextStyle(
-                            color: _m1,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+
+                      SizedBox(height: sectionGap),
+
+                      // Made-in-India badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: .04),
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: .08),
                           ),
                         ),
-                      ],
-                    ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('🇮🇳', style: TextStyle(fontSize: 13)),
+                            SizedBox(width: 8),
+                            Text(
+                              'Made in India',
+                              style: TextStyle(
+                                color: _m1,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],

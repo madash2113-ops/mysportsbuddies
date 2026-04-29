@@ -9,6 +9,7 @@ import 'admin_management_screen.dart';
 import 'enroll_team_sheet.dart';
 import 'group_management_screen.dart';
 import 'schedule_management_screen.dart';
+import 'solo_registrants_screen.dart';
 import 'squad_management_screen.dart';
 import 'venue_management_screen.dart';
 
@@ -134,6 +135,20 @@ class HostDashboardScreen extends StatelessWidget {
                     onTap: () => Navigator.push(context, MaterialPageRoute(
                         builder: (_) => SquadManagementScreen(tournamentId: tournamentId))),
                   ),
+
+                  // Solo Registrants (only when solo registration is enabled)
+                  if (t.allowSoloRegistration) ...[
+                    _DashCard(
+                      icon:  Icons.person_search_outlined,
+                      label: 'Solo Players',
+                      badge: TournamentService().soloRegistrantsFor(tournamentId).isNotEmpty
+                          ? '${TournamentService().soloRegistrantsFor(tournamentId).length}'
+                          : null,
+                      color: const Color(0xFF6366F1),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => SoloRegistrantsScreen(tournamentId: tournamentId))),
+                    ),
+                  ],
 
                   // Manage Venues
                   _DashCard(

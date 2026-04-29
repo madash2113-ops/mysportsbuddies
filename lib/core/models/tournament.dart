@@ -66,6 +66,8 @@ class Tournament {
   final Map<String, dynamic>? roundScoringConfig; // per-round config when sameScoreAllRounds=false
   final bool             isPrivate;          // invite-only tournament
   final String?          joinCode;           // 6-char code, only set when isPrivate=true
+  final bool             allowSoloRegistration; // players can join without a team
+  final int              soloRegistrantsPerTeam; // size of each auto-formed team (0 = use playersPerTeam)
 
   const Tournament({
     required this.id,
@@ -104,6 +106,8 @@ class Tournament {
     this.roundScoringConfig,
     this.isPrivate = false,
     this.joinCode,
+    this.allowSoloRegistration = false,
+    this.soloRegistrantsPerTeam = 0,
   });
 
   double get totalFee => entryFee + serviceFee;
@@ -144,6 +148,8 @@ class Tournament {
     'roundScoringConfig':    roundScoringConfig,
     'isPrivate':             isPrivate,
     'joinCode':              joinCode,
+    'allowSoloRegistration':  allowSoloRegistration,
+    'soloRegistrantsPerTeam': soloRegistrantsPerTeam,
   };
 
   static Tournament fromFirestore(DocumentSnapshot doc) =>
@@ -197,6 +203,8 @@ class Tournament {
                              : null,
     isPrivate:             m['isPrivate']             as bool? ?? false,
     joinCode:              m['joinCode']               as String?,
+    allowSoloRegistration:  m['allowSoloRegistration']  as bool? ?? false,
+    soloRegistrantsPerTeam: (m['soloRegistrantsPerTeam'] as num?)?.toInt() ?? 0,
   );
 
   Tournament copyWith({
@@ -232,6 +240,8 @@ class Tournament {
     Map<String, dynamic>? roundScoringConfig,
     bool? isPrivate,
     String? joinCode,
+    bool? allowSoloRegistration,
+    int? soloRegistrantsPerTeam,
   }) => Tournament(
     id:               id,
     name:             name             ?? this.name,
@@ -269,6 +279,8 @@ class Tournament {
     roundScoringConfig:    roundScoringConfig    ?? this.roundScoringConfig,
     isPrivate:             isPrivate             ?? this.isPrivate,
     joinCode:              joinCode              ?? this.joinCode,
+    allowSoloRegistration:  allowSoloRegistration  ?? this.allowSoloRegistration,
+    soloRegistrantsPerTeam: soloRegistrantsPerTeam ?? this.soloRegistrantsPerTeam,
   );
 }
 
@@ -723,5 +735,41 @@ class TournamentGroup {
         teamIds:      teamIds    ?? this.teamIds,
         teamNames:    teamNames  ?? this.teamNames,
         createdAt:    createdAt,
+      );
+}
+
+// ── SoloRegistrant ─────────────────────────────────────────────────────────
+
+class SoloRegistrant {
+  final String   userId;
+  final String   userName;
+  final String   phone;
+  final DateTime registeredAt;
+
+  const SoloRegistrant({
+    required this.userId,
+    required this.userName,
+    required this.phone,
+    required this.registeredAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'userId':       userId,
+    'userName':     userName,
+    'phone':        phone,
+    'registeredAt': Timestamp.fromDate(registeredAt),
+  };
+
+  static SoloRegistrant fromFirestore(DocumentSnapshot doc) =>
+      fromMap(doc.id, doc.data() as Map<String, dynamic>);
+
+  static SoloRegistrant fromMap(String id, Map<String, dynamic> m) =>
+      SoloRegistrant(
+        userId:       m['userId']       as String? ?? id,
+        userName:     m['userName']     as String? ?? '',
+        phone:        m['phone']        as String? ?? '',
+        registeredAt: m['registeredAt'] != null
+            ? (m['registeredAt'] as Timestamp).toDate()
+            : DateTime.now(),
       );
 }
