@@ -132,44 +132,65 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
       return;
     }
 
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141414),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Register',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+      barrierDismissible: true,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141414),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                top: -4,
+                right: -4,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(dialogCtx),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.white12,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white60,
+                      size: 16,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              t.name,
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _ChoiceBtn(
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Register',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    t.name,
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+                  _ChoiceBtn(
                     label: 'Enroll Team',
                     icon: Icons.groups_rounded,
                     color: AppColors.primary,
                     onTap: () {
-                      Navigator.pop(sheetCtx);
+                      Navigator.pop(dialogCtx);
                       showModalBottomSheet(
                         context: context,
                         isScrollControlled: true,
@@ -184,15 +205,13 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                       );
                     },
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _ChoiceBtn(
+                  const SizedBox(height: 10),
+                  _ChoiceBtn(
                     label: 'Join Solo',
                     icon: Icons.person_add_rounded,
-                    color: const Color(0xFF6366F1),
+                    color: AppColors.primary,
                     onTap: () {
-                      Navigator.pop(sheetCtx);
+                      Navigator.pop(dialogCtx);
                       SoloRegisterSheet.show(
                         context,
                         tournamentId: t.id,
@@ -201,10 +220,10 @@ class _TournamentDetailScreenState extends State<TournamentDetailScreen>
                       );
                     },
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -734,7 +753,7 @@ class _StatusPill extends StatelessWidget {
     final configs = {
       TournamentStatus.open: (Colors.green, 'OPEN'),
       TournamentStatus.ongoing: (Colors.orange, 'ONGOING'),
-      TournamentStatus.completed: (Colors.blue, 'COMPLETED'),
+      TournamentStatus.completed: (Colors.white38, 'COMPLETED'),
       TournamentStatus.cancelled: (Colors.red, 'CANCELLED'),
     };
     final (color, label) =
@@ -2851,11 +2870,11 @@ class _VenueCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.blue.withAlpha(30),
+              color: AppColors.primary.withAlpha(30),
               shape: BoxShape.circle,
             ),
             child: const Center(
-              child: Icon(Icons.stadium_outlined, color: Colors.blue, size: 22),
+              child: Icon(Icons.stadium_outlined, color: AppColors.primary, size: 22),
             ),
           ),
           const SizedBox(width: 12),
@@ -5048,25 +5067,27 @@ class _ChoiceBtn extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 9),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: .4)),
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: .35)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 15),
-          const SizedBox(width: 6),
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 10),
           Text(
             label,
             style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
+          const Spacer(),
+          Icon(Icons.arrow_forward_ios_rounded, color: color, size: 13),
         ],
       ),
     ),

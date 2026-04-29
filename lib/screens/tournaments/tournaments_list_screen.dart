@@ -51,57 +51,84 @@ void _showRegisterChoiceForTournament(
     return;
   }
 
-  showModalBottomSheet<void>(
+  showDialog<void>(
     context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetContext) => Container(
-      margin: const EdgeInsets.all(14),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Register',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+    barrierDismissible: true,
+    builder: (dialogCtx) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141414),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              top: -4,
+              right: -4,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(dialogCtx),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.white12,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white60,
+                    size: 16,
+                  ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            tournament.name,
-            style: const TextStyle(color: Colors.white54, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          _RegisterChoiceTile(
-            icon: Icons.groups_rounded,
-            title: 'Enroll Team',
-            subtitle: 'Register a complete team for this tournament',
-            color: AppColors.primary,
-            onTap: () {
-              Navigator.pop(sheetContext);
-              openTeam();
-            },
-          ),
-          const SizedBox(height: 10),
-          _RegisterChoiceTile(
-            icon: Icons.person_add_rounded,
-            title: 'Join Solo',
-            subtitle: 'Register yourself and let the host assign your team',
-            color: const Color(0xFF6366F1),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              openSolo();
-            },
-          ),
-        ],
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Register',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tournament.name,
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+                _RegisterChoiceTile(
+                  icon: Icons.groups_rounded,
+                  title: 'Enroll Team',
+                  subtitle: 'Register a complete team for this tournament',
+                  color: AppColors.primary,
+                  onTap: () {
+                    Navigator.pop(dialogCtx);
+                    openTeam();
+                  },
+                ),
+                const SizedBox(height: 10),
+                _RegisterChoiceTile(
+                  icon: Icons.person_add_rounded,
+                  title: 'Join Solo',
+                  subtitle: 'Register yourself and let the host assign your team',
+                  color: AppColors.primary,
+                  onTap: () {
+                    Navigator.pop(dialogCtx);
+                    openSolo();
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -757,6 +784,7 @@ class _OpenTournamentsScreen extends StatefulWidget {
 class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
   String _sport = 'All';
   String _format = 'All';
+  String _statusFilter = 'All'; // All | Upcoming | Ongoing | Past
   String _query = '';
   final _searchCtrl = TextEditingController();
 
@@ -803,17 +831,28 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
   }
 
   List<Tournament> _filtered(List<Tournament> all) {
-    // Only show open/ongoing tournaments — no completed or cancelled
-    final active = all
-        .where(
+    Iterable<Tournament> base;
+    switch (_statusFilter) {
+      case 'Upcoming':
+        base = all.where((t) => t.status == TournamentStatus.open);
+      case 'Ongoing':
+        base = all.where((t) => t.status == TournamentStatus.ongoing);
+      case 'Past':
+        base = all.where(
+          (t) =>
+              t.status == TournamentStatus.completed ||
+              t.status == TournamentStatus.cancelled,
+        );
+      default:
+        base = all.where(
           (t) =>
               t.status == TournamentStatus.open ||
               t.status == TournamentStatus.ongoing,
-        )
-        .toList();
+        );
+    }
     var list = _sport == 'All'
-        ? active
-        : active.where((t) => t.sport == _sport).toList();
+        ? base.toList()
+        : base.where((t) => t.sport == _sport).toList();
     if (_format != 'All') {
       list = list.where((t) => t.format.name == _format).toList();
     }
@@ -839,9 +878,11 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
         listenable: TournamentService(),
         builder: (context, _) {
           final filtered = _filtered(TournamentService().tournaments);
-          final isFiltered = _sport != 'All';
+          final isFiltered = _sport != 'All' || _statusFilter != 'All';
+          final headerH = 104.0 + (_sport != 'All' ? 44.0 : 0) + 44.0;
 
           return CustomScrollView(
+            key: const PageStorageKey('open_tournaments_list'),
             slivers: [
               SliverAppBar(
                 pinned: true,
@@ -856,7 +897,7 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                 ),
                 iconTheme: const IconThemeData(color: Colors.white),
                 bottom: PreferredSize(
-                  preferredSize: Size.fromHeight(_sport != 'All' ? 148 : 104),
+                  preferredSize: Size.fromHeight(headerH),
                   child: Container(
                     color: AppColors.background,
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
@@ -987,6 +1028,47 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                           ),
                         ),
                         // ── Format dropdown — only when sport is selected ──
+                        // ── Status filter chips ─────────────────────────
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 34,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              for (final label in ['All', 'Upcoming', 'Ongoing', 'Past'])
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _statusFilter = label),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: _statusFilter == label
+                                            ? AppColors.primary
+                                            : const Color(0xFF1E1E1E),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: _statusFilter == label
+                                              ? AppColors.primary
+                                              : Colors.white12,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        label,
+                                        style: TextStyle(
+                                          color: _statusFilter == label
+                                              ? Colors.white
+                                              : Colors.white54,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                         if (_sport != 'All') ...[
                           const SizedBox(height: 8),
                           GestureDetector(
@@ -1099,13 +1181,13 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              isFiltered ? (_sportEmoji[_sport] ?? '🏆') : '🏆',
+                              _sport != 'All' ? (_sportEmoji[_sport] ?? '🏆') : '🏆',
                               style: const TextStyle(fontSize: 56),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               isFiltered
-                                  ? 'No $_sport tournaments'
+                                  ? 'No ${_statusFilter != 'All' ? '$_statusFilter ' : ''}${_sport != 'All' ? '$_sport ' : ''}tournaments found'
                                   : 'No tournaments found',
                               style: const TextStyle(
                                 color: Colors.white38,
@@ -1115,9 +1197,12 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                             if (isFiltered) ...[
                               const SizedBox(height: 12),
                               TextButton(
-                                onPressed: () => setState(() => _sport = 'All'),
+                                onPressed: () => setState(() {
+                                  _sport = 'All';
+                                  _statusFilter = 'All';
+                                }),
                                 child: const Text(
-                                  'Show all sports',
+                                  'Clear filters',
                                   style: TextStyle(color: AppColors.primary),
                                 ),
                               ),
@@ -1130,12 +1215,17 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (ctx, i) {
                           final ongoing = filtered
-                              .where(
-                                (t) => t.status == TournamentStatus.ongoing,
-                              )
+                              .where((t) => t.status == TournamentStatus.ongoing)
                               .toList();
                           final open = filtered
                               .where((t) => t.status == TournamentStatus.open)
+                              .toList();
+                          final past = filtered
+                              .where(
+                                (t) =>
+                                    t.status == TournamentStatus.completed ||
+                                    t.status == TournamentStatus.cancelled,
+                              )
                               .toList();
                           final combined = [
                             if (ongoing.isNotEmpty) ...[
@@ -1151,6 +1241,13 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                                 color: Color(0xFF2E7D32),
                               ),
                               ...open,
+                            ],
+                            if (past.isNotEmpty) ...[
+                              const _SectionHeader(
+                                label: 'Past',
+                                color: Colors.white38,
+                              ),
+                              ...past,
                             ],
                           ];
                           final item = combined[i];
@@ -1169,16 +1266,22 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                         },
                         childCount: (() {
                           final ongoing = filtered
-                              .where(
-                                (t) => t.status == TournamentStatus.ongoing,
-                              )
+                              .where((t) => t.status == TournamentStatus.ongoing)
                               .length;
                           final open = filtered
                               .where((t) => t.status == TournamentStatus.open)
                               .length;
+                          final past = filtered
+                              .where(
+                                (t) =>
+                                    t.status == TournamentStatus.completed ||
+                                    t.status == TournamentStatus.cancelled,
+                              )
+                              .length;
                           return filtered.length +
                               (ongoing > 0 ? 1 : 0) +
-                              (open > 0 ? 1 : 0);
+                              (open > 0 ? 1 : 0) +
+                              (past > 0 ? 1 : 0);
                         })(),
                       ),
                     ),

@@ -609,9 +609,9 @@ class _LeagueEntryScreenState extends State<LeagueEntryScreen> {
                         value: _allowSoloRegistration,
                         onChanged: (v) =>
                             setState(() => _allowSoloRegistration = v),
-                        activeThumbColor: const Color(0xFF6366F1),
+                        activeThumbColor: AppColors.primary,
                         activeTrackColor:
-                            const Color(0xFF6366F1).withValues(alpha: .35),
+                            AppColors.primary.withValues(alpha: .35),
                       ),
                     ],
                   ),

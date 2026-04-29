@@ -169,7 +169,7 @@ class _SoloRegisterSheetState extends State<SoloRegisterSheet> {
                 height: 3,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [AppColors.primary, Color(0xFF6366F1)],
+                    colors: [AppColors.primaryDark, AppColors.primary],
                   ),
                 ),
               ),
@@ -237,15 +237,15 @@ class _SoloRegisterSheetState extends State<SoloRegisterSheet> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF6366F1).withValues(alpha: .08),
+              color: AppColors.primary.withValues(alpha: .08),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: const Color(0xFF6366F1).withValues(alpha: .25)),
+                  color: AppColors.primary.withValues(alpha: .25)),
             ),
             child: Row(
               children: [
                 const Icon(Icons.person_search_outlined,
-                    color: Color(0xFF6366F1), size: 20),
+                    color: AppColors.primary, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -342,7 +342,7 @@ class _SoloRegisterSheetState extends State<SoloRegisterSheet> {
             height: 50,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(

@@ -144,7 +144,7 @@ class HostDashboardScreen extends StatelessWidget {
                       badge: TournamentService().soloRegistrantsFor(tournamentId).isNotEmpty
                           ? '${TournamentService().soloRegistrantsFor(tournamentId).length}'
                           : null,
-                      color: const Color(0xFF6366F1),
+                      color: AppColors.primary,
                       onTap: () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => SoloRegistrantsScreen(tournamentId: tournamentId))),
                     ),

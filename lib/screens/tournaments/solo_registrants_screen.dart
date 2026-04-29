@@ -326,7 +326,7 @@ class _SoloRegistrantsScreenState extends State<SoloRegistrantsScreen> {
                             icon: Icons.person_outlined,
                             label: 'Solo Players',
                             value: '${registrants.length}',
-                            color: const Color(0xFF6366F1),
+                            color: AppColors.primary,
                           ),
                           const SizedBox(width: 10),
                           _StatChip(
@@ -485,14 +485,14 @@ class _RegistrantTile extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: const Color(0xFF6366F1).withValues(alpha: .12),
+            color: AppColors.primary.withValues(alpha: .12),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
             child: Text(
               '$index',
               style: const TextStyle(
-                color: Color(0xFF6366F1),
+                color: AppColors.primary,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -678,7 +678,7 @@ class _AddPlayerSheetState extends State<_AddPlayerSheet> {
               children: [
                 Icon(
                   Icons.person_add_alt_1_rounded,
-                  color: Color(0xFF6366F1),
+                  color: AppColors.primary,
                   size: 20,
                 ),
                 SizedBox(width: 10),
@@ -714,7 +714,7 @@ class _AddPlayerSheetState extends State<_AddPlayerSheet> {
                       children: [
                         CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Color(0xFF6366F1),
+                          color: AppColors.primary,
                         ),
                         SizedBox(height: 12),
                         Text(
