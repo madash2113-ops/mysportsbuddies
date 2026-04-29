@@ -28,7 +28,14 @@
       "Bash(grep -A6 \"name: firebase_core_web$\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/pubspec.lock)",
       "Bash(grep -A6 \"name: cloud_firestore_web$\" /Users/avinashkumarmaddini/Desktop/MyProject/mysportsbuddies/pubspec.lock)",
       "Bash(pod install *)",
-      "Bash(wait)"
+      "Bash(wait)",
+      "Bash(killall Xcode xcodebuild)",
+      "Bash(system_profiler SPUSBDataType)",
+      "Bash(instruments -s devices)",
+      "Bash(xcrun xctrace *)",
+      "Bash(idevice_id -l)",
+      "Bash(launchctl list *)",
+      "Bash(xcrun simctl *)"
     ]
   },
   "enableAllProjectMcpServers": true,
