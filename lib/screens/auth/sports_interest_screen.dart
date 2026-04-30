@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../design/colors.dart';
+import '../../services/tournament_link_service.dart';
 import '../../services/user_service.dart';
 
 class SportsInterestScreen extends StatefulWidget {
@@ -47,7 +48,9 @@ class _SportsInterestScreenState extends State<SportsInterestScreen> {
         ),
       );
     }
-    if (mounted) Navigator.pushReplacementNamed(context, '/home');
+    if (!mounted) return;
+    if (TournamentLinkService.openPendingIfAny(context)) return;
+    Navigator.pushReplacementNamed(context, '/home');
   }
 
   Future<void> _skip() async {
@@ -57,7 +60,9 @@ class _SportsInterestScreenState extends State<SportsInterestScreen> {
         profile.copyWith(sportsIdentityCompleted: true),
       );
     }
-    if (mounted) Navigator.pushReplacementNamed(context, '/home');
+    if (!mounted) return;
+    if (TournamentLinkService.openPendingIfAny(context)) return;
+    Navigator.pushReplacementNamed(context, '/home');
   }
 
   @override

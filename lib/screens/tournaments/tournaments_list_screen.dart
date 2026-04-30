@@ -5,13 +5,191 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/tournament.dart';
 import '../../design/colors.dart';
+import '../../services/tournament_link_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../sports/league_entry_screen.dart';
 import 'enroll_team_sheet.dart';
+import 'solo_register_sheet.dart';
 import 'tournament_detail_screen.dart';
 
 // ── Hub screen shown on the Tournaments bottom-nav tab ─────────────────────
+
+void _showRegisterChoiceForTournament(
+  BuildContext context,
+  Tournament tournament,
+) {
+  final svc = TournamentService();
+  if (svc.isRegisteredForTournament(tournament.id)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You are already registered for this tournament.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return;
+  }
+
+  void openTeam() => EnrollTeamSheet.show(
+    context,
+    tournamentId: tournament.id,
+    entryFee: tournament.entryFee,
+    serviceFee: tournament.serviceFee,
+    playersPerTeam: tournament.playersPerTeam,
+    sport: tournament.sport,
+  );
+
+  void openSolo() => SoloRegisterSheet.show(
+    context,
+    tournamentId: tournament.id,
+    tournamentName: tournament.name,
+    sport: tournament.sport,
+  );
+
+  if (!tournament.allowSoloRegistration) {
+    openTeam();
+    return;
+  }
+
+  showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogCtx) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141414),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              top: -4,
+              right: -4,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(dialogCtx),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.white12,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white60,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Register',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tournament.name,
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+                _RegisterChoiceTile(
+                  icon: Icons.groups_rounded,
+                  title: 'Enroll Team',
+                  subtitle: 'Register a complete team for this tournament',
+                  color: AppColors.primary,
+                  onTap: () {
+                    Navigator.pop(dialogCtx);
+                    openTeam();
+                  },
+                ),
+                const SizedBox(height: 10),
+                _RegisterChoiceTile(
+                  icon: Icons.person_add_rounded,
+                  title: 'Join Solo',
+                  subtitle: 'Register yourself and let the host assign your team',
+                  color: AppColors.primary,
+                  onTap: () {
+                    Navigator.pop(dialogCtx);
+                    openSolo();
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _RegisterChoiceTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _RegisterChoiceTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: .35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: color, size: 22),
+        ],
+      ),
+    ),
+  );
+}
 
 class TournamentsListScreen extends StatefulWidget {
   const TournamentsListScreen({super.key});
@@ -46,21 +224,28 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
         child: ListenableBuilder(
           listenable: TournamentService(),
           builder: (context, _) {
-            final svc     = TournamentService();
-            final userId  = UserService().userId ?? '';
+            final svc = TournamentService();
+            final userId = UserService().userId ?? '';
             final openCnt = svc.tournaments
                 .where((t) => t.status == TournamentStatus.open)
                 .length;
             final enrolledCnt = svc.myEnrolledIds.length;
 
             // Counts for My Tournaments badge
-            final myAll = svc.tournaments.where((t) =>
-                svc.myEnrolledIds.contains(t.id) || t.createdBy == userId);
-            final ongoingCnt  = myAll.where((t) => t.status == TournamentStatus.ongoing).length;
-            final upcomingCnt = myAll.where((t) => t.status == TournamentStatus.open).length;
+            final myAll = svc.tournaments.where(
+              (t) => svc.myEnrolledIds.contains(t.id) || t.createdBy == userId,
+            );
+            final ongoingCnt = myAll
+                .where((t) => t.status == TournamentStatus.ongoing)
+                .length;
+            final upcomingCnt = myAll
+                .where((t) => t.status == TournamentStatus.open)
+                .length;
             final myTournamentsBadge = ongoingCnt > 0
                 ? '$ongoingCnt ongoing'
-                : upcomingCnt > 0 ? '$upcomingCnt upcoming' : null;
+                : upcomingCnt > 0
+                ? '$upcomingCnt upcoming'
+                : null;
 
             return CustomScrollView(
               slivers: [
@@ -71,18 +256,23 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Tournaments',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800)),
+                        const Text(
+                          'Tournaments',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           openCnt == 0
                               ? 'No open tournaments right now'
                               : '$openCnt open · $enrolledCnt registered',
                           style: const TextStyle(
-                              color: Colors.white38, fontSize: 13),
+                            color: Colors.white38,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -139,8 +329,8 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => _OpenTournamentsScreen(
-                                        userId: userId),
+                                    builder: (_) =>
+                                        _OpenTournamentsScreen(userId: userId),
                                   ),
                                 ),
                               ),
@@ -184,26 +374,32 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,
                                     padding: const EdgeInsets.symmetric(
-                                        vertical: 14),
+                                      vertical: 14,
+                                    ),
                                     shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(14)),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
                                     elevation: 0,
                                   ),
-                                  icon: const Icon(Icons.add,
-                                      color: Colors.white),
-                                  label: const Text('Create New Tournament',
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700)),
+                                  icon: const Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                  ),
+                                  label: const Text(
+                                    'Create New Tournament',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                   onPressed: () async {
-                                    final created =
-                                        await Navigator.push<bool>(
+                                    final created = await Navigator.push<bool>(
                                       context,
                                       MaterialPageRoute(
-                                          builder: (_) =>
-                                              const LeagueEntryScreen()),
+                                        builder: (_) =>
+                                            const LeagueEntryScreen(),
+                                      ),
                                     );
                                     if (created == true && context.mounted) {
                                       TournamentService().loadTournaments();
@@ -230,10 +426,10 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
 
 class _HubCard extends StatelessWidget {
   final IconData icon;
-  final String   title;
-  final String   subtitle;
-  final Color    accent;
-  final String?  badge;
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final String? badge;
   final VoidCallback onTap;
 
   const _HubCard({
@@ -272,36 +468,41 @@ class _HubCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 12)),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
                 ],
               ),
             ),
             if (badge != null) ...[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(badge!,
-                    style: TextStyle(
-                        color: accent,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600)),
+                child: Text(
+                  badge!,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
               const SizedBox(width: 6),
             ],
-            Icon(Icons.chevron_right,
-                color: accent.withValues(alpha: 0.6)),
+            Icon(Icons.chevron_right, color: accent.withValues(alpha: 0.6)),
           ],
         ),
       ),
@@ -312,10 +513,10 @@ class _HubCard extends StatelessWidget {
 // ── Role toggle pill button ─────────────────────────────────────────────────
 
 class _RoleToggleButton extends StatelessWidget {
-  final String      label;
-  final IconData    icon;
-  final bool        selected;
-  final Color       selectedColor;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color selectedColor;
   final VoidCallback onTap;
 
   const _RoleToggleButton({
@@ -355,21 +556,20 @@ class _RoleToggleButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon,
-                size: 22,
-                color: selected
-                    ? AppC.onPrimary(context)
-                    : AppC.hint(context)),
+            Icon(
+              icon,
+              size: 22,
+              color: selected ? AppC.onPrimary(context) : AppC.hint(context),
+            ),
             const SizedBox(width: 8),
-            Text(label,
-                style: TextStyle(
-                    color: selected
-                        ? AppC.onPrimary(context)
-                        : AppC.muted(context),
-                    fontSize: 16,
-                    fontWeight: selected
-                        ? FontWeight.w700
-                        : FontWeight.w500)),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? AppC.onPrimary(context) : AppC.muted(context),
+                fontSize: 16,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
@@ -411,9 +611,10 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('My Hosted Tournaments',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'My Hosted Tournaments',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add, color: AppColors.primary),
@@ -429,12 +630,12 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : ListenableBuilder(
               listenable: TournamentService(),
               builder: (context, _) {
-                final hosted = TournamentService()
-                    .tournaments
+                final hosted = TournamentService().tournaments
                     .where((t) => t.createdBy == widget.userId)
                     .toList();
 
@@ -443,24 +644,32 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.manage_accounts_outlined,
-                            size: 64, color: Colors.white12),
+                        const Icon(
+                          Icons.manage_accounts_outlined,
+                          size: 64,
+                          color: Colors.white12,
+                        ),
                         const SizedBox(height: 16),
-                        const Text("You haven't hosted any tournaments yet",
-                            style: TextStyle(
-                                color: Colors.white38, fontSize: 15)),
+                        const Text(
+                          "You haven't hosted any tournaments yet",
+                          style: TextStyle(color: Colors.white38, fontSize: 15),
+                        ),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary),
+                            backgroundColor: AppColors.primary,
+                          ),
                           icon: const Icon(Icons.add, color: Colors.white),
-                          label: const Text('Create Tournament',
-                              style: TextStyle(color: Colors.white)),
+                          label: const Text(
+                            'Create Tournament',
+                            style: TextStyle(color: Colors.white),
+                          ),
                           onPressed: () async {
                             final created = await Navigator.push<bool>(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) => const LeagueEntryScreen()),
+                                builder: (_) => const LeagueEntryScreen(),
+                              ),
                             );
                             if (created == true && mounted) _load();
                           },
@@ -478,9 +687,11 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
                     .where((t) => t.status == TournamentStatus.ongoing)
                     .toList();
                 final completed = hosted
-                    .where((t) =>
-                        t.status == TournamentStatus.completed ||
-                        t.status == TournamentStatus.cancelled)
+                    .where(
+                      (t) =>
+                          t.status == TournamentStatus.completed ||
+                          t.status == TournamentStatus.cancelled,
+                    )
                     .toList();
 
                 return RefreshIndicator(
@@ -491,20 +702,32 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
                     children: [
                       if (ongoing.isNotEmpty) ...[
                         _hostedGroupHeader('Ongoing', AppColors.primary),
-                        ...ongoing.map((t) => _HostedTournamentCard(
-                            tournament: t, onTap: () => _openDetail(t))),
+                        ...ongoing.map(
+                          (t) => _HostedTournamentCard(
+                            tournament: t,
+                            onTap: () => _openDetail(t),
+                          ),
+                        ),
                         const SizedBox(height: 16),
                       ],
                       if (open.isNotEmpty) ...[
                         _hostedGroupHeader('Registrations Open', Colors.green),
-                        ...open.map((t) => _HostedTournamentCard(
-                            tournament: t, onTap: () => _openDetail(t))),
+                        ...open.map(
+                          (t) => _HostedTournamentCard(
+                            tournament: t,
+                            onTap: () => _openDetail(t),
+                          ),
+                        ),
                         const SizedBox(height: 16),
                       ],
                       if (completed.isNotEmpty) ...[
                         _hostedGroupHeader('Completed', Colors.white38),
-                        ...completed.map((t) => _HostedTournamentCard(
-                            tournament: t, onTap: () => _openDetail(t))),
+                        ...completed.map(
+                          (t) => _HostedTournamentCard(
+                            tournament: t,
+                            onTap: () => _openDetail(t),
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -515,17 +738,19 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
   }
 
   Widget _hostedGroupHeader(String label, Color color) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(label,
-            style: TextStyle(
-                color: color, fontSize: 12, fontWeight: FontWeight.w700)),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      label,
+      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+    ),
+  );
 
   void _openDetail(Tournament t) {
     Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (_) => TournamentDetailScreen(tournamentId: t.id)),
+        builder: (_) => TournamentDetailScreen(tournamentId: t.id),
+      ),
     ).then((_) => _load());
   }
 }
@@ -533,19 +758,14 @@ class _MyHostedScreenState extends State<_MyHostedScreen> {
 // ── Hosted tournament card ───────────────────────────────────────────────────
 
 class _HostedTournamentCard extends StatelessWidget {
-  final Tournament   tournament;
+  final Tournament tournament;
   final VoidCallback onTap;
-  const _HostedTournamentCard(
-      {required this.tournament, required this.onTap});
+  const _HostedTournamentCard({required this.tournament, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     // Reuse the shared _TournamentCard with isHost = true
-    return _TournamentCard(
-      tournament: tournament,
-      onTap:      onTap,
-      isHost:     true,
-    );
+    return _TournamentCard(tournament: tournament, onTap: onTap, isHost: true);
   }
 }
 
@@ -558,46 +778,46 @@ class _OpenTournamentsScreen extends StatefulWidget {
   const _OpenTournamentsScreen({required this.userId});
 
   @override
-  State<_OpenTournamentsScreen> createState() =>
-      _OpenTournamentsScreenState();
+  State<_OpenTournamentsScreen> createState() => _OpenTournamentsScreenState();
 }
 
 class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
-  String _sport  = 'All';
+  String _sport = 'All';
   String _format = 'All';
-  String _query  = '';
+  String _statusFilter = 'All'; // All | Upcoming | Ongoing | Past
+  String _query = '';
   final _searchCtrl = TextEditingController();
 
   static const _formatOptions = [
-    ('All',                  'All Formats'),
-    ('knockout',             'Knockout'),
-    ('roundRobin',           'Round Robin'),
-    ('leagueKnockout',       'League + KO'),
+    ('All', 'All Formats'),
+    ('knockout', 'Knockout'),
+    ('roundRobin', 'Round Robin'),
+    ('leagueKnockout', 'League + KO'),
   ];
 
   static const _allSports = [
-    ('All',          '🏆'),
-    ('Cricket',      '🏏'),
-    ('Football',     '⚽'),
-    ('Basketball',   '🏀'),
-    ('Badminton',    '🏸'),
-    ('Tennis',       '🎾'),
-    ('Volleyball',   '🏐'),
+    ('All', '🏆'),
+    ('Cricket', '🏏'),
+    ('Football', '⚽'),
+    ('Basketball', '🏀'),
+    ('Badminton', '🏸'),
+    ('Tennis', '🎾'),
+    ('Volleyball', '🏐'),
     ('Table Tennis', '🏓'),
-    ('Hockey',       '🏑'),
-    ('Boxing',       '🥊'),
-    ('Kabaddi',      '🤼'),
-    ('Throwball',    '🎯'),
-    ('Handball',     '🤾'),
-    ('Swimming',     '🏊'),
-    ('Cycling',      '🚴'),
-    ('Rugby',        '🏉'),
-    ('Golf',         '⛳'),
-    ('Squash',       '🎾'),
-    ('Wrestling',    '🤼'),
-    ('Athletics',    '🏃'),
-    ('Archery',      '🏹'),
-    ('Other',        '🎯'),
+    ('Hockey', '🏑'),
+    ('Boxing', '🥊'),
+    ('Kabaddi', '🤼'),
+    ('Throwball', '🎯'),
+    ('Handball', '🤾'),
+    ('Swimming', '🏊'),
+    ('Cycling', '🚴'),
+    ('Rugby', '🏉'),
+    ('Golf', '⛳'),
+    ('Squash', '🎾'),
+    ('Wrestling', '🤼'),
+    ('Athletics', '🏃'),
+    ('Archery', '🏹'),
+    ('Other', '🎯'),
   ];
 
   static final _sportEmoji = {
@@ -611,23 +831,40 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
   }
 
   List<Tournament> _filtered(List<Tournament> all) {
-    // Only show open/ongoing tournaments — no completed or cancelled
-    final active = all.where((t) =>
-        t.status == TournamentStatus.open ||
-        t.status == TournamentStatus.ongoing).toList();
+    Iterable<Tournament> base;
+    switch (_statusFilter) {
+      case 'Upcoming':
+        base = all.where((t) => t.status == TournamentStatus.open);
+      case 'Ongoing':
+        base = all.where((t) => t.status == TournamentStatus.ongoing);
+      case 'Past':
+        base = all.where(
+          (t) =>
+              t.status == TournamentStatus.completed ||
+              t.status == TournamentStatus.cancelled,
+        );
+      default:
+        base = all.where(
+          (t) =>
+              t.status == TournamentStatus.open ||
+              t.status == TournamentStatus.ongoing,
+        );
+    }
     var list = _sport == 'All'
-        ? active
-        : active.where((t) => t.sport == _sport).toList();
+        ? base.toList()
+        : base.where((t) => t.sport == _sport).toList();
     if (_format != 'All') {
       list = list.where((t) => t.format.name == _format).toList();
     }
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       list = list
-          .where((t) =>
-              t.name.toLowerCase().contains(q) ||
-              t.location.toLowerCase().contains(q) ||
-              t.sport.toLowerCase().contains(q))
+          .where(
+            (t) =>
+                t.name.toLowerCase().contains(q) ||
+                t.location.toLowerCase().contains(q) ||
+                t.sport.toLowerCase().contains(q),
+          )
           .toList();
     }
     return list;
@@ -641,22 +878,26 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
         listenable: TournamentService(),
         builder: (context, _) {
           final filtered = _filtered(TournamentService().tournaments);
-          final isFiltered = _sport != 'All';
+          final isFiltered = _sport != 'All' || _statusFilter != 'All';
+          final headerH = 104.0 + (_sport != 'All' ? 44.0 : 0) + 44.0;
 
           return CustomScrollView(
+            key: const PageStorageKey('open_tournaments_list'),
             slivers: [
               SliverAppBar(
                 pinned: true,
                 backgroundColor: AppColors.background,
                 elevation: 0,
-                title: const Text('Open Tournaments',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700)),
+                title: const Text(
+                  'Open Tournaments',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 iconTheme: const IconThemeData(color: Colors.white),
                 bottom: PreferredSize(
-                  preferredSize: Size.fromHeight(
-                      _sport != 'All' ? 148 : 104),
+                  preferredSize: Size.fromHeight(headerH),
                   child: Container(
                     color: AppColors.background,
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
@@ -665,30 +906,40 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                         // ── Search bar ──────────────────────────────────
                         TextField(
                           controller: _searchCtrl,
-                          onChanged: (v) =>
-                              setState(() => _query = v.trim()),
+                          onChanged: (v) => setState(() => _query = v.trim()),
                           style: const TextStyle(
-                              color: Colors.white, fontSize: 14),
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
                           decoration: InputDecoration(
                             hintText: 'Search tournaments…',
                             hintStyle: const TextStyle(
-                                color: Colors.white38, fontSize: 14),
-                            prefixIcon: const Icon(Icons.search_rounded,
-                                color: Colors.white38, size: 20),
+                              color: Colors.white38,
+                              fontSize: 14,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              color: Colors.white38,
+                              size: 20,
+                            ),
                             suffixIcon: _query.isNotEmpty
                                 ? GestureDetector(
                                     onTap: () {
                                       _searchCtrl.clear();
                                       setState(() => _query = '');
                                     },
-                                    child: const Icon(Icons.close,
-                                        color: Colors.white38, size: 18),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white38,
+                                      size: 18,
+                                    ),
                                   )
                                 : null,
                             filled: true,
                             fillColor: const Color(0xFF1E1E1E),
                             contentPadding: const EdgeInsets.symmetric(
-                                vertical: 10),
+                              vertical: 10,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide.none,
@@ -717,11 +968,12 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: _sport != 'All'
-                                  ? AppColors.primary
-                                      .withValues(alpha: 0.12)
+                                  ? AppColors.primary.withValues(alpha: 0.12)
                                   : const Color(0xFF1E1E1E),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
@@ -734,14 +986,11 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                               children: [
                                 Text(
                                   _sportEmoji[_sport] ?? '🎯',
-                                  style:
-                                      const TextStyle(fontSize: 16),
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  _sport == 'All'
-                                      ? 'All Sports'
-                                      : _sport,
+                                  _sport == 'All' ? 'All Sports' : _sport,
                                   style: TextStyle(
                                     color: _sport != 'All'
                                         ? AppColors.primary
@@ -764,12 +1013,14 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                                   const SizedBox(width: 4),
                                   GestureDetector(
                                     onTap: () => setState(() {
-                                      _sport  = 'All';
+                                      _sport = 'All';
                                       _format = 'All';
                                     }),
-                                    child: const Icon(Icons.close,
-                                        color: AppColors.primary,
-                                        size: 16),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: AppColors.primary,
+                                      size: 16,
+                                    ),
                                   ),
                                 ],
                               ],
@@ -777,6 +1028,47 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                           ),
                         ),
                         // ── Format dropdown — only when sport is selected ──
+                        // ── Status filter chips ─────────────────────────
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 34,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              for (final label in ['All', 'Upcoming', 'Ongoing', 'Past'])
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _statusFilter = label),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: _statusFilter == label
+                                            ? AppColors.primary
+                                            : const Color(0xFF1E1E1E),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: _statusFilter == label
+                                              ? AppColors.primary
+                                              : Colors.white12,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        label,
+                                        style: TextStyle(
+                                          color: _statusFilter == label
+                                              ? Colors.white
+                                              : Colors.white54,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                         if (_sport != 'All') ...[
                           const SizedBox(height: 8),
                           GestureDetector(
@@ -785,7 +1077,7 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                                 context: context,
                                 builder: (_) => _FormatPickerDialog(
                                   selected: _format,
-                                  options:  _formatOptions,
+                                  options: _formatOptions,
                                 ),
                               );
                               if (picked != null) {
@@ -794,7 +1086,9 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
                               decoration: BoxDecoration(
                                 color: _format != 'All'
                                     ? AppColors.primary.withValues(alpha: 0.12)
@@ -806,42 +1100,54 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                                       : Colors.white12,
                                 ),
                               ),
-                              child: Row(children: [
-                                const Icon(Icons.filter_list_rounded,
-                                    color: Colors.white38, size: 18),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _format == 'All'
-                                      ? 'All Formats'
-                                      : _formatOptions
-                                          .firstWhere((o) => o.$1 == _format)
-                                          .$2,
-                                  style: TextStyle(
-                                    color: _format != 'All'
-                                        ? AppColors.primary
-                                        : Colors.white60,
-                                    fontSize: 13,
-                                    fontWeight: _format != 'All'
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.filter_list_rounded,
+                                    color: Colors.white38,
+                                    size: 18,
                                   ),
-                                ),
-                                const Spacer(),
-                                Icon(Icons.keyboard_arrow_down_rounded,
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _format == 'All'
+                                        ? 'All Formats'
+                                        : _formatOptions
+                                              .firstWhere(
+                                                (o) => o.$1 == _format,
+                                              )
+                                              .$2,
+                                    style: TextStyle(
+                                      color: _format != 'All'
+                                          ? AppColors.primary
+                                          : Colors.white60,
+                                      fontSize: 13,
+                                      fontWeight: _format != 'All'
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Icon(
+                                    Icons.keyboard_arrow_down_rounded,
                                     color: _format != 'All'
                                         ? AppColors.primary
                                         : Colors.white38,
-                                    size: 20),
-                                if (_format != 'All') ...[
-                                  const SizedBox(width: 4),
-                                  GestureDetector(
-                                    onTap: () =>
-                                        setState(() => _format = 'All'),
-                                    child: const Icon(Icons.close,
-                                        color: AppColors.primary, size: 16),
+                                    size: 20,
                                   ),
+                                  if (_format != 'All') ...[
+                                    const SizedBox(width: 4),
+                                    GestureDetector(
+                                      onTap: () =>
+                                          setState(() => _format = 'All'),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: AppColors.primary,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ]),
+                              ),
                             ),
                           ),
                         ],
@@ -858,11 +1164,10 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                   child: Text(
                     filtered.isEmpty
                         ? isFiltered
-                            ? 'No ${_format != 'All' ? '${_formatOptions.firstWhere((o) => o.$1 == _format).$2} ' : ''}$_sport tournaments found'
-                            : 'No tournaments found'
+                              ? 'No ${_format != 'All' ? '${_formatOptions.firstWhere((o) => o.$1 == _format).$2} ' : ''}$_sport tournaments found'
+                              : 'No tournaments found'
                         : '${filtered.length} tournament${filtered.length == 1 ? '' : 's'}${isFiltered ? ' · $_sport' : ''}${_format != 'All' ? ' · ${_formatOptions.firstWhere((o) => o.$1 == _format).$2}' : ''}',
-                    style: const TextStyle(
-                        color: Colors.white38, fontSize: 12),
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ),
               ),
@@ -876,28 +1181,30 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              isFiltered
-                                  ? (_sportEmoji[_sport] ?? '🏆')
-                                  : '🏆',
+                              _sport != 'All' ? (_sportEmoji[_sport] ?? '🏆') : '🏆',
                               style: const TextStyle(fontSize: 56),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               isFiltered
-                                  ? 'No $_sport tournaments'
+                                  ? 'No ${_statusFilter != 'All' ? '$_statusFilter ' : ''}${_sport != 'All' ? '$_sport ' : ''}tournaments found'
                                   : 'No tournaments found',
                               style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 16),
+                                color: Colors.white38,
+                                fontSize: 16,
+                              ),
                             ),
                             if (isFiltered) ...[
                               const SizedBox(height: 12),
                               TextButton(
-                                onPressed: () =>
-                                    setState(() => _sport = 'All'),
-                                child: const Text('Show all sports',
-                                    style: TextStyle(
-                                        color: AppColors.primary)),
+                                onPressed: () => setState(() {
+                                  _sport = 'All';
+                                  _statusFilter = 'All';
+                                }),
+                                child: const Text(
+                                  'Clear filters',
+                                  style: TextStyle(color: AppColors.primary),
+                                ),
                               ),
                             ],
                           ],
@@ -913,14 +1220,34 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                           final open = filtered
                               .where((t) => t.status == TournamentStatus.open)
                               .toList();
+                          final past = filtered
+                              .where(
+                                (t) =>
+                                    t.status == TournamentStatus.completed ||
+                                    t.status == TournamentStatus.cancelled,
+                              )
+                              .toList();
                           final combined = [
                             if (ongoing.isNotEmpty) ...[
-                              const _SectionHeader(label: 'Ongoing', color: AppColors.primary),
+                              const _SectionHeader(
+                                label: 'Ongoing',
+                                color: AppColors.primary,
+                              ),
                               ...ongoing,
                             ],
                             if (open.isNotEmpty) ...[
-                              const _SectionHeader(label: 'Registrations Open', color: Color(0xFF2E7D32)),
+                              const _SectionHeader(
+                                label: 'Registrations Open',
+                                color: Color(0xFF2E7D32),
+                              ),
                               ...open,
+                            ],
+                            if (past.isNotEmpty) ...[
+                              const _SectionHeader(
+                                label: 'Past',
+                                color: Colors.white38,
+                              ),
+                              ...past,
                             ],
                           ];
                           final item = combined[i];
@@ -931,8 +1258,8 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                             onTap: () => Navigator.push(
                               ctx,
                               MaterialPageRoute(
-                                builder: (_) => TournamentDetailScreen(
-                                    tournamentId: t.id),
+                                builder: (_) =>
+                                    TournamentDetailScreen(tournamentId: t.id),
                               ),
                             ),
                           );
@@ -944,9 +1271,17 @@ class _OpenTournamentsScreenState extends State<_OpenTournamentsScreen> {
                           final open = filtered
                               .where((t) => t.status == TournamentStatus.open)
                               .length;
+                          final past = filtered
+                              .where(
+                                (t) =>
+                                    t.status == TournamentStatus.completed ||
+                                    t.status == TournamentStatus.cancelled,
+                              )
+                              .length;
                           return filtered.length +
                               (ongoing > 0 ? 1 : 0) +
-                              (open > 0 ? 1 : 0);
+                              (open > 0 ? 1 : 0) +
+                              (past > 0 ? 1 : 0);
                         })(),
                       ),
                     ),
@@ -990,9 +1325,7 @@ class _SportPickerDialogState extends State<_SportPickerDialog> {
   List<(String, String)> get _filtered {
     if (_search.isEmpty) return widget.sports;
     final q = _search.toLowerCase();
-    return widget.sports
-        .where((s) => s.$1.toLowerCase().contains(q))
-        .toList();
+    return widget.sports.where((s) => s.$1.toLowerCase().contains(q)).toList();
   }
 
   @override
@@ -1007,11 +1340,14 @@ class _SportPickerDialogState extends State<_SportPickerDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Filter by Sport',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700)),
+            const Text(
+              'Filter by Sport',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 12),
             // ── Search field ──────────────────────────────────────
             TextField(
@@ -1021,16 +1357,22 @@ class _SportPickerDialogState extends State<_SportPickerDialog> {
               decoration: InputDecoration(
                 hintText: 'Search sports…',
                 hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded,
-                    color: Colors.white38, size: 20),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: Colors.white38,
+                  size: 20,
+                ),
                 suffixIcon: _search.isNotEmpty
                     ? GestureDetector(
                         onTap: () {
                           _ctrl.clear();
                           setState(() => _search = '');
                         },
-                        child: const Icon(Icons.close,
-                            color: Colors.white38, size: 18),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white38,
+                          size: 18,
+                        ),
                       )
                     : null,
                 filled: true,
@@ -1052,8 +1394,10 @@ class _SportPickerDialogState extends State<_SportPickerDialog> {
                   ? const Padding(
                       padding: EdgeInsets.all(24),
                       child: Center(
-                        child: Text('No sports found',
-                            style: TextStyle(color: Colors.white38)),
+                        child: Text(
+                          'No sports found',
+                          style: TextStyle(color: Colors.white38),
+                        ),
                       ),
                     )
                   : ListView.builder(
@@ -1067,7 +1411,9 @@ class _SportPickerDialogState extends State<_SportPickerDialog> {
                           onTap: () => Navigator.pop(context, name),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 12),
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: sel
                                   ? AppColors.primary.withValues(alpha: 0.15)
@@ -1076,21 +1422,31 @@ class _SportPickerDialogState extends State<_SportPickerDialog> {
                             ),
                             child: Row(
                               children: [
-                                Text(emoji, style: const TextStyle(fontSize: 20)),
+                                Text(
+                                  emoji,
+                                  style: const TextStyle(fontSize: 20),
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
                                     name,
                                     style: TextStyle(
-                                      color: sel ? AppColors.primary : Colors.white70,
+                                      color: sel
+                                          ? AppColors.primary
+                                          : Colors.white70,
                                       fontSize: 14,
-                                      fontWeight: sel ? FontWeight.w700 : FontWeight.normal,
+                                      fontWeight: sel
+                                          ? FontWeight.w700
+                                          : FontWeight.normal,
                                     ),
                                   ),
                                 ),
                                 if (sel)
-                                  const Icon(Icons.check_circle,
-                                      color: AppColors.primary, size: 20),
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
                               ],
                             ),
                           ),
@@ -1111,16 +1467,13 @@ class _FormatPickerDialog extends StatelessWidget {
   final String selected;
   final List<(String, String)> options;
 
-  const _FormatPickerDialog({
-    required this.selected,
-    required this.options,
-  });
+  const _FormatPickerDialog({required this.selected, required this.options});
 
   static const _formatIcons = {
-    'All':             Icons.grid_view_rounded,
-    'knockout':        Icons.account_tree_rounded,
-    'roundRobin':      Icons.repeat_rounded,
-    'leagueKnockout':  Icons.emoji_events_rounded,
+    'All': Icons.grid_view_rounded,
+    'knockout': Icons.account_tree_rounded,
+    'roundRobin': Icons.repeat_rounded,
+    'leagueKnockout': Icons.emoji_events_rounded,
   };
 
   @override
@@ -1134,11 +1487,14 @@ class _FormatPickerDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Filter by Format',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700)),
+            const Text(
+              'Filter by Format',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 12),
             ...options.map((opt) {
               final (value, label) = opt;
@@ -1148,33 +1504,43 @@ class _FormatPickerDialog extends StatelessWidget {
                 onTap: () => Navigator.pop(context, value),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 13),
+                    horizontal: 14,
+                    vertical: 13,
+                  ),
                   decoration: BoxDecoration(
                     color: sel
                         ? AppColors.primary.withValues(alpha: 0.15)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Row(children: [
-                    Icon(
-                      _formatIcons[value] ?? Icons.tune_rounded,
-                      color: sel ? AppColors.primary : Colors.white38,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(label,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _formatIcons[value] ?? Icons.tune_rounded,
+                        color: sel ? AppColors.primary : Colors.white38,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          label,
                           style: TextStyle(
                             color: sel ? AppColors.primary : Colors.white70,
                             fontSize: 14,
-                            fontWeight:
-                                sel ? FontWeight.w700 : FontWeight.normal,
-                          )),
-                    ),
-                    if (sel)
-                      const Icon(Icons.check_circle,
-                          color: AppColors.primary, size: 20),
-                  ]),
+                            fontWeight: sel
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      if (sel)
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                    ],
+                  ),
                 ),
               );
             }),
@@ -1199,43 +1565,43 @@ class _MyRegisteredScreen extends StatefulWidget {
 
 class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
     with SingleTickerProviderStateMixin {
-  bool   _loading = true;
-  String _query   = '';
-  String _sport   = 'All';
-  String _format  = 'All';
-  final  _searchCtrl = TextEditingController();
+  bool _loading = true;
+  String _query = '';
+  String _sport = 'All';
+  String _format = 'All';
+  final _searchCtrl = TextEditingController();
   late TabController _tabCtrl;
 
   static const _formatOptions = [
-    ('All',            'All Formats'),
-    ('knockout',       'Knockout'),
-    ('roundRobin',     'Round Robin'),
+    ('All', 'All Formats'),
+    ('knockout', 'Knockout'),
+    ('roundRobin', 'Round Robin'),
     ('leagueKnockout', 'League + KO'),
   ];
 
   static const _allSports = [
-    ('All',          '🏆'),
-    ('Cricket',      '🏏'),
-    ('Football',     '⚽'),
-    ('Basketball',   '🏀'),
-    ('Badminton',    '🏸'),
-    ('Tennis',       '🎾'),
-    ('Volleyball',   '🏐'),
+    ('All', '🏆'),
+    ('Cricket', '🏏'),
+    ('Football', '⚽'),
+    ('Basketball', '🏀'),
+    ('Badminton', '🏸'),
+    ('Tennis', '🎾'),
+    ('Volleyball', '🏐'),
     ('Table Tennis', '🏓'),
-    ('Hockey',       '🏑'),
-    ('Boxing',       '🥊'),
-    ('Kabaddi',      '🤼'),
-    ('Throwball',    '🎯'),
-    ('Handball',     '🤾'),
-    ('Swimming',     '🏊'),
-    ('Cycling',      '🚴'),
-    ('Rugby',        '🏉'),
-    ('Golf',         '⛳'),
-    ('Squash',       '🎾'),
-    ('Wrestling',    '🤼'),
-    ('Athletics',    '🏃'),
-    ('Archery',      '🏹'),
-    ('Other',        '🎯'),
+    ('Hockey', '🏑'),
+    ('Boxing', '🥊'),
+    ('Kabaddi', '🤼'),
+    ('Throwball', '🎯'),
+    ('Handball', '🤾'),
+    ('Swimming', '🏊'),
+    ('Cycling', '🚴'),
+    ('Rugby', '🏉'),
+    ('Golf', '⛳'),
+    ('Squash', '🎾'),
+    ('Wrestling', '🤼'),
+    ('Athletics', '🏃'),
+    ('Archery', '🏹'),
+    ('Other', '🎯'),
   ];
 
   static final _sportEmoji = {
@@ -1275,10 +1641,12 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
       result = result
-          .where((t) =>
-              t.name.toLowerCase().contains(q) ||
-              t.sport.toLowerCase().contains(q) ||
-              t.location.toLowerCase().contains(q))
+          .where(
+            (t) =>
+                t.name.toLowerCase().contains(q) ||
+                t.sport.toLowerCase().contains(q) ||
+                t.location.toLowerCase().contains(q),
+          )
           .toList();
     }
     return result;
@@ -1292,9 +1660,10 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
         backgroundColor: AppColors.background,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('My Tournaments',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'My Tournaments',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(_sport != 'All' ? 208 : 156),
           child: Column(
@@ -1308,24 +1677,31 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search my tournaments…',
-                    hintStyle:
-                        const TextStyle(color: Colors.white38, fontSize: 14),
-                    prefixIcon: const Icon(Icons.search_rounded,
-                        color: Colors.white38, size: 20),
+                    hintStyle: const TextStyle(
+                      color: Colors.white38,
+                      fontSize: 14,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: Colors.white38,
+                      size: 20,
+                    ),
                     suffixIcon: _query.isNotEmpty
                         ? GestureDetector(
                             onTap: () {
                               _searchCtrl.clear();
                               setState(() => _query = '');
                             },
-                            child: const Icon(Icons.close,
-                                color: Colors.white38, size: 18),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white38,
+                              size: 18,
+                            ),
                           )
                         : null,
                     filled: true,
                     fillColor: const Color(0xFF1E1E1E),
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -1348,14 +1724,16 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                     );
                     if (picked != null) {
                       setState(() {
-                        _sport  = picked;
+                        _sport = picked;
                         _format = 'All';
                       });
                     }
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: _sport != 'All'
                           ? AppColors.primary.withValues(alpha: 0.12)
@@ -1369,8 +1747,10 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                     ),
                     child: Row(
                       children: [
-                        Text(_sportEmoji[_sport] ?? '🎯',
-                            style: const TextStyle(fontSize: 16)),
+                        Text(
+                          _sportEmoji[_sport] ?? '🎯',
+                          style: const TextStyle(fontSize: 16),
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           _sport == 'All' ? 'All Sports' : _sport,
@@ -1385,20 +1765,25 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                           ),
                         ),
                         const Spacer(),
-                        Icon(Icons.keyboard_arrow_down_rounded,
-                            color: _sport != 'All'
-                                ? AppColors.primary
-                                : Colors.white38,
-                            size: 20),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: _sport != 'All'
+                              ? AppColors.primary
+                              : Colors.white38,
+                          size: 20,
+                        ),
                         if (_sport != 'All') ...[
                           const SizedBox(width: 4),
                           GestureDetector(
                             onTap: () => setState(() {
-                              _sport  = 'All';
+                              _sport = 'All';
                               _format = 'All';
                             }),
-                            child: const Icon(Icons.close,
-                                color: AppColors.primary, size: 16),
+                            child: const Icon(
+                              Icons.close,
+                              color: AppColors.primary,
+                              size: 16,
+                            ),
                           ),
                         ],
                       ],
@@ -1416,14 +1801,16 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                         context: context,
                         builder: (_) => _FormatPickerDialog(
                           selected: _format,
-                          options:  _formatOptions,
+                          options: _formatOptions,
                         ),
                       );
                       if (picked != null) setState(() => _format = picked);
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: _format != 'All'
                             ? AppColors.primary.withValues(alpha: 0.12)
@@ -1435,42 +1822,51 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                               : Colors.white12,
                         ),
                       ),
-                      child: Row(children: [
-                        const Icon(Icons.filter_list_rounded,
-                            color: Colors.white38, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _format == 'All'
-                              ? 'All Formats'
-                              : _formatOptions
-                                  .firstWhere((o) => o.$1 == _format)
-                                  .$2,
-                          style: TextStyle(
-                            color: _format != 'All'
-                                ? AppColors.primary
-                                : Colors.white60,
-                            fontSize: 13,
-                            fontWeight: _format != 'All'
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.filter_list_rounded,
+                            color: Colors.white38,
+                            size: 18,
                           ),
-                        ),
-                        const Spacer(),
-                        Icon(Icons.keyboard_arrow_down_rounded,
+                          const SizedBox(width: 8),
+                          Text(
+                            _format == 'All'
+                                ? 'All Formats'
+                                : _formatOptions
+                                      .firstWhere((o) => o.$1 == _format)
+                                      .$2,
+                            style: TextStyle(
+                              color: _format != 'All'
+                                  ? AppColors.primary
+                                  : Colors.white60,
+                              fontSize: 13,
+                              fontWeight: _format != 'All'
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
                             color: _format != 'All'
                                 ? AppColors.primary
                                 : Colors.white38,
-                            size: 20),
-                        if (_format != 'All') ...[
-                          const SizedBox(width: 4),
-                          GestureDetector(
-                            onTap: () =>
-                                setState(() => _format = 'All'),
-                            child: const Icon(Icons.close,
-                                color: AppColors.primary, size: 16),
+                            size: 20,
                           ),
+                          if (_format != 'All') ...[
+                            const SizedBox(width: 4),
+                            GestureDetector(
+                              onTap: () => setState(() => _format = 'All'),
+                              child: const Icon(
+                                Icons.close,
+                                color: AppColors.primary,
+                                size: 16,
+                              ),
+                            ),
+                          ],
                         ],
-                      ]),
+                      ),
                     ),
                   ),
                 ),
@@ -1481,7 +1877,9 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                 labelColor: AppColors.primary,
                 unselectedLabelColor: Colors.white38,
                 labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 13),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
                 tabs: const [
                   Tab(text: 'Upcoming'),
                   Tab(text: 'Current'),
@@ -1494,7 +1892,8 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : ListenableBuilder(
               listenable: TournamentService(),
               builder: (context, _) {
@@ -1502,24 +1901,35 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                 final uid = widget.userId;
 
                 final allMine = svc.tournaments
-                    .where((t) =>
-                        svc.myEnrolledIds.contains(t.id) ||
-                        t.createdBy == uid)
+                    .where(
+                      (t) =>
+                          svc.myEnrolledIds.contains(t.id) ||
+                          t.createdBy == uid,
+                    )
                     .toList();
 
-                final upcoming = _applyFilters(allMine
-                    .where((t) => t.status == TournamentStatus.open)
-                    .toList());
-                final current = _applyFilters(allMine
-                    .where((t) => t.status == TournamentStatus.ongoing)
-                    .toList());
-                final past = _applyFilters(allMine
-                    .where((t) =>
-                        t.status == TournamentStatus.completed ||
-                        t.status == TournamentStatus.cancelled)
-                    .toList());
+                final upcoming = _applyFilters(
+                  allMine
+                      .where((t) => t.status == TournamentStatus.open)
+                      .toList(),
+                );
+                final current = _applyFilters(
+                  allMine
+                      .where((t) => t.status == TournamentStatus.ongoing)
+                      .toList(),
+                );
+                final past = _applyFilters(
+                  allMine
+                      .where(
+                        (t) =>
+                            t.status == TournamentStatus.completed ||
+                            t.status == TournamentStatus.cancelled,
+                      )
+                      .toList(),
+                );
 
-                final noResults = _query.isNotEmpty &&
+                final noResults =
+                    _query.isNotEmpty &&
                     upcoming.isEmpty &&
                     current.isEmpty &&
                     past.isEmpty;
@@ -1529,21 +1939,29 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.search_off_rounded,
-                            size: 56, color: Colors.white12),
+                        const Icon(
+                          Icons.search_off_rounded,
+                          size: 56,
+                          color: Colors.white12,
+                        ),
                         const SizedBox(height: 14),
-                        Text('No results for "$_query"',
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 15)),
+                        Text(
+                          'No results for "$_query"',
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 15,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () {
                             _searchCtrl.clear();
                             setState(() => _query = '');
                           },
-                          child: const Text('Clear search',
-                              style:
-                                  TextStyle(color: AppColors.primary)),
+                          child: const Text(
+                            'Clear search',
+                            style: TextStyle(color: AppColors.primary),
+                          ),
                         ),
                       ],
                     ),
@@ -1560,7 +1978,8 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
                       emptyText: _query.isNotEmpty
                           ? 'No upcoming matches "$_query"'
                           : 'No upcoming tournaments',
-                      emptyHint: 'Register for an open tournament to see it here',
+                      emptyHint:
+                          'Register for an open tournament to see it here',
                       showNextMatch: false,
                       onRefresh: _load,
                     ),
@@ -1598,11 +2017,11 @@ class _MyRegisteredScreenState extends State<_MyRegisteredScreen>
 
 class _TournamentTabBody extends StatelessWidget {
   final List<Tournament> tournaments;
-  final String           userId;
-  final IconData         emptyIcon;
-  final String           emptyText;
-  final String           emptyHint;
-  final bool             showNextMatch;
+  final String userId;
+  final IconData emptyIcon;
+  final String emptyText;
+  final String emptyHint;
+  final bool showNextMatch;
   final Future<void> Function() onRefresh;
 
   const _TournamentTabBody({
@@ -1624,12 +2043,16 @@ class _TournamentTabBody extends StatelessWidget {
           children: [
             Icon(emptyIcon, size: 64, color: Colors.white12),
             const SizedBox(height: 16),
-            Text(emptyText,
-                style: const TextStyle(color: Colors.white38, fontSize: 15)),
+            Text(
+              emptyText,
+              style: const TextStyle(color: Colors.white38, fontSize: 15),
+            ),
             const SizedBox(height: 6),
-            Text(emptyHint,
-                style: const TextStyle(color: Colors.white24, fontSize: 12),
-                textAlign: TextAlign.center),
+            Text(
+              emptyHint,
+              style: const TextStyle(color: Colors.white24, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       );
@@ -1643,16 +2066,17 @@ class _TournamentTabBody extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
         itemCount: tournaments.length,
         itemBuilder: (ctx, i) {
-          final t      = tournaments[i];
-          final isHost = t.createdBy == userId && !svc.myEnrolledIds.contains(t.id);
+          final t = tournaments[i];
+          final isHost =
+              t.createdBy == userId && !svc.myEnrolledIds.contains(t.id);
           final myTeam = svc.myTeamIn(t.id);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _TournamentCard(
                 tournament: t,
-                teamBadge:  myTeam?.teamName,
-                isHost:     isHost,
+                teamBadge: myTeam?.teamName,
+                isHost: isHost,
                 onTap: () => Navigator.push(
                   ctx,
                   MaterialPageRoute(
@@ -1682,13 +2106,16 @@ class _NextMatchChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final matches = TournamentService().matchesFor(tournamentId);
-    final next = matches
-        .where((m) =>
-            !m.isBye &&
-            m.result == TournamentMatchResult.pending &&
-            (m.teamAId == myTeamId || m.teamBId == myTeamId))
-        .toList()
-      ..sort((a, b) => a.round.compareTo(b.round));
+    final next =
+        matches
+            .where(
+              (m) =>
+                  !m.isBye &&
+                  m.result == TournamentMatchResult.pending &&
+                  (m.teamAId == myTeamId || m.teamBId == myTeamId),
+            )
+            .toList()
+          ..sort((a, b) => a.round.compareTo(b.round));
 
     if (next.isEmpty) {
       return Padding(
@@ -1697,19 +2124,27 @@ class _NextMatchChip extends StatelessWidget {
           children: const [
             Icon(Icons.schedule_outlined, size: 13, color: Colors.white24),
             SizedBox(width: 5),
-            Text('No match scheduled yet',
-                style: TextStyle(color: Colors.white24, fontSize: 12)),
+            Text(
+              'No match scheduled yet',
+              style: TextStyle(color: Colors.white24, fontSize: 12),
+            ),
           ],
         ),
       );
     }
 
-    final m        = next.first;
+    final m = next.first;
     final opponent = m.teamAId == myTeamId
         ? (m.teamBName ?? 'TBD')
         : (m.teamAName ?? 'TBD');
-    final roundLabel = _roundLabel(m.round,
-        TournamentService().matchesFor(tournamentId).map((x) => x.round).toSet().length);
+    final roundLabel = _roundLabel(
+      m.round,
+      TournamentService()
+          .matchesFor(tournamentId)
+          .map((x) => x.round)
+          .toSet()
+          .length,
+    );
 
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 10),
@@ -1728,9 +2163,10 @@ class _NextMatchChip extends StatelessWidget {
             Text(
               'Next: vs $opponent · $roundLabel',
               style: const TextStyle(
-                  color: Colors.green,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600),
+                color: Colors.green,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -1753,10 +2189,14 @@ class _NextMatchChip extends StatelessWidget {
 
 // Simple data holder for a single fixture entry
 class _MatchEntry {
-  final TournamentMatch  match;
-  final Tournament       tournament;
-  final TournamentTeam   myTeam;
-  const _MatchEntry({required this.match, required this.tournament, required this.myTeam});
+  final TournamentMatch match;
+  final Tournament tournament;
+  final TournamentTeam myTeam;
+  const _MatchEntry({
+    required this.match,
+    required this.tournament,
+    required this.myTeam,
+  });
 }
 
 class _MyScheduleScreen extends StatefulWidget {
@@ -1792,16 +2232,18 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
       svc.loadTournaments(),
       svc.loadMyEnrollments(widget.userId),
     ]);
-    final toLoad = svc.tournaments.where((t) =>
-        t.status == TournamentStatus.open ||
-        t.status == TournamentStatus.ongoing ||
-        svc.myEnrolledIds.contains(t.id));
+    final toLoad = svc.tournaments.where(
+      (t) =>
+          t.status == TournamentStatus.open ||
+          t.status == TournamentStatus.ongoing ||
+          svc.myEnrolledIds.contains(t.id),
+    );
     await Future.wait(toLoad.map((t) => svc.loadDetail(t.id)));
     if (mounted) setState(() => _loading = false);
   }
 
   List<_MatchEntry> _myMatches(TournamentService svc) {
-    final uid    = widget.userId;
+    final uid = widget.userId;
     final result = <_MatchEntry>[];
     for (final t in svc.tournaments) {
       final myTeam = svc.myTeamIn(t.id);
@@ -1844,12 +2286,15 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('My Fixtures',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'My Fixtures',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : ListenableBuilder(
               listenable: TournamentService(),
               builder: (context, _) {
@@ -1868,22 +2313,28 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
                     .toList();
 
                 // Timed matches for the selected day only
-                final dayEntries = allEntries
-                    .where((e) =>
-                        e.match.scheduledAt != null &&
-                        _dayOnly(e.match.scheduledAt!) == _selectedDay)
-                    .toList()
-                  ..sort((a, b) =>
-                      a.match.scheduledAt!.compareTo(b.match.scheduledAt!));
+                final dayEntries =
+                    allEntries
+                        .where(
+                          (e) =>
+                              e.match.scheduledAt != null &&
+                              _dayOnly(e.match.scheduledAt!) == _selectedDay,
+                        )
+                        .toList()
+                      ..sort(
+                        (a, b) => a.match.scheduledAt!.compareTo(
+                          b.match.scheduledAt!,
+                        ),
+                      );
 
                 return Column(
                   children: [
                     // ── Date strip ─────────────────────────────────────
                     _CalendarStrip(
-                      matchDays:  matchDaySet,
-                      selected:   _selectedDay,
+                      matchDays: matchDaySet,
+                      selected: _selectedDay,
                       scrollCtrl: _stripCtrl,
-                      onSelect:   (d) => setState(() => _selectedDay = d),
+                      onSelect: (d) => setState(() => _selectedDay = d),
                     ),
                     // ── Unscheduled matches (pinned at top) ────────────
                     if (tbdEntries.isNotEmpty) _TbdSection(entries: tbdEntries),
@@ -1910,8 +2361,10 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
         children: const [
           Icon(Icons.event_busy_outlined, size: 48, color: Colors.white12),
           SizedBox(height: 12),
-          Text('No matches on this day',
-              style: TextStyle(color: Colors.white38, fontSize: 14)),
+          Text(
+            'No matches on this day',
+            style: TextStyle(color: Colors.white38, fontSize: 14),
+          ),
         ],
       ),
     );
@@ -1924,11 +2377,16 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.calendar_month_outlined,
-              size: 64, color: Colors.white12),
+          const Icon(
+            Icons.calendar_month_outlined,
+            size: 64,
+            color: Colors.white12,
+          ),
           const SizedBox(height: 16),
-          const Text('No fixtures yet',
-              style: TextStyle(color: Colors.white38, fontSize: 15)),
+          const Text(
+            'No fixtures yet',
+            style: TextStyle(color: Colors.white38, fontSize: 15),
+          ),
           const SizedBox(height: 8),
           const Text(
             'Once a host generates the schedule,\nyour matches will appear here',
@@ -1944,8 +2402,8 @@ class _MyScheduleScreenState extends State<_MyScheduleScreen> {
 // ── Calendar date strip ───────────────────────────────────────────────────────
 
 class _CalendarStrip extends StatefulWidget {
-  final Set<DateTime>    matchDays;
-  final DateTime         selected;
+  final Set<DateTime> matchDays;
+  final DateTime selected;
   final ScrollController scrollCtrl;
   final void Function(DateTime) onSelect;
   const _CalendarStrip({
@@ -1971,20 +2429,33 @@ class _CalendarStripState extends State<_CalendarStrip> {
     super.initState();
     final today = DateTime.now();
     _start = DateTime(today.year, today.month, today.day);
-    _days  = List.generate(_kDays, (i) => _start.add(Duration(days: i)));
+    _days = List.generate(_kDays, (i) => _start.add(Duration(days: i)));
     // scroll so today is near the left
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final idx = _days.indexWhere((d) => d == widget.selected);
       if (idx > 0 && widget.scrollCtrl.hasClients) {
-        widget.scrollCtrl.jumpTo((idx * _kDayW).clamp(
-            0, widget.scrollCtrl.position.maxScrollExtent));
+        widget.scrollCtrl.jumpTo(
+          (idx * _kDayW).clamp(0, widget.scrollCtrl.position.maxScrollExtent),
+        );
       }
     });
   }
 
   static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  static const _months   = ['Jan','Feb','Mar','Apr','May','Jun',
-                              'Jul','Aug','Sep','Oct','Nov','Dec'];
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -2015,28 +2486,32 @@ class _CalendarStripState extends State<_CalendarStrip> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               itemCount: _days.length,
               itemBuilder: (_, i) {
-                final d       = _days[i];
+                final d = _days[i];
                 final isToday = d == _start;
-                final isSel   = d == widget.selected;
-                final hasMat  = widget.matchDays.contains(d);
+                final isSel = d == widget.selected;
+                final hasMat = widget.matchDays.contains(d);
                 return GestureDetector(
                   onTap: () => widget.onSelect(d),
                   child: Container(
                     width: _kDayW,
-                    margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isSel
                           ? AppColors.primary
                           : isToday
-                              ? AppColors.primary.withValues(alpha: 0.15)
-                              : Colors.transparent,
+                          ? AppColors.primary.withValues(alpha: 0.15)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                       border: isSel
                           ? null
                           : isToday
-                              ? Border.all(
-                                  color: AppColors.primary.withValues(alpha: 0.4))
-                              : null,
+                          ? Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                            )
+                          : null,
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -2044,9 +2519,7 @@ class _CalendarStripState extends State<_CalendarStrip> {
                         Text(
                           _dayNames[d.weekday - 1],
                           style: TextStyle(
-                            color: isSel
-                                ? Colors.white
-                                : Colors.white38,
+                            color: isSel ? Colors.white : Colors.white38,
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
                           ),
@@ -2058,8 +2531,8 @@ class _CalendarStripState extends State<_CalendarStrip> {
                             color: isSel
                                 ? Colors.white
                                 : isToday
-                                    ? AppColors.primary
-                                    : Colors.white70,
+                                ? AppColors.primary
+                                : Colors.white70,
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                           ),
@@ -2067,7 +2540,8 @@ class _CalendarStripState extends State<_CalendarStrip> {
                         const SizedBox(height: 4),
                         // Dot indicator for days with matches
                         Container(
-                          width: 5, height: 5,
+                          width: 5,
+                          height: 5,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: hasMat
@@ -2104,17 +2578,26 @@ class _TbdSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(children: [
-            const Icon(Icons.schedule_rounded, color: Colors.white38, size: 12),
-            const SizedBox(width: 5),
-            const Text('Unscheduled',
+          Row(
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                color: Colors.white38,
+                size: 12,
+              ),
+              const SizedBox(width: 5),
+              const Text(
+                'Unscheduled',
                 style: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(width: 8),
-            const Expanded(child: Divider(color: Colors.white10)),
-          ]),
+                  color: Colors.white38,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(child: Divider(color: Colors.white10)),
+            ],
+          ),
           const SizedBox(height: 6),
           for (final e in entries) _TimeGridEventCard(entry: e),
           const SizedBox(height: 8),
@@ -2136,10 +2619,10 @@ class _DayTimeGrid extends StatefulWidget {
 }
 
 class _DayTimeGridState extends State<_DayTimeGrid> {
-  static const double _kHourH  = 60.0; // px per hour
-  static const double _kTimeW  = 46.0; // width of time-label column
-  static const int    _kStart  = 6;    // 6 AM
-  static const int    _kEnd    = 23;   // 11 PM
+  static const double _kHourH = 60.0; // px per hour
+  static const double _kTimeW = 46.0; // width of time-label column
+  static const int _kStart = 6; // 6 AM
+  static const int _kEnd = 23; // 11 PM
 
   final _ctrl = ScrollController();
 
@@ -2157,14 +2640,16 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
 
   void _scrollToFirst() {
     if (!_ctrl.hasClients || widget.entries.isEmpty) return;
-    final dt     = widget.entries.first.match.scheduledAt!;
-    final offset = ((dt.hour - _kStart + dt.minute / 60) * _kHourH - 40)
-        .clamp(0.0, _ctrl.position.maxScrollExtent);
+    final dt = widget.entries.first.match.scheduledAt!;
+    final offset = ((dt.hour - _kStart + dt.minute / 60) * _kHourH - 40).clamp(
+      0.0,
+      _ctrl.position.maxScrollExtent,
+    );
     _ctrl.jumpTo(offset);
   }
 
   String _hourLabel(int h) {
-    if (h == 0)  return '12\nAM';
+    if (h == 0) return '12\nAM';
     if (h == 12) return '12\nPM';
     return h < 12 ? '$h\nAM' : '${h - 12}\nPM';
   }
@@ -2172,7 +2657,7 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
   @override
   Widget build(BuildContext context) {
     final totalH = (_kEnd - _kStart) * _kHourH;
-    final now    = DateTime.now();
+    final now = DateTime.now();
     final todayD = DateTime(now.year, now.month, now.day);
     final firstD = widget.entries.first.match.scheduledAt!;
     final isToday = DateTime(firstD.year, firstD.month, firstD.day) == todayD;
@@ -2219,43 +2704,51 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
                   for (int h = _kStart; h <= _kEnd; h++)
                     Positioned(
                       top: (h - _kStart) * _kHourH,
-                      left: 0, right: 0,
+                      left: 0,
+                      right: 0,
                       child: Container(
-                          height: 1,
-                          color: Colors.white.withValues(alpha: 0.07)),
+                        height: 1,
+                        color: Colors.white.withValues(alpha: 0.07),
+                      ),
                     ),
                   // Half-hour dashes
                   for (int h = _kStart; h < _kEnd; h++)
                     Positioned(
                       top: (h - _kStart) * _kHourH + _kHourH / 2,
-                      left: 0, right: 0,
+                      left: 0,
+                      right: 0,
                       child: Container(
-                          height: 1,
-                          color: Colors.white.withValues(alpha: 0.03)),
+                        height: 1,
+                        color: Colors.white.withValues(alpha: 0.03),
+                      ),
                     ),
                   // Current-time indicator (today only)
-                  if (isToday &&
-                      now.hour >= _kStart && now.hour <= _kEnd)
+                  if (isToday && now.hour >= _kStart && now.hour <= _kEnd)
                     Positioned(
                       top: (now.hour - _kStart + now.minute / 60) * _kHourH,
-                      left: 0, right: 0,
-                      child: Row(children: [
-                        Container(
-                          width: 8, height: 8,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primary,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.primary,
+                            ),
                           ),
-                        ),
-                        Expanded(
+                          Expanded(
                             child: Container(
-                                height: 1.5,
-                                color: AppColors.primary)),
-                      ]),
+                              height: 1.5,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   // Match event cards
-                  for (final e in widget.entries)
-                    _positionedCard(e),
+                  for (final e in widget.entries) _positionedCard(e),
                 ],
               ),
             ),
@@ -2267,11 +2760,12 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
   }
 
   Widget _positionedCard(_MatchEntry e) {
-    final dt  = e.match.scheduledAt!;
+    final dt = e.match.scheduledAt!;
     final top = (dt.hour - _kStart + dt.minute / 60) * _kHourH;
     return Positioned(
       top: top,
-      left: 4, right: 4,
+      left: 4,
+      right: 4,
       child: _TimeGridEventCard(entry: e),
     );
   }
@@ -2284,9 +2778,14 @@ class _TimeGridEventCard extends StatelessWidget {
   const _TimeGridEventCard({required this.entry});
 
   static const _sportEmoji = {
-    'Cricket': '🏏', 'Football': '⚽', 'Basketball': '🏀',
-    'Badminton': '🏸', 'Tennis': '🎾', 'Volleyball': '🏐',
-    'Table Tennis': '🏓', 'Chess': '♟️',
+    'Cricket': '🏏',
+    'Football': '⚽',
+    'Basketball': '🏀',
+    'Badminton': '🏸',
+    'Tennis': '🎾',
+    'Volleyball': '🏐',
+    'Table Tennis': '🏓',
+    'Chess': '♟️',
   };
 
   static String _roundLabel(int round, int total) {
@@ -2298,62 +2797,72 @@ class _TimeGridEventCard extends StatelessWidget {
   }
 
   static String _timeStr(DateTime dt) {
-    final h  = dt.hour;
-    final m  = dt.minute.toString().padLeft(2, '0');
+    final h = dt.hour;
+    final m = dt.minute.toString().padLeft(2, '0');
     final hr = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     return '$hr:$m ${h < 12 ? "AM" : "PM"}';
   }
 
   Future<void> _addToCalendar(BuildContext context) async {
-    final m  = entry.match;
-    final t  = entry.tournament;
+    final m = entry.match;
+    final t = entry.tournament;
     final dt = m.scheduledAt!;
     final end = dt.add(const Duration(hours: 2));
 
     String fmt(DateTime d) =>
-        '${d.year}${d.month.toString().padLeft(2,'0')}${d.day.toString().padLeft(2,'0')}'
-        'T${d.hour.toString().padLeft(2,'0')}${d.minute.toString().padLeft(2,'0')}00';
+        '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}'
+        'T${d.hour.toString().padLeft(2, '0')}${d.minute.toString().padLeft(2, '0')}00';
 
     final opp = m.teamAId == entry.myTeam.id
         ? (m.teamBName ?? 'TBD')
         : (m.teamAName ?? 'TBD');
 
     final url = Uri.parse(
-        'https://calendar.google.com/calendar/r/eventedit'
-        '?text=${Uri.encodeComponent('${t.sport}: ${entry.myTeam.teamName} vs $opp')}'
-        '&dates=${fmt(dt)}/${fmt(end)}'
-        '&details=${Uri.encodeComponent('Tournament: ${t.name}\nRound: ${m.round}')}');
+      'https://calendar.google.com/calendar/r/eventedit'
+      '?text=${Uri.encodeComponent('${t.sport}: ${entry.myTeam.teamName} vs $opp')}'
+      '&dates=${fmt(dt)}/${fmt(end)}'
+      '&details=${Uri.encodeComponent('Tournament: ${t.name}\nRound: ${m.round}')}',
+    );
 
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open calendar')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open calendar')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final m         = entry.match;
-    final t         = entry.tournament;
-    final myTeam    = entry.myTeam;
+    final m = entry.match;
+    final t = entry.tournament;
+    final myTeam = entry.myTeam;
     final isPending = m.result == TournamentMatchResult.pending;
-    final iWon      = m.winnerId == myTeam.id;
-    final opponent  = m.teamAId == myTeam.id
+    final iWon = m.winnerId == myTeam.id;
+    final opponent = m.teamAId == myTeam.id
         ? (m.teamBName ?? 'TBD')
         : (m.teamAName ?? 'TBD');
-    final emoji     = _sportEmoji[t.sport] ?? '🏆';
-    final accent    = isPending
+    final emoji = _sportEmoji[t.sport] ?? '🏆';
+    final accent = isPending
         ? AppColors.primary
-        : iWon ? Colors.green : Colors.red;
-    final total     = TournamentService().matchesFor(t.id)
-        .map((x) => x.round).toSet().length;
-    final roundLbl  = _roundLabel(m.round, total);
+        : iWon
+        ? Colors.green
+        : Colors.red;
+    final total = TournamentService()
+        .matchesFor(t.id)
+        .map((x) => x.round)
+        .toSet()
+        .length;
+    final roundLbl = _roundLabel(m.round, total);
 
     return GestureDetector(
-      onTap: () => Navigator.push(context,
-          MaterialPageRoute(
-              builder: (_) => TournamentDetailScreen(tournamentId: t.id))),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TournamentDetailScreen(tournamentId: t.id),
+        ),
+      ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
@@ -2367,96 +2876,130 @@ class _TimeGridEventCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Top row: sport + name + round badge
-            Row(children: [
-              Text(emoji, style: const TextStyle(fontSize: 12)),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(t.name,
-                    style: const TextStyle(
-                        color: Colors.white54, fontSize: 10),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(roundLbl,
-                    style: TextStyle(
-                        color: accent,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700)),
-              ),
-            ]),
-            const SizedBox(height: 5),
-            // Teams row
-            Row(children: [
-              Expanded(
-                child: Text(myTeam.teamName,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  isPending
-                      ? 'vs'
-                      : m.scoreA != null
-                          ? (m.teamAId == myTeam.id
-                              ? '${m.scoreA}–${m.scoreB}'
-                              : '${m.scoreB}–${m.scoreA}')
-                          : 'vs',
-                  style: TextStyle(
-                      color: isPending ? Colors.white38 : accent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700),
-                ),
-              ),
-              Expanded(
-                child: Text(opponent,
-                    style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    t.name,
+                    style: const TextStyle(color: Colors.white54, fontSize: 10),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end),
-              ),
-            ]),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    roundLbl,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            // Teams row
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    myTeam.teamName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    isPending
+                        ? 'vs'
+                        : m.scoreA != null
+                        ? (m.teamAId == myTeam.id
+                              ? '${m.scoreA}–${m.scoreB}'
+                              : '${m.scoreB}–${m.scoreA}')
+                        : 'vs',
+                    style: TextStyle(
+                      color: isPending ? Colors.white38 : accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    opponent,
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ],
+            ),
             // Bottom row: time + add-to-calendar (only when time is set)
             if (m.scheduledAt != null) ...[
               const SizedBox(height: 6),
-              Row(children: [
-                Icon(Icons.access_time_rounded,
-                    size: 11, color: accent.withValues(alpha: 0.7)),
-                const SizedBox(width: 4),
-                Text(_timeStr(m.scheduledAt!),
+              Row(
+                children: [
+                  Icon(
+                    Icons.access_time_rounded,
+                    size: 11,
+                    color: accent.withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _timeStr(m.scheduledAt!),
                     style: TextStyle(
-                        color: accent.withValues(alpha: 0.9),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600)),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => _addToCalendar(context),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.calendar_today_rounded,
-                        size: 10, color: Colors.white38),
-                    const SizedBox(width: 3),
-                    const Text('Add to Calendar',
-                        style: TextStyle(
+                      color: accent.withValues(alpha: 0.9),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => _addToCalendar(context),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_rounded,
+                          size: 10,
+                          color: Colors.white38,
+                        ),
+                        const SizedBox(width: 3),
+                        const Text(
+                          'Add to Calendar',
+                          style: TextStyle(
                             color: Colors.white38,
                             fontSize: 9,
-                            fontWeight: FontWeight.w500)),
-                  ]),
-                ),
-              ]),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ],
         ),
@@ -2468,10 +3011,10 @@ class _TimeGridEventCard extends StatelessWidget {
 // ── Shared Tournament card ───────────────────────────────────────────────────
 
 class _TournamentCard extends StatefulWidget {
-  final Tournament   tournament;
+  final Tournament tournament;
   final VoidCallback onTap;
-  final String?      teamBadge; // shown in Registered view
-  final bool         isHost;
+  final String? teamBadge; // shown in Registered view
+  final bool isHost;
 
   const _TournamentCard({
     required this.tournament,
@@ -2496,24 +3039,24 @@ class _TournamentCardState extends State<_TournamentCard> {
 
   // Per-sport asset images for the banner
   static const _bannerImages = <String, String>{
-    'Cricket':    'assets/sports/cricket.jpg',
-    'Football':   'assets/sports/football.jpg',
+    'Cricket': 'assets/sports/cricket.jpg',
+    'Football': 'assets/sports/football.jpg',
     'Basketball': 'assets/sports/basketball.jpg',
-    'Badminton':  'assets/sports/badminton.jpg',
-    'Tennis':     'assets/sports/tennis.jpg',
+    'Badminton': 'assets/sports/badminton.jpg',
+    'Tennis': 'assets/sports/tennis.jpg',
     'Volleyball': 'assets/sports/volleyball.jpg',
-    'Chess':      'assets/sports/chess.jpg',
+    'Chess': 'assets/sports/chess.jpg',
   };
 
   // Fallback gradient colors if no image available
   static const _gradients = <String, List<Color>>{
-    'Cricket':    [Color(0xFF0D47A1), Color(0xFF1565C0)],
-    'Football':   [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+    'Cricket': [Color(0xFF0D47A1), Color(0xFF1565C0)],
+    'Football': [Color(0xFF1B5E20), Color(0xFF2E7D32)],
     'Basketball': [Color(0xFFBF360C), Color(0xFFD84315)],
-    'Badminton':  [Color(0xFF006064), Color(0xFF00838F)],
-    'Tennis':     [Color(0xFF33691E), Color(0xFF558B2F)],
+    'Badminton': [Color(0xFF006064), Color(0xFF00838F)],
+    'Tennis': [Color(0xFF33691E), Color(0xFF558B2F)],
     'Volleyball': [Color(0xFF311B92), Color(0xFF4527A0)],
-    'Chess':      [Color(0xFF212121), Color(0xFF424242)],
+    'Chess': [Color(0xFF212121), Color(0xFF424242)],
   };
 
   /// Frosted-glass pill used for date and fee overlaid on the banner image.
@@ -2532,19 +3075,27 @@ class _TournamentCardState extends State<_TournamentCard> {
             color: Colors.black.withValues(alpha: 0.45),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-                color: Colors.white.withValues(alpha: 0.65), width: 1.2),
+              color: Colors.white.withValues(alpha: 0.65),
+              width: 1.2,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 11,
-                  color: iconColor ?? Colors.white.withValues(alpha: 0.85)),
+              Icon(
+                icon,
+                size: 11,
+                color: iconColor ?? Colors.white.withValues(alpha: 0.85),
+              ),
               const SizedBox(width: 5),
-              Text(text,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -2554,11 +3105,16 @@ class _TournamentCardState extends State<_TournamentCard> {
 
   String _formatLabel(TournamentFormat f) {
     switch (f) {
-      case TournamentFormat.knockout:       return 'Knockout';
-      case TournamentFormat.roundRobin:     return 'Round Robin';
-      case TournamentFormat.leagueKnockout: return 'League+KO';
-      case TournamentFormat.league:         return 'League';
-      case TournamentFormat.custom:         return 'Custom';
+      case TournamentFormat.knockout:
+        return 'Knockout';
+      case TournamentFormat.roundRobin:
+        return 'Round Robin';
+      case TournamentFormat.leagueKnockout:
+        return 'League+KO';
+      case TournamentFormat.league:
+        return 'League';
+      case TournamentFormat.custom:
+        return 'Custom';
     }
   }
 
@@ -2567,43 +3123,58 @@ class _TournamentCardState extends State<_TournamentCard> {
 
   (Color, String) _statusStyle(TournamentStatus s) {
     switch (s) {
-      case TournamentStatus.open:      return (Colors.green,  'OPEN');
-      case TournamentStatus.ongoing:   return (AppColors.primary, 'LIVE');
-      case TournamentStatus.completed: return (const Color(0xFF42A5F5), 'ENDED');
-      case TournamentStatus.cancelled: return (Colors.red,    'CANCELLED');
+      case TournamentStatus.open:
+        return (Colors.green, 'OPEN');
+      case TournamentStatus.ongoing:
+        return (AppColors.primary, 'ONGOING');
+      case TournamentStatus.completed:
+        return (const Color(0xFF42A5F5), 'ENDED');
+      case TournamentStatus.cancelled:
+        return (Colors.red, 'CANCELLED');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final tournament = widget.tournament;
-    final onTap      = widget.onTap;
-    final teamBadge  = widget.teamBadge;
-    final isHost     = widget.isHost;
+    final onTap = widget.onTap;
+    final teamBadge = widget.teamBadge;
+    final isHost = widget.isHost;
+    final isSoloRegistered = TournamentService().isSoloRegistered(
+      tournament.id,
+    );
 
     // Live match for ongoing tournaments
     final liveMatch = tournament.status == TournamentStatus.ongoing
-        ? TournamentService().matchesFor(tournament.id)
-            .where((m) => m.isLive)
-            .firstOrNull
+        ? TournamentService()
+              .matchesFor(tournament.id)
+              .where((m) => m.isLive)
+              .firstOrNull
         : null;
 
-    final gradList   = _gradients[tournament.sport] ??
+    final gradList =
+        _gradients[tournament.sport] ??
         [const Color(0xFF1A237E), const Color(0xFF283593)];
     final bannerPath = _bannerImages[tournament.sport];
-    final maxStr     = tournament.maxTeams == 0
+    final maxStr = tournament.maxTeams == 0
         ? '${tournament.registeredTeams} teams'
         : '${tournament.registeredTeams}/${tournament.maxTeams} teams';
-    final isOpen   = tournament.status == TournamentStatus.open;
-    final canReg   = isOpen &&
+    final isOpen = tournament.status == TournamentStatus.open;
+    final canReg =
+        isOpen &&
         (tournament.maxTeams == 0 ||
             tournament.registeredTeams < tournament.maxTeams);
     final (statusColor, statusLabel) = _statusStyle(tournament.status);
     // Sport emoji for body row
     const sportEmoji = {
-      'Cricket': '🏏', 'Football': '⚽', 'Basketball': '🏀',
-      'Badminton': '🏸', 'Tennis': '🎾', 'Volleyball': '🏐',
-      'Table Tennis': '🏓', 'Chess': '♟️',
+      'Cricket': '🏏',
+      'Football': '⚽',
+      'Basketball': '🏀',
+      'Badminton': '🏸',
+      'Tennis': '🎾',
+      'Volleyball': '🏐',
+      'Table Tennis': '🏓',
+      'Chess': '♟️',
     };
     final emoji = sportEmoji[tournament.sport] ?? '🏆';
     return GestureDetector(
@@ -2696,10 +3267,12 @@ class _TournamentCardState extends State<_TournamentCard> {
                   ),
                   // ── Date glass pill (top-left) ──────────────────────────
                   Positioned(
-                    top: 10, left: 12,
+                    top: 10,
+                    left: 12,
                     child: _glassPill(
                       icon: Icons.calendar_today_outlined,
-                      text: tournament.endDate != null &&
+                      text:
+                          tournament.endDate != null &&
                               tournament.endDate != tournament.startDate
                           ? '${_fmtDate(tournament.startDate)} - ${_fmtDate(tournament.endDate!)}'
                           : _fmtDate(tournament.startDate),
@@ -2707,7 +3280,8 @@ class _TournamentCardState extends State<_TournamentCard> {
                   ),
                   // ── Fee glass pill (top-right) ──────────────────────────
                   Positioned(
-                    top: 10, right: 12,
+                    top: 10,
+                    right: 12,
                     child: _glassPill(
                       icon: tournament.entryFee == 0
                           ? Icons.check_circle_outline_rounded
@@ -2723,10 +3297,13 @@ class _TournamentCardState extends State<_TournamentCard> {
                   // ── LIVE / HOST badge (below fee pill) ─────────────────
                   if (isHost || tournament.status != TournamentStatus.open)
                     Positioned(
-                      top: 46, right: 12,
+                      top: 46,
+                      right: 12,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: isHost
                               ? AppColors.primary.withValues(alpha: 0.9)
@@ -2736,15 +3313,45 @@ class _TournamentCardState extends State<_TournamentCard> {
                         child: Text(
                           isHost ? 'HOST' : statusLabel,
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800),
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ),
+                  Positioned(
+                    right: 12,
+                    bottom: 46,
+                    child: Material(
+                      color: Colors.black.withValues(alpha: 0.48),
+                      borderRadius: BorderRadius.circular(18),
+                      child: InkWell(
+                        onTap: () => TournamentLinkService.shareTournament(
+                          tournamentId: tournament.id,
+                          tournamentName: tournament.name,
+                          joinCode: tournament.isPrivate
+                              ? tournament.joinCode
+                              : null,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        child: const SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: Icon(
+                            Icons.share_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   // ── Tournament name + format (bottom-left) ─────────────
                   Positioned(
-                    bottom: 10, left: 12, right: 12,
+                    bottom: 10,
+                    left: 12,
+                    right: 12,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -2752,15 +3359,17 @@ class _TournamentCardState extends State<_TournamentCard> {
                         Text(
                           tournament.name,
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              shadows: [
-                                Shadow(
-                                    color: Colors.black,
-                                    blurRadius: 6,
-                                    offset: Offset(0, 1))
-                              ]),
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black,
+                                blurRadius: 6,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -2768,12 +3377,13 @@ class _TournamentCardState extends State<_TournamentCard> {
                         Text(
                           _formatLabel(tournament.format),
                           style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.7),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              shadows: const [
-                                Shadow(color: Colors.black, blurRadius: 4)
-                              ]),
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            shadows: const [
+                              Shadow(color: Colors.black, blurRadius: 4),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -2791,19 +3401,23 @@ class _TournamentCardState extends State<_TournamentCard> {
                   // Sport + teams count row
                   Row(
                     children: [
-                      Text(emoji,
-                          style: const TextStyle(fontSize: 15)),
+                      Text(emoji, style: const TextStyle(fontSize: 15)),
                       const SizedBox(width: 7),
-                      Text(tournament.sport,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700)),
+                      Text(
+                        tournament.sport,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       if (tournament.isPrivate) ...[
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white10,
                             borderRadius: BorderRadius.circular(4),
@@ -2811,52 +3425,73 @@ class _TournamentCardState extends State<_TournamentCard> {
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.lock_rounded,
-                                  size: 10, color: Colors.white54),
+                              Icon(
+                                Icons.lock_rounded,
+                                size: 10,
+                                color: Colors.white54,
+                              ),
                               SizedBox(width: 3),
-                              Text('Private',
-                                  style: TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                'Private',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       ],
                       const Spacer(),
-                      const Icon(Icons.groups_outlined,
-                          size: 14, color: Colors.white54),
+                      const Icon(
+                        Icons.groups_outlined,
+                        size: 14,
+                        color: Colors.white54,
+                      ),
                       const SizedBox(width: 4),
-                      Text(maxStr,
-                          style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500)),
+                      Text(
+                        maxStr,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   // Location row
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined,
-                          size: 13, color: Colors.white38),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 13,
+                        color: Colors.white38,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: Text(tournament.location,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          tournament.location,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
 
-                  // My team badge (Registered view only)
-                  if (teamBadge != null) ...[
+                  // My registration badge (Registered view only)
+                  if (teamBadge != null || isSoloRegistered) ...[
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1565C0).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -2864,14 +3499,22 @@ class _TournamentCardState extends State<_TournamentCard> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.groups_outlined,
-                              size: 13, color: Color(0xFF42A5F5)),
+                          const Icon(
+                            Icons.groups_outlined,
+                            size: 13,
+                            color: Color(0xFF42A5F5),
+                          ),
                           const SizedBox(width: 4),
-                          Text('My Team: $teamBadge',
-                              style: const TextStyle(
-                                  color: Color(0xFF42A5F5),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
+                          Text(
+                            teamBadge != null
+                                ? 'My Team: $teamBadge'
+                                : 'Registered Solo',
+                            style: const TextStyle(
+                              color: Color(0xFF42A5F5),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -2880,29 +3523,32 @@ class _TournamentCardState extends State<_TournamentCard> {
                   const SizedBox(height: 10),
 
                   // Full-width Register button
-                  if (canReg && teamBadge == null && !isHost) ...[
+                  if (canReg &&
+                      teamBadge == null &&
+                      !isSoloRegistered &&
+                      !isHost) ...[
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       child: TextButton(
-                        onPressed: () => EnrollTeamSheet.show(
+                        onPressed: () => _showRegisterChoiceForTournament(
                           context,
-                          tournamentId:   tournament.id,
-                          entryFee:       tournament.entryFee,
-                          serviceFee:     tournament.serviceFee,
-                          playersPerTeam: tournament.playersPerTeam,
-                          sport:          tournament.sport,
+                          tournament,
                         ),
                         style: TextButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30)),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                         ),
                         child: Ink(
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [AppColors.primaryDark, AppColors.primary],
+                              colors: [
+                                AppColors.primaryDark,
+                                AppColors.primary,
+                              ],
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
                             ),
@@ -2912,15 +3558,18 @@ class _TournamentCardState extends State<_TournamentCard> {
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             alignment: Alignment.center,
-                            child: const Text('Register',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700)),
-                          ),     // Container
-                        ),       // Ink
-                      ),         // TextButton
-                    ),           // SizedBox
+                            child: const Text(
+                              'Register',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ), // Container
+                        ), // Ink
+                      ), // TextButton
+                    ), // SizedBox
                   ],
                   // ── Status strip (ongoing skipped — LIVE badge already shown) ──
                   if (tournament.status != TournamentStatus.open &&
@@ -2928,36 +3577,52 @@ class _TournamentCardState extends State<_TournamentCard> {
                     const SizedBox(height: 8),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.25),
+                        ),
                       ),
-                      child: Row(children: [
-                        if (tournament.status == TournamentStatus.ongoing)
-                          Container(
-                            width: 7, height: 7,
-                            margin: const EdgeInsets.only(right: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.6), blurRadius: 4)],
+                      child: Row(
+                        children: [
+                          if (tournament.status == TournamentStatus.ongoing)
+                            Container(
+                              width: 7,
+                              height: 7,
+                              margin: const EdgeInsets.only(right: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.6,
+                                    ),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Text(
+                            tournament.status == TournamentStatus.ongoing
+                                ? 'Tournament is Live'
+                                : tournament.status ==
+                                      TournamentStatus.completed
+                                ? 'Tournament Ended'
+                                : 'Tournament Cancelled',
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                        Text(
-                          tournament.status == TournamentStatus.ongoing
-                              ? 'Tournament is Live'
-                              : tournament.status == TournamentStatus.completed
-                                  ? 'Tournament Ended'
-                                  : 'Tournament Cancelled',
-                          style: TextStyle(
-                            color: statusColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ]),
+                        ],
+                      ),
                     ),
                   ],
 
@@ -2966,50 +3631,82 @@ class _TournamentCardState extends State<_TournamentCard> {
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: Colors.red.withValues(alpha: 0.3),
+                        ),
                       ),
-                      child: Row(children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(4),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'LIVE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
-                          child: const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            liveMatch.teamAName ?? 'Team A',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              liveMatch.teamAName ?? 'Team A',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${liveMatch.scoreA ?? 0}  –  ${liveMatch.scoreB ?? 0}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ),
-                          child: Text(
-                            '${liveMatch.scoreA ?? 0}  –  ${liveMatch.scoreB ?? 0}',
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              liveMatch.teamBName ?? 'Team B',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            liveMatch.teamBName ?? 'Team B',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.end,
-                          ),
-                        ),
-                      ]),
+                        ],
+                      ),
                     ),
                   ],
                 ],

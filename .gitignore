@@ -43,3 +43,12 @@ flutter/
 # Xcode user state
 *.xcuserstate
 xcuserdata/
+
+# Firebase Cloud Functions
+functions/node_modules/
+functions/.env
+functions/serviceAccount.json
+functions/**/*.json
+
+# Claude Code local config
+.claude/settings.local.json

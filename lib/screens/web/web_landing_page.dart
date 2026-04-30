@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/game_listing.dart';
 import '../../core/models/tournament.dart';
 import '../../core/models/venue_model.dart';
+import '../../services/tournament_link_service.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _bg = Color(0xFF030303);
@@ -41,21 +42,14 @@ class _Glass extends StatelessWidget {
   final Widget child;
   final double radius;
   final EdgeInsets? padding;
-  final double blur;
-
-  const _Glass({
-    required this.child,
-    this.radius = 16,
-    this.padding,
-    this.blur = 10,
-  });
+  const _Glass({required this.child, this.radius = 16, this.padding});
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
@@ -169,6 +163,12 @@ class _WebLandingPageState extends State<WebLandingPage> {
   @override
   void initState() {
     super.initState();
+    final link = TournamentLinkService.parse(Uri.base);
+    if (link != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) TournamentLinkService.openFromLink(context, link);
+      });
+    }
     _scroll.addListener(() {
       final op = (_scroll.offset / 60).clamp(0.0, 1.0);
       if ((op - _navOpacity).abs() > 0.01) setState(() => _navOpacity = op);
@@ -214,8 +214,6 @@ class _WebLandingPageState extends State<WebLandingPage> {
                   _HowItWorksSection(),
                   _FeaturesSection(),
                   _WhyUsSection(),
-                  _StatsSection(),
-                  _TestimonialsSection(),
                   _CtaFooterSection(onGetStarted: _showRolePicker),
                 ],
               ),
@@ -1358,205 +1356,6 @@ class _WhyCardState extends State<_WhyCard> {
             ),
             const SizedBox(height: 8),
             Text(widget.body, style: _inter(size: 12, color: _m1, height: 1.7)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// STATS NUMBERS
-// ══════════════════════════════════════════════════════════════════════════════
-class _StatsSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    const stats = [
-      ('50K+', 'Active Players'),
-      ('5K+', 'Tournaments Hosted'),
-      ('800+', 'Verified Venues'),
-      ('22+', 'Sports Supported'),
-    ];
-
-    return Container(
-      color: _bg,
-      child: _Section(
-        children: [
-          _Badge('By the Numbers'),
-          const SizedBox(height: 40),
-          _Glass(
-            radius: 24,
-            blur: 16,
-            padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 52),
-            child: Row(
-              children: [
-                for (int i = 0; i < stats.length; i++) ...[
-                  if (i > 0)
-                    Container(
-                      width: 1,
-                      height: 60,
-                      color: Colors.white.withValues(alpha: .1),
-                      margin: const EdgeInsets.symmetric(horizontal: 40),
-                    ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          stats[i].$1,
-                          style: _inter(
-                            size: 52,
-                            weight: FontWeight.w900,
-                            color: _red,
-                            letterSpacing: -2,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          stats[i].$2,
-                          style: _inter(
-                            size: 12,
-                            color: _m1,
-                            weight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TESTIMONIALS
-// ══════════════════════════════════════════════════════════════════════════════
-class _TestimonialsSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    const testimonials = [
-      (
-        '⚽',
-        '"Found a football game 10 minutes from my place on a Sunday morning. Played with strangers, made five new friends. Genuinely addictive."',
-        'Arjun Mehta',
-        'Football Player · Hyderabad',
-      ),
-      (
-        '🏟️',
-        '"As a venue owner, bookings went up 3x after listing on MySportsBuddies. The dashboard is clean, payouts are instant, and support is brilliant."',
-        'Priya Sharma',
-        'Venue Owner · Gachibowli Arena',
-      ),
-      (
-        '🏏',
-        '"We ran a 64-team cricket tournament through the app. Scheduling, scorekeeping, live updates — handled automatically. We just focused on cricket."',
-        'Rohit Nair',
-        'Tournament Organizer · Chennai',
-      ),
-    ];
-
-    return Container(
-      color: _bg,
-      child: _Section(
-        children: [
-          _SectionHeader(
-            badge: 'Community Stories',
-            title: 'Real players.\nReal games. Real love.',
-          ),
-          const SizedBox(height: 56),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 900;
-              final cards = testimonials
-                  .map(
-                    (t) => _TestimonialCard(
-                      emoji: t.$1,
-                      quote: t.$2,
-                      name: t.$3,
-                      role: t.$4,
-                    ),
-                  )
-                  .toList();
-
-              if (isNarrow) {
-                return Column(
-                  children: [
-                    for (int i = 0; i < cards.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 16),
-                      cards[i],
-                    ],
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (int i = 0; i < cards.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 16),
-                    Expanded(child: cards[i]),
-                  ],
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TestimonialCard extends StatefulWidget {
-  final String emoji, quote, name, role;
-  const _TestimonialCard({
-    required this.emoji,
-    required this.quote,
-    required this.name,
-    required this.role,
-  });
-  @override
-  State<_TestimonialCard> createState() => _TestimonialCardState();
-}
-
-class _TestimonialCardState extends State<_TestimonialCard> {
-  bool _hover = false;
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(24),
-        constraints: const BoxConstraints(minHeight: 260),
-        decoration: BoxDecoration(
-          color: _hover ? _surf : _card.withValues(alpha: .5),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _hover ? _red.withValues(alpha: .2) : _bd),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.emoji, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 16),
-            Text(
-              widget.quote,
-              style: _inter(
-                size: 13,
-                color: _tx.withValues(alpha: .8),
-                height: 1.75,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(height: 1, color: _bd),
-            const SizedBox(height: 16),
-            Text(widget.name, style: _inter(size: 13, weight: FontWeight.w700)),
-            const SizedBox(height: 2),
-            Text(widget.role, style: _inter(size: 11, color: _m1)),
           ],
         ),
       ),

@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/match_score.dart';
@@ -12,10 +15,14 @@ import '../../core/models/player_entry.dart';
 import '../../core/search/player_search_service.dart';
 import '../../core/models/tournament.dart';
 import '../../services/scoreboard_service.dart';
+import '../../services/tournament_link_service.dart';
 import '../../services/tournament_service.dart';
 import '../../services/user_service.dart';
 import '../scoreboard/live_scoreboard_screen.dart';
 import '../tournaments/enroll_team_sheet.dart';
+import '../tournaments/solo_register_sheet.dart';
+import '../tournaments/solo_registrants_screen.dart';
+import 'web_multi_game_view.dart';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const _bg = Color(0xFF080808);
@@ -43,6 +50,174 @@ TextStyle _t({
   color: color,
   height: height,
 );
+
+// ── Share helpers ──────────────────────────────────────────────────────────────
+
+String _buildShareUrl(String tournamentId) {
+  return TournamentLinkService.shareUrl(tournamentId);
+}
+
+Future<void> _doShare(
+  BuildContext context,
+  String tournamentId,
+  String tournamentName,
+) async {
+  final url = _buildShareUrl(tournamentId);
+  if (kIsWeb) {
+    await Clipboard.setData(ClipboardData(text: url));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Link copied — share: $url'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  } else {
+    await SharePlus.instance.share(
+      ShareParams(
+        text: 'Join "$tournamentName" on MySportsBuddies!\n$url',
+        subject: tournamentName,
+      ),
+    );
+  }
+}
+
+void _showWebRegisterChoice(BuildContext context, Tournament tournament) {
+  final svc = TournamentService();
+  if (svc.isRegisteredForTournament(tournament.id)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You are already registered for this tournament.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return;
+  }
+
+  void openTeam() => EnrollTeamSheet.show(
+    context,
+    tournamentId: tournament.id,
+    entryFee: tournament.entryFee,
+    serviceFee: tournament.serviceFee,
+    playersPerTeam: tournament.playersPerTeam,
+    sport: tournament.sport,
+  );
+
+  void openSolo() => SoloRegisterSheet.show(
+    context,
+    tournamentId: tournament.id,
+    tournamentName: tournament.name,
+    sport: tournament.sport,
+  );
+
+  if (!tournament.allowSoloRegistration) {
+    openTeam();
+    return;
+  }
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: 420,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .35),
+              blurRadius: 28,
+              offset: const Offset(0, 18),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Register', style: _t(size: 22, weight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text(tournament.name, style: _t(size: 13, color: _m1)),
+            const SizedBox(height: 18),
+            _WebRegisterChoiceTile(
+              icon: Icons.groups_rounded,
+              title: 'Enroll Team',
+              subtitle: 'Register a complete team for this tournament',
+              color: _red,
+              onTap: () {
+                Navigator.pop(dialogContext);
+                openTeam();
+              },
+            ),
+            const SizedBox(height: 12),
+            _WebRegisterChoiceTile(
+              icon: Icons.person_add_alt_1_rounded,
+              title: 'Join Solo',
+              subtitle: 'Register yourself and let the host assign your team',
+              color: const Color(0xFF6366F1),
+              onTap: () {
+                Navigator.pop(dialogContext);
+                openSolo();
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _WebRegisterChoiceTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _WebRegisterChoiceTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: .35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: _t(size: 14, weight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(subtitle, style: _t(size: 12, color: _m1)),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: color),
+        ],
+      ),
+    ),
+  );
+}
 
 int _defaultRallyPts(MatchSport sport) {
   if (sport == MatchSport.tableTennis) return 11;
@@ -454,6 +629,7 @@ bool _isUserRegisteredForTournament(
   List<TournamentTeam> teams,
 ) {
   if (userId.isEmpty) return false;
+  if (TournamentService().isSoloRegistered(tournamentId)) return true;
   if (TournamentService().myEnrolledIds.contains(tournamentId)) return true;
   return teams.any((team) {
     if (team.enrolledBy == userId) return true;
@@ -578,6 +754,15 @@ class _WebTournamentsPageState extends State<WebTournamentsPage> {
     TournamentService().loadTournaments();
     final uid = UserService().userId ?? '';
     TournamentService().loadMyEnrollments(uid);
+    // Auto-open tournament when page is loaded from a shared link (?t=id)
+    if (kIsWeb) {
+      final tid = Uri.base.queryParameters['t'];
+      if (tid != null && tid.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _openWebTournamentDetail(context, tournamentId: tid);
+        });
+      }
+    }
   }
 
   Future<void> _openCreateTournament() async {
@@ -593,43 +778,48 @@ class _WebTournamentsPageState extends State<WebTournamentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _bg,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Main content ──────────────────────────────────────────────────
-          Expanded(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(child: _buildHeader()),
-                SliverToBoxAdapter(child: _buildFilterRow()),
-                SliverToBoxAdapter(child: _buildFeaturedBanner()),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                    child: Row(
-                      children: [
-                        Text(
-                          'All Tournaments',
-                          style: _t(size: 16, weight: FontWeight.w800),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final showPanel = constraints.maxWidth >= 900;
+        return Container(
+          color: _bg,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Main content ────────────────────────────────────────────────
+              Expanded(
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(child: _buildHeader()),
+                    SliverToBoxAdapter(child: _buildFilterRow()),
+                    SliverToBoxAdapter(child: _buildFeaturedBanner()),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                        child: Row(
+                          children: [
+                            Text(
+                              'All Tournaments',
+                              style: _t(size: 16, weight: FontWeight.w800),
+                            ),
+                            const Spacer(),
+                            _SortPill(),
+                          ],
                         ),
-                        const Spacer(),
-                        _SortPill(),
-                      ],
+                      ),
                     ),
-                  ),
+                    _TournamentGrid(filterTab: _filterTab, sport: _sport),
+                    const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
+                  ],
                 ),
-                _TournamentGrid(filterTab: _filterTab, sport: _sport),
-                const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
-              ],
-            ),
+              ),
+              // ── Right stats panel (hidden on narrow/tablet viewports) ───────
+              if (showPanel) _RightStatsPanel(),
+            ],
           ),
-          // ── Right stats panel ─────────────────────────────────────────────
-          _RightStatsPanel(),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -672,45 +862,51 @@ class _WebTournamentsPageState extends State<WebTournamentsPage> {
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       child: Row(
         children: [
-          // Filter tabs
-          Container(
-            height: 38,
-            decoration: BoxDecoration(
-              color: _card,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _border),
-            ),
-            padding: const EdgeInsets.all(3),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: tabs.asMap().entries.map((e) {
-                final active = e.key == _filterTab;
-                return GestureDetector(
-                  onTap: () => setState(() => _filterTab = e.key),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 140),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: active ? _red : Colors.transparent,
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      child: Text(
-                        e.value,
-                        style: _t(
-                          size: 12,
-                          weight: FontWeight.w600,
-                          color: active ? Colors.white : _m1,
+          // Filter tabs — Flexible so they can shrink on narrow viewports
+          Flexible(
+            fit: FlexFit.loose,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _card,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _border),
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: tabs.asMap().entries.map((e) {
+                    final active = e.key == _filterTab;
+                    return GestureDetector(
+                      onTap: () => setState(() => _filterTab = e.key),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 140),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: active ? _red : Colors.transparent,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Text(
+                            e.value,
+                            style: _t(
+                              size: 12,
+                              weight: FontWeight.w600,
+                              color: active ? Colors.white : _m1,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                );
-              }).toList(),
+                    );
+                  }).toList(),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -759,135 +955,170 @@ class _FeaturedBanner extends StatelessWidget {
       tournament.id,
       TournamentService().teamsFor(tournament.id),
     );
-    return Container(
-      height: 220,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [accent.withValues(alpha: .25), const Color(0xFF0A0A0A)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 200),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [accent.withValues(alpha: .25), const Color(0xFF0A0A0A)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: .2)),
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withValues(alpha: .2)),
-      ),
-      child: Stack(
-        children: [
-          // Watermark icon
-          Positioned(
-            right: 30,
-            top: 0,
-            bottom: 0,
-            child: Opacity(
-              opacity: .10,
-              child: Center(
-                child: Icon(
-                  _sportIcon(tournament.sport),
-                  color: accent,
-                  size: 140,
+        child: Stack(
+          children: [
+            // Watermark icon
+            Positioned(
+              right: 30,
+              top: 0,
+              bottom: 0,
+              child: Opacity(
+                opacity: .10,
+                child: Center(
+                  child: Icon(
+                    _sportIcon(tournament.sport),
+                    color: accent,
+                    size: 140,
+                  ),
                 ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _red.withValues(alpha: .2),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _red.withValues(alpha: .4)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star_rounded, color: _red, size: 12),
-                      const SizedBox(width: 4),
-                      Text(
-                        'FEATURED',
-                        style: _t(
-                          size: 10,
-                          weight: FontWeight.w800,
-                          color: _red,
-                          height: 1,
+            Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _red.withValues(alpha: .2),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _red.withValues(alpha: .4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.star_rounded, color: _red, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          'FEATURED',
+                          style: _t(
+                            size: 10,
+                            weight: FontWeight.w800,
+                            color: _red,
+                            height: 1,
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    tournament.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: _t(size: 24, weight: FontWeight.w900, height: 1.2),
+                  ),
+                  const SizedBox(height: 8),
+                  // Wrap so sport / date / location flow to next line on narrow screens
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 6,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _sportIcon(tournament.sport),
+                            color: accent,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            tournament.sport,
+                            style: _t(
+                              size: 13,
+                              color: accent,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_today_outlined,
+                            size: 13,
+                            color: _m1,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            tournament.endDate != null
+                                ? '${_fmtDate(tournament.startDate)} – ${_fmtDate(tournament.endDate!)}'
+                                : _fmtDate(tournament.startDate),
+                            style: _t(size: 13, color: _m1),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 13,
+                            color: _m1,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            tournament.location,
+                            style: _t(size: 13, color: _m1),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  tournament.name,
-                  style: _t(size: 24, weight: FontWeight.w900, height: 1.2),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(_sportIcon(tournament.sport), color: accent, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      tournament.sport,
-                      style: _t(
-                        size: 13,
-                        color: accent,
-                        weight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.calendar_today_outlined, size: 13, color: _m1),
-                    const SizedBox(width: 5),
-                    Text(
-                      tournament.endDate != null
-                          ? '${_fmtDate(tournament.startDate)} – ${_fmtDate(tournament.endDate!)}'
-                          : _fmtDate(tournament.startDate),
-                      style: _t(size: 13, color: _m1),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.location_on_outlined, size: 13, color: _m1),
-                    const SizedBox(width: 5),
-                    Text(tournament.location, style: _t(size: 13, color: _m1)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    alreadyRegistered
-                        ? _OutlineBtn(
-                            label: 'Already Registered',
-                            icon: Icons.check_circle_rounded,
-                            onTap: null,
-                          )
-                        : _RedBtn(
-                            label: 'Register Now',
-                            onTap: () => EnrollTeamSheet.show(
-                              context,
-                              tournamentId: tournament.id,
-                              entryFee: tournament.entryFee,
-                              serviceFee: tournament.serviceFee,
-                              playersPerTeam: tournament.playersPerTeam,
-                              sport: tournament.sport,
+                  const SizedBox(height: 16),
+                  // Wrap so buttons stack vertically on narrow screens
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      alreadyRegistered
+                          ? _OutlineBtn(
+                              label: 'Already Registered',
+                              icon: Icons.check_circle_rounded,
+                              onTap: null,
+                            )
+                          : _RedBtn(
+                              label: 'Register Now',
+                              onTap: () =>
+                                  _showWebRegisterChoice(context, tournament),
                             ),
-                          ),
-                    const SizedBox(width: 10),
-                    _OutlineBtn(
-                      label: 'View Details',
-                      onTap: () => _openWebTournamentDetail(
-                        context,
-                        tournamentId: tournament.id,
+                      _OutlineBtn(
+                        label: 'View Details',
+                        onTap: () => _openWebTournamentDetail(
+                          context,
+                          tournamentId: tournament.id,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      _ShareIconBtn(
+                        onTap: () =>
+                            _doShare(context, tournament.id, tournament.name),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1145,12 +1376,22 @@ class _TournamentCardState extends State<_TournamentCard> {
                       const SizedBox(height: 4),
                       _MetaRow(Icons.location_on_outlined, t.location),
                       const Spacer(),
-                      _CardCTA(
-                        label: 'View Details  →',
-                        onTap: () => _openWebTournamentDetail(
-                          context,
-                          tournamentId: t.id,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _CardCTA(
+                              label: 'View Details  →',
+                              onTap: () => _openWebTournamentDetail(
+                                context,
+                                tournamentId: t.id,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _ShareIconBtn(
+                            onTap: () => _doShare(context, t.id, t.name),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1229,6 +1470,41 @@ class _CardCTAState extends State<_CardCTA> {
   }
 }
 
+class _ShareIconBtn extends StatefulWidget {
+  final VoidCallback onTap;
+  const _ShareIconBtn({required this.onTap});
+
+  @override
+  State<_ShareIconBtn> createState() => _ShareIconBtnState();
+}
+
+class _ShareIconBtnState extends State<_ShareIconBtn> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    onEnter: (_) => setState(() => _hover = true),
+    onExit: (_) => setState(() => _hover = false),
+    child: GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: _hover
+              ? Colors.white.withValues(alpha: .08)
+              : Colors.white.withValues(alpha: .04),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _border),
+        ),
+        child: const Icon(Icons.share_rounded, size: 15, color: _m1),
+      ),
+    ),
+  );
+}
+
 // ── Web create tournament dialog ───────────────────────────────────────────────
 
 class _WebCreateTournamentDialog extends StatefulWidget {
@@ -1263,6 +1539,8 @@ class _WebCreateTournamentDialogState
   final Map<String, dynamic> _roundScoringConfig = {};
   bool _freeEntry = true;
   bool _private = false;
+  bool _allowSoloRegistration = false;
+  int _soloRegistrantsPerTeam = 5;
   bool _saving = false;
   String? _error;
 
@@ -1526,6 +1804,10 @@ class _WebCreateTournamentDialogState
         sameScoreAllRounds: _sameScoreAllRounds,
         roundScoringConfig: _sameScoreAllRounds ? null : _roundScoringConfig,
         isPrivate: _private,
+        allowSoloRegistration: _allowSoloRegistration,
+        soloRegistrantsPerTeam: _allowSoloRegistration
+            ? _soloRegistrantsPerTeam
+            : 0,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -1869,6 +2151,29 @@ class _WebCreateTournamentDialogState
                       ),
                     ],
                     const SizedBox(height: 14),
+                    _ToggleRow(
+                      title: 'Solo Registration',
+                      subtitle:
+                          'Players without a team can register solo. Hosts can auto-form teams from solo players.',
+                      value: _allowSoloRegistration,
+                      onChanged: (value) =>
+                          setState(() => _allowSoloRegistration = value),
+                    ),
+                    if (_allowSoloRegistration) ...[
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: 320,
+                        child: _NumberStepper(
+                          label: 'Players / Auto Team',
+                          value: _soloRegistrantsPerTeam,
+                          min: 2,
+                          max: 30,
+                          onChanged: (value) =>
+                              setState(() => _soloRegistrantsPerTeam = value),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
                     _WebTextField(
                       controller: _prize,
                       label: 'Prize Pool',
@@ -2051,22 +2356,79 @@ class _WebTournamentDetailDialogState
 
   void _snack(String message, [Color color = Colors.green]) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: color,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      // Fallback: show an inline alert when inside a dialog context
+      showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFF111111),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Text(
+            color == Colors.green ? 'Done' : 'Error',
+            style: _t(size: 16, weight: FontWeight.w900),
+          ),
+          content: Text(message, style: _t(size: 13, color: _m1)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('OK', style: _t(size: 13, color: _red)),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _generateSchedule() async {
+    final teamCount = TournamentService().teamsFor(widget.tournamentId).length;
+    if (teamCount == 0) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF111111),
+            title: Text(
+              'No Teams',
+              style: _t(size: 16, weight: FontWeight.w900),
+            ),
+            content: Text(
+              'Add teams to this tournament before generating a schedule.',
+              style: _t(size: 13, color: _m1),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK', style: _t(size: 13, color: _red)),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
     setState(() => _generatingSchedule = true);
     try {
       await TournamentService().generateSchedule(widget.tournamentId);
+      // Force a reload so bracketGenerated + matches are in-memory
+      // immediately rather than waiting only for the Firestore listener.
+      await TournamentService().loadDetail(widget.tournamentId);
+      await TournamentService().loadTournaments();
       if (mounted) _snack('Schedule generated!');
     } catch (e) {
-      if (mounted) _snack(e.toString(), Colors.red);
+      if (mounted) {
+        _snack(e.toString().replaceFirst('Exception: ', ''), Colors.red);
+      }
     } finally {
       if (mounted) setState(() => _generatingSchedule = false);
     }
@@ -2306,23 +2668,23 @@ class _WebTournamentDetailDialogState
                       else
                         Padding(
                           padding: const EdgeInsets.only(right: 18),
-                          child: alreadyRegistered
-                              ? _OutlineBtn(
-                                  label: 'Already Registered',
-                                  icon: Icons.check_circle_rounded,
-                                  onTap: null,
-                                )
-                              : _RedBtn(
-                                  label: 'Register Team',
-                                  onTap: () => EnrollTeamSheet.show(
-                                    context,
-                                    tournamentId: tournament.id,
-                                    entryFee: tournament.entryFee,
-                                    serviceFee: tournament.serviceFee,
-                                    playersPerTeam: tournament.playersPerTeam,
-                                    sport: tournament.sport,
-                                  ),
-                                ),
+                          child: Row(
+                            children: [
+                              alreadyRegistered
+                                  ? _OutlineBtn(
+                                      label: 'Already Registered',
+                                      icon: Icons.check_circle_rounded,
+                                      onTap: null,
+                                    )
+                                  : _RedBtn(
+                                      label: 'Register',
+                                      onTap: () => _showWebRegisterChoice(
+                                        context,
+                                        tournament,
+                                      ),
+                                    ),
+                            ],
+                          ),
                         ),
                     ],
                   ),
@@ -2961,10 +3323,32 @@ class _TournamentMatchesPane extends StatelessWidget {
 
     return Column(
       children: [
-        _SubTabBar(
-          tabs: const ['Upcoming', 'Recent', 'All'],
-          selected: matchTab,
-          onSelect: onMatchTabChanged,
+        Row(
+          children: [
+            Expanded(
+              child: _SubTabBar(
+                tabs: const ['Upcoming', 'Recent', 'All'],
+                selected: matchTab,
+                onSelect: onMatchTabChanged,
+              ),
+            ),
+            if (canManage && matches.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              Builder(
+                builder: (ctx) => _OutlineBtn(
+                  label: 'Live Match Center',
+                  icon: Icons.sports_score_rounded,
+                  onTap: () => Navigator.push(
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          WebMultiGameView(tournamentId: tournament.id),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 14),
         Expanded(
@@ -4300,6 +4684,13 @@ class _TournamentSquadsPane extends StatelessWidget {
   final List<TournamentTeam> teams;
   const _TournamentSquadsPane({required this.teams});
 
+  void _openTeamSquad(BuildContext context, TournamentTeam team) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _TeamSquadDialog(team: team),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (teams.isEmpty) {
@@ -4310,23 +4701,93 @@ class _TournamentSquadsPane extends StatelessWidget {
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, i) {
         final team = teams[i];
-        return _InfoPanel(
-          title: team.teamName,
-          children: [
-            _InfoLine('Captain', team.captainName),
-            _InfoLine('Players', '${team.players.length}'),
-            if (team.players.isNotEmpty)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+        return InkWell(
+          onTap: () => _openTeamSquad(context, team),
+          borderRadius: BorderRadius.circular(14),
+          child: _InfoPanel(
+            title: team.teamName,
+            children: [
+              Row(
                 children: [
-                  for (final player in team.players.take(12))
-                    _Badge(label: player, color: _m1),
+                  Expanded(
+                    child: Text(
+                      'Captain: ${team.captainName.isEmpty ? 'Not set' : team.captainName}',
+                      style: _t(size: 12, color: _m1),
+                    ),
+                  ),
+                  Text(
+                    '${team.players.length} player${team.players.length == 1 ? '' : 's'}',
+                    style: _t(size: 12, color: _m1),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right_rounded, color: _m1, size: 18),
                 ],
               ),
-          ],
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _TeamSquadDialog extends StatelessWidget {
+  final TournamentTeam team;
+  const _TeamSquadDialog({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(26),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: .08)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      team.teamName,
+                      style: _t(size: 20, weight: FontWeight.w900),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded, color: _m1),
+                  ),
+                ],
+              ),
+              Text(
+                'Captain: ${team.captainName.isEmpty ? 'Not set' : team.captainName}',
+                style: _t(size: 13, color: _m1),
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: team.players.isEmpty
+                    ? Center(child: _emptyText('No squad players listed.'))
+                    : ListView.separated(
+                        itemCount: team.players.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (_, index) => _row(
+                          team.players[index],
+                          sub: index == 0 ? 'Captain' : 'Player ${index + 1}',
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -5329,27 +5790,111 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
     try {
       await run();
       if (closesDialog && mounted) widget.onCloseDialog();
+    } catch (e) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF111111),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: Text('Error', style: _t(size: 16, weight: FontWeight.w900)),
+            content: Text(
+              e.toString().replaceFirst('Exception: ', ''),
+              style: _t(size: 13, color: _m1),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK', style: _t(size: 13, color: _red)),
+              ),
+            ],
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _startTournament() => _confirm(
-    title: 'Start Tournament?',
-    message: 'This marks the tournament as ongoing.',
-    action: 'Start',
-    run: () => TournamentService().updateTournamentStatus(
-      widget.tournament.id,
-      TournamentStatus.ongoing,
-    ),
-  );
+  Future<void> _startTournament() async {
+    final end = widget.tournament.endDate;
+    if (end != null) {
+      final now = DateTime.now();
+      final todayOnly = DateTime(now.year, now.month, now.day);
+      final endOnly = DateTime(end.year, end.month, end.day);
+      if (endOnly.isBefore(todayOnly)) {
+        if (mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (_) => AlertDialog(
+              backgroundColor: const Color(0xFF111111),
+              title: Text(
+                'Cannot Start',
+                style: _t(size: 16, weight: FontWeight.w900),
+              ),
+              content: Text(
+                'Tournament end date has passed.',
+                style: _t(size: 13, color: _m1),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('OK', style: _t(size: 13, color: _red)),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+    }
+    return _confirm(
+      title: 'Start Tournament?',
+      message: 'This marks the tournament as ongoing.',
+      action: 'Start',
+      run: () => TournamentService().updateTournamentStatus(
+        widget.tournament.id,
+        TournamentStatus.ongoing,
+      ),
+    );
+  }
 
-  Future<void> _generateSchedule() => _confirm(
-    title: 'Generate Schedule?',
-    message: 'This will generate tournament matches based on registered teams.',
-    action: 'Generate',
-    run: () => TournamentService().generateSchedule(widget.tournament.id),
-  );
+  Future<void> _generateSchedule() async {
+    if (widget.teams.isEmpty) {
+      if (mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF111111),
+            title: Text(
+              'No Teams',
+              style: _t(size: 16, weight: FontWeight.w900),
+            ),
+            content: Text(
+              'Add teams to this tournament before generating a schedule.',
+              style: _t(size: 13, color: _m1),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK', style: _t(size: 13, color: _red)),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+    return _confirm(
+      title: 'Generate Schedule?',
+      message:
+          'This will generate tournament matches based on registered teams.',
+      action: 'Generate',
+      run: () => TournamentService().generateSchedule(widget.tournament.id),
+    );
+  }
 
   Future<void> _resetTeams() => _confirm(
     title: 'Reset Teams & Matches?',
@@ -5398,9 +5943,32 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
     }
   }
 
+  Future<void> _showSoloRegistrantsManager() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(26),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860, maxHeight: 760),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: SoloRegistrantsScreen(tournamentId: widget.tournament.id),
+          ),
+        ),
+      ),
+    );
+    if (mounted) {
+      await TournamentService().loadDetail(widget.tournament.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = _statusLabel(widget.tournament.status).toUpperCase();
+    final soloCount = TournamentService()
+        .soloRegistrantsFor(widget.tournament.id)
+        .length;
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -5435,10 +6003,11 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _RedBtn(
-                    label: _busy ? 'Working...' : 'Start Tournament',
-                    onTap: _busy ? null : _startTournament,
-                  ),
+                  if (widget.tournament.status == TournamentStatus.open)
+                    _RedBtn(
+                      label: _busy ? 'Working...' : 'Start Tournament',
+                      onTap: _busy ? null : _startTournament,
+                    ),
                   _OutlineBtn(
                     label: 'Generate Schedule',
                     icon: Icons.auto_awesome_rounded,
@@ -5540,6 +6109,16 @@ class _TournamentManagePaneState extends State<_TournamentManagePane> {
                   child: _WebSquadsPanel(tournament: widget.tournament),
                 ),
               ),
+              if (widget.tournament.allowSoloRegistration)
+                _ManageActionCard(
+                  title: 'Solo Players',
+                  subtitle:
+                      '$soloCount solo player${soloCount == 1 ? '' : 's'}',
+                  icon: Icons.person_search_outlined,
+                  color: const Color(0xFF6366F1),
+                  badge: soloCount > 0 ? '$soloCount' : null,
+                  onTap: _showSoloRegistrantsManager,
+                ),
               _ManageActionCard(
                 title: 'Venues',
                 subtitle: '${widget.venues.length} venues',
@@ -5715,6 +6294,8 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
   late int _lossPoints;
   late final TextEditingController _customScoringLabel;
   late Map<String, dynamic> _roundScoringConfig;
+  late bool _allowSoloRegistration;
+  late int _soloRegistrantsPerTeam;
   bool _saving = false;
 
   @override
@@ -5742,6 +6323,10 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
     _winPoints = t.winPoints;
     _drawPoints = t.drawPoints;
     _lossPoints = t.lossPoints;
+    _allowSoloRegistration = t.allowSoloRegistration;
+    _soloRegistrantsPerTeam = t.soloRegistrantsPerTeam > 0
+        ? t.soloRegistrantsPerTeam
+        : (t.playersPerTeam > 0 ? t.playersPerTeam : 5);
     _roundScoringConfig = Map<String, dynamic>.from(
       t.roundScoringConfig ?? const {},
     );
@@ -5807,6 +6392,10 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
             : _customScoringLabel.text.trim(),
         sameScoreAllRounds: _sameScoreAllRounds,
         roundScoringConfig: _sameScoreAllRounds ? null : _roundScoringConfig,
+        allowSoloRegistration: _allowSoloRegistration,
+        soloRegistrantsPerTeam: _allowSoloRegistration
+            ? _soloRegistrantsPerTeam
+            : 0,
       );
       if (mounted) Navigator.pop(context);
     } finally {
@@ -5914,6 +6503,27 @@ class _WebEditTournamentPanelState extends State<_WebEditTournamentPanel> {
             ),
           ],
         ),
+        const SizedBox(height: 14),
+        _ToggleRow(
+          title: 'Solo Registration',
+          subtitle:
+              'Players without a team can register solo. Hosts can auto-form teams from solo players.',
+          value: _allowSoloRegistration,
+          onChanged: (value) => setState(() => _allowSoloRegistration = value),
+        ),
+        if (_allowSoloRegistration) ...[
+          const SizedBox(height: 14),
+          SizedBox(
+            width: 260,
+            child: _stepperField(
+              label: 'Players / Auto Team',
+              value: _soloRegistrantsPerTeam,
+              onChanged: (value) => setState(
+                () => _soloRegistrantsPerTeam = value < 2 ? 2 : value,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         TextField(
           controller: _rules,
@@ -7352,16 +7962,62 @@ class _ScheduleFullscreenDialog extends StatelessWidget {
   }
 }
 
-class _WebSquadsPanel extends StatelessWidget {
+class _WebSquadsPanel extends StatefulWidget {
   final Tournament tournament;
   const _WebSquadsPanel({required this.tournament});
+
+  @override
+  State<_WebSquadsPanel> createState() => _WebSquadsPanelState();
+}
+
+class _WebSquadsPanelState extends State<_WebSquadsPanel> {
+  TournamentTeam? _selectedTeam;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: TournamentService(),
     builder: (context, _) {
-      final teams = TournamentService().teamsFor(tournament.id);
+      final teams = TournamentService().teamsFor(widget.tournament.id);
       if (teams.isEmpty) return _emptyText('No teams registered yet.');
+      final selected = _selectedTeam == null
+          ? null
+          : teams.where((team) => team.id == _selectedTeam!.id).firstOrNull;
+
+      if (selected != null) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _OutlineBtn(
+              label: 'Teams',
+              icon: Icons.arrow_back_rounded,
+              onTap: () => setState(() => _selectedTeam = null),
+            ),
+            const SizedBox(height: 14),
+            _MiniPanel(
+              title: selected.teamName,
+              subtitle:
+                  'Captain: ${selected.captainName.isEmpty ? 'Not set' : selected.captainName}',
+              child: Column(
+                children: selected.players.isEmpty
+                    ? [_emptyText('No squad players listed.')]
+                    : selected.players
+                          .asMap()
+                          .entries
+                          .map(
+                            (entry) => _row(
+                              entry.value,
+                              sub: entry.key == 0
+                                  ? 'Captain'
+                                  : 'Player ${entry.key + 1}',
+                            ),
+                          )
+                          .toList(),
+              ),
+            ),
+          ],
+        );
+      }
+
       return Wrap(
         spacing: 12,
         runSpacing: 12,
@@ -7369,13 +8025,30 @@ class _WebSquadsPanel extends StatelessWidget {
             .map(
               (t) => SizedBox(
                 width: 320,
-                child: _MiniPanel(
-                  title: t.teamName,
-                  subtitle: 'Captain: ${t.captainName}',
-                  child: Column(
-                    children: t.players.isEmpty
-                        ? [_emptyText('No squad players listed.')]
-                        : t.players.map((p) => _row(p)).toList(),
+                child: InkWell(
+                  onTap: () => setState(() => _selectedTeam = t),
+                  borderRadius: BorderRadius.circular(14),
+                  child: _MiniPanel(
+                    title: t.teamName,
+                    subtitle:
+                        '${t.players.length} player${t.players.length == 1 ? '' : 's'}',
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Captain: ${t.captainName.isEmpty ? 'Not set' : t.captainName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _t(size: 12, color: _m1),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: _m1,
+                          size: 18,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -7964,6 +8637,9 @@ class _WebTeamsManagerDialog extends StatelessWidget {
             listenable: TournamentService(),
             builder: (context, _) {
               final teams = TournamentService().teamsFor(tournament.id);
+              final canModifyTeams =
+                  tournament.status != TournamentStatus.completed &&
+                  tournament.status != TournamentStatus.cancelled;
               return Column(
                 children: [
                   Padding(
@@ -7999,10 +8675,11 @@ class _WebTeamsManagerDialog extends StatelessWidget {
                             ],
                           ),
                         ),
-                        _RedBtn(
-                          label: '+ Add Team',
-                          onTap: () => _addTeam(context),
-                        ),
+                        if (canModifyTeams)
+                          _RedBtn(
+                            label: '+ Add Team',
+                            onTap: () => _addTeam(context),
+                          ),
                         const SizedBox(width: 10),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
@@ -8072,11 +8749,12 @@ class _WebTeamsManagerDialog extends StatelessWidget {
                                         ],
                                       ),
                                     ),
-                                    _OutlineBtn(
-                                      label: 'Remove',
-                                      icon: Icons.delete_outline_rounded,
-                                      onTap: () => _removeTeam(context, team),
-                                    ),
+                                    if (canModifyTeams)
+                                      _OutlineBtn(
+                                        label: 'Remove',
+                                        icon: Icons.delete_outline_rounded,
+                                        onTap: () => _removeTeam(context, team),
+                                      ),
                                   ],
                                 ),
                               );

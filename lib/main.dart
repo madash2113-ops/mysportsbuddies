@@ -11,7 +11,6 @@ import 'dart:async' show unawaited;
 import 'firebase_options.dart';
 import 'core/routes/app_routes.dart';
 import 'controllers/profile_controller.dart';
-import 'screens/tournaments/tournament_detail_screen.dart';
 import 'screens/common/firebase_setup_screen.dart';
 import 'design/theme.dart';
 import 'services/admin_service.dart';
@@ -24,6 +23,7 @@ import 'services/message_service.dart';
 import 'services/notification_service.dart';
 import 'services/scoreboard_service.dart';
 import 'services/theme_service.dart';
+import 'services/tournament_link_service.dart';
 import 'services/tournament_service.dart';
 import 'services/user_service.dart';
 import 'services/game_listing_service.dart';
@@ -64,8 +64,7 @@ void main() async {
     );
     firebaseInitialized = true;
 
-    FlutterError.onError =
-        FirebaseCrashlytics.instance.recordFlutterFatalError;
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     PlatformDispatcher.instance.onError = (error, stack) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
       return true;
@@ -265,25 +264,16 @@ class _MySportsAppState extends State<MySportsApp> {
   }
 
   void _handleLink(Uri uri) {
-    if (uri.scheme != 'msb' || uri.host != 'tournament') return;
+    final link = TournamentLinkService.parse(uri);
+    if (link == null) return;
     AnalyticsService().logEvent(
       AnalyticsEvents.appOpenedViaLink,
       parameters: {'uri': uri.toString(), 'source': 'deep_link'},
     );
-    final segments = uri.pathSegments;
-    if (segments.isEmpty) return;
-    final tournamentId = segments.first;
-    final code = uri.queryParameters['code'];
-
     final nav = _navigatorKey.currentState;
-    if (nav == null) return;
-
-    nav.push(
-      MaterialPageRoute(
-        builder: (_) =>
-            TournamentDetailScreen(tournamentId: tournamentId, joinCode: code),
-      ),
-    );
+    final context = _navigatorKey.currentContext;
+    if (nav == null || context == null) return;
+    TournamentLinkService.openFromLink(context, link);
   }
 
   @override
@@ -295,6 +285,7 @@ class _MySportsAppState extends State<MySportsApp> {
         navigatorObservers: [AnalyticsService().getObserver()],
         initialRoute: '/',
         routes: AppRoutes.routes,
+        onGenerateRoute: AppRoutes.onGenerateRoute,
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: ts.mode,
