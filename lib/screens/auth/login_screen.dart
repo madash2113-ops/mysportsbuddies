@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 
@@ -613,40 +614,41 @@ class _LoginScreenState extends State<LoginScreen>
         key: const ValueKey('sign-in-form'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Phone ──────────────────────────────────────────────────────────────
-          _MethodBtn(
-            label: 'Continue with Phone',
-            icon: Icons.phone_android_rounded,
-            primary: true,
-            active: phoneActive,
-            onTap: () => _toggle('phone'),
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            child: phoneActive
-                ? _phoneStep == _PhoneStep.phone
-                      ? _PhoneForm(
-                          loading: _phoneLoading,
-                          onSend: _sendOtp,
-                          error: _error,
-                        )
-                      : _OtpForm(
-                          otp: _otp,
-                          otpCtrl: _otpCtrl,
-                          otpFocus: _otpFocus,
-                          loading: _phoneLoading,
-                          countdown: _otpCountdown,
-                          onChanged: _onOtpChanged,
-                          onVerify: _verifyOtp,
-                          onResend: _resendOtp,
-                          onBack: _backToPhone,
-                          error: _error,
-                        )
-                : const SizedBox.shrink(),
-          ),
-
-          const SizedBox(height: 12),
+          if (!kIsWeb) ...[
+            // ── Phone ────────────────────────────────────────────────────────────
+            _MethodBtn(
+              label: 'Continue with Phone',
+              icon: Icons.phone_android_rounded,
+              primary: true,
+              active: phoneActive,
+              onTap: () => _toggle('phone'),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: phoneActive
+                  ? _phoneStep == _PhoneStep.phone
+                        ? _PhoneForm(
+                            loading: _phoneLoading,
+                            onSend: _sendOtp,
+                            error: _error,
+                          )
+                        : _OtpForm(
+                            otp: _otp,
+                            otpCtrl: _otpCtrl,
+                            otpFocus: _otpFocus,
+                            loading: _phoneLoading,
+                            countdown: _otpCountdown,
+                            onChanged: _onOtpChanged,
+                            onVerify: _verifyOtp,
+                            onResend: _resendOtp,
+                            onBack: _backToPhone,
+                            error: _error,
+                          )
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // ── Email ──────────────────────────────────────────────────────────────
           _MethodBtn(
@@ -1150,7 +1152,6 @@ class _LeftPanel extends StatelessWidget {
                           ],
                         ),
                       ),
-
                     ],
                   ),
                 );

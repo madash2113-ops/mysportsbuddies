@@ -633,17 +633,8 @@ class _FormPanel extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // ── Phone OTP ────────────────────────────────────────────────
-          _OutlinedAuthButton(
-            label: 'Continue with Phone OTP',
-            icon: Icons.phone_android_outlined,
-            onPressed: () => Navigator.pushNamed(context, '/phone-login'),
-          ),
-
-          const SizedBox(height: 10),
-
           // ── Email ────────────────────────────────────────────────────
-          _TextAuthButton(
+          _OutlinedAuthButton(
             label: 'Continue with Email',
             icon: Icons.email_outlined,
             onPressed: () => Navigator.pushNamed(context, '/email-login'),
@@ -867,48 +858,6 @@ class _OutlinedAuthButton extends StatelessWidget {
             Icon(icon, size: 18),
             const SizedBox(width: 10),
             Text(label, style: _m3LabelLarge),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TextAuthButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  const _TextAuthButton({
-    required this.label,
-    required this.icon,
-    this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: TextButton(
-        style:
-            TextButton.styleFrom(
-              foregroundColor: _muted,
-              shape: const StadiumBorder(),
-              side: const BorderSide(color: _bd, width: 1),
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              textStyle: _m3LabelLarge.copyWith(fontWeight: FontWeight.w400),
-            ).copyWith(
-              overlayColor: WidgetStateProperty.all(
-                Colors.white.withValues(alpha: 0.04),
-              ),
-            ),
-        onPressed: onPressed,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18),
-            const SizedBox(width: 10),
-            Text(label),
           ],
         ),
       ),
