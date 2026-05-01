@@ -640,6 +640,15 @@ class _FormPanel extends StatelessWidget {
             onPressed: () => Navigator.pushNamed(context, '/email-login'),
           ),
 
+          const SizedBox(height: 12),
+
+          // ── Phone OTP ────────────────────────────────────────────────
+          _OutlinedAuthButton(
+            label: 'Continue with Phone OTP',
+            icon: Icons.phone_android_outlined,
+            onPressed: () => Navigator.pushNamed(context, '/phone-login'),
+          ),
+
           // ── Error ────────────────────────────────────────────────────
           if (error != null) ...[
             const SizedBox(height: 14),
